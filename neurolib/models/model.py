@@ -133,6 +133,7 @@ class Model:
         append=False,
         append_outputs=None,
         continue_run=False,
+        control=None
     ):
         """Main interfacing function to run a model. 
         The model can be run in three different ways:
@@ -152,6 +153,8 @@ class Model:
         :type bold: bool, optional
         :param append: append the chunkwise outputs to the outputs attribute, defaults to False, defaults to False
         :type append: bool, optional
+        :param control: external control on the dynamical system
+        :type control: np.ndarray of size (N, len(output_vars), duration/dt)
         """
         # TODO: legacy argument support
         if append_outputs is not None:
@@ -160,11 +163,17 @@ class Model:
         # if a previous run is not to be continued clear the model's state
         if continue_run is False:
             self.clearModelState()
+            
+        if control is not None:
+            self.checkControlInput(control)
+            cntrl = control
+        else:
+            cntrl=self.getZeroControl()
 
         self.initializeRun(initializeBold=bold)
 
         if chunkwise is False:
-            self.integrate(append_outputs=append, simulate_bold=bold)
+            self.integrate(append_outputs=append, simulate_bold=bold, control=cntrl)
             if continue_run:
                 self.setInitialValuesToLastState()
 
@@ -176,7 +185,7 @@ class Model:
             if bold and not self.boldInitialized:
                 logging.warn(f"{self.name}: BOLD model not initialized, not simulating BOLD. Use `run(bold=True)`")
                 bold = False
-            self.integrateChunkwise(chunksize=chunksize, bold=bold, append_outputs=append)
+            self.integrateChunkwise(chunksize=chunksize, bold=bold, append_outputs=append, control=cntrl)
 
         # check if there was a problem with the simulated data
         self.checkOutputs()
@@ -195,14 +204,14 @@ class Model:
             if np.isnan(self.outputs.BOLD.BOLD).any():
                 logging.error("nan in BOLD output!")
 
-    def integrate(self, append_outputs=False, simulate_bold=False):
+    def integrate(self, append_outputs=False, simulate_bold=False, control=None):
         """Calls each models `integration` function and saves the state and the outputs of the model.
         
         :param append: append the chunkwise outputs to the outputs attribute, defaults to False, defaults to False
         :type append: bool, optional
         """
         # run integration
-        t, *variables = self.integration(self.params)
+        t, *variables = self.integration(self.params, control=control)
         self.storeOutputsAndStates(t, variables, append=append_outputs)
 
         # force bold if params['bold'] == True
@@ -214,7 +223,7 @@ class Model:
         if simulate_bold and self.boldInitialized:
             self.simulateBold(t, variables, append=True)
 
-    def integrateChunkwise(self, chunksize, bold=False, append_outputs=False):
+    def integrateChunkwise(self, chunksize, bold=False, append_outputs=False, control=None):
         """Repeatedly calls the chunkwise integration for the whole duration of the simulation.
         If `bold==True`, the BOLD model is simulated after each chunk.     
         
@@ -236,7 +245,7 @@ class Model:
             remainingChunkSize = int(round((totalDuration - lastT) / dt))
             currentChunkSize = min(chunksize, remainingChunkSize)
 
-            self.autochunk(chunksize=currentChunkSize, append_outputs=append_outputs, bold=bold)
+            self.autochunk(chunksize=currentChunkSize, append_outputs=append_outputs, bold=bold, control=control)
             # we save the last simulated time step
             lastT += currentChunkSize * dt
             # or
@@ -310,7 +319,7 @@ class Model:
         for i, iv in enumerate(self.input_vars):
             self.params[iv] = inputs[i].copy()
 
-    def autochunk(self, inputs=None, chunksize=1, append_outputs=False, bold=False):
+    def autochunk(self, inputs=None, chunksize=1, append_outputs=False, bold=False, control=None):
         """Executes a single chunk of integration, either for a given duration
         or a single timestep `dt`. Gathers all inputs to the model and resets
         the initial conditions as a preparation for the next chunk. 
@@ -331,7 +340,7 @@ class Model:
             self.setInputs(inputs)
 
         # run integration
-        self.integrate(append_outputs=append_outputs, simulate_bold=bold)
+        self.integrate(append_outputs=append_outputs, simulate_bold=bold, control=control)
 
         # set initial conditions to last state for the next chunk
         self.setInitialValuesToLastState()
@@ -541,3 +550,13 @@ class Model:
         allOutputsStacked = np.stack(outputs)  # What? Where? When?
         result = xr.DataArray(allOutputsStacked, coords=[outputNames, nodes, t], dims=["output", "space", "time"])
         return result
+
+    def getZeroControl(self):
+        control = np.zeros((self.params["N"], len(self.output_vars), int(self.params["duration"]/self.params["dt"]) ))
+        return control
+    
+    def checkControlInput(self, control):      
+        if (control.shape[0] == self.params["N"] and control.shape[1] == len(self.output_vars) and control.shape[2] == int(self.params["duration"]/self.params["dt"]) ):
+            return
+        else:
+            logging.error("Wrong dimension in control array input")

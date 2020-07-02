@@ -4,7 +4,7 @@ import numba
 from . import loadDefaultParams as dp
 
 
-def timeIntegration(params):
+def timeIntegration(params, control=None):
     """Sets up the parameters for time integration
     
     :param params: Parameter dictionary of the model
@@ -12,6 +12,7 @@ def timeIntegration(params):
     :return: Integrated activity variables of the model
     :rtype: (numpy.ndarray,)
     """
+
 
     dt = params["dt"]  # Time step for the Euler intergration (ms)
     duration = params["duration"]  # imulation duration (ms)
@@ -117,6 +118,8 @@ def timeIntegration(params):
 
     noise_xs = np.zeros((N,))
     noise_ys = np.zeros((N,))
+    
+    control_ext = control
 
     # ------------------------------------------------------------------------
 
@@ -153,6 +156,7 @@ def timeIntegration(params):
         y_ou_mean,
         tau_ou,
         sigma_ou,
+        control_ext
     )
 
 
@@ -190,11 +194,16 @@ def timeIntegration_njit_elementwise(
     y_ou_mean,
     tau_ou,
     sigma_ou,
+    control_ext
 ):
     """
     Fitz-Hugh Nagumo equations
     du/dt = -alpha u^3 + beta u^2 - gamma u - w + I_{ext}
     dw/dt = 1/tau (u + delta  - epsilon w)
+    
+    with control:
+            du/dt = -alpha u^3 + beta u^2 - gamma u - w + I_{ext} + c_1
+            dw/dt = 1/tau (u + delta  - epsilon w) + c_2
     """
     ### integrate ODE system:
     for i in range(startind, startind + len(t)):
@@ -230,12 +239,14 @@ def timeIntegration_njit_elementwise(
                 + xs_input_d[no]  # input from other nodes
                 + x_ou[no]  # ou noise
                 + x_ext[no]  # external input
+                + control_ext[no, 0, i - 1]  # external control
             )
             y_rhs = (
                 (xs[no, i - 1] - delta - epsilon * ys[no, i - 1]) / tau
                 + ys_input_d[no]  # input from other nodes
                 + y_ou[no]  # ou noise
                 + y_ext[no]  # external input
+                + control_ext[no, 1, i - 1]  # external control
             )
 
             # Euler integration

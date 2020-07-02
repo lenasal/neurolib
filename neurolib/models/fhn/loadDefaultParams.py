@@ -82,6 +82,9 @@ def loadDefaultParams(Cmat=None, Dmat=None, seed=None):
     # values of the external inputs
     params.x_ext = np.ones((params.N,))
     params.y_ext = np.zeros((params.N,))
+    
+    # external control parameter
+    params.control = None
 
     return params
 
