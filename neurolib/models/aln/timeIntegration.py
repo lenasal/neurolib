@@ -4,7 +4,7 @@ import numba
 from . import loadDefaultParams as dp
 
 
-def timeIntegration(params):
+def timeIntegration(params, control):
     """Sets up the parameters for time integration
     
     Return:
@@ -167,6 +167,7 @@ def timeIntegration(params):
     #    Dmat_ndt[l, l] = ndt_de  # if no distributed, this is a fixed value (E-E coupling)
 
     max_global_delay = max(np.max(Dmat_ndt), ndt_de, ndt_di)
+    #print(Dmat_ndt, ndt_de, ndt_di)
     startind = int(max_global_delay + 1)
 
     # state variable arrays, have length of t + startind
@@ -174,7 +175,7 @@ def timeIntegration(params):
     rates_exc = np.zeros((N, startind + len(t)))
     rates_inh = np.zeros((N, startind + len(t)))
     IA = np.zeros((N, startind + len(t)))
-
+    
     # ------------------------------------------------------------------------
     # Set initial values
     mufe = params["mufe_init"].copy()  # Filtered mean input (mu) for exc. population
@@ -193,8 +194,12 @@ def timeIntegration(params):
     mui_ou = params["mui_ou"].copy()  # Mean of external inh ON inout (mV/ms)
 
     # Set the initial firing rates.
+    # if initial values are just N array:
+    if len(np.shape(params["rates_exc_init"])) == 1:
+        rates_exc_init = (params["rates_exc_init"] * np.ones((1, startind))).T   # kHz
+        rates_inh_init = (params["rates_inh_init"] * np.ones((startind, 1))).T  # kHz
     # if initial values are just a Nx1 array
-    if np.shape(params["rates_exc_init"])[1] == 1:
+    elif np.shape(params["rates_exc_init"])[1] == 1:
         # repeat the 1-dim value stardind times
         rates_exc_init = np.dot(params["rates_exc_init"], np.ones((1, startind)))  # kHz
         rates_inh_init = np.dot(params["rates_inh_init"], np.ones((1, startind)))  # kHz
@@ -223,9 +228,14 @@ def timeIntegration(params):
 
     # tile external inputs to appropriate shape
     ext_exc_current = adjust_shape(params["ext_exc_current"], rates_exc)
+    print("ext exc current = ", ext_exc_current)
     ext_inh_current = adjust_shape(params["ext_inh_current"], rates_exc)
     ext_exc_rate = adjust_shape(params["ext_exc_rate"], rates_exc)
     ext_inh_rate = adjust_shape(params["ext_inh_rate"], rates_exc)
+    
+    control_ext = control.copy()
+    #print("control = ", control_ext[0,0,0])
+    #print("control = ", control_ext[0,0,startind])
 
     # ------------------------------------------------------------------------
 
@@ -311,6 +321,7 @@ def timeIntegration(params):
         ext_inh_current,
         noise_exc,
         noise_inh,
+        control_ext,
     )
 
 
@@ -397,6 +408,7 @@ def timeIntegration_njit_elementwise(
     ext_inh_current,
     noise_exc,
     noise_inh,
+    control_ext,
 ):
 
     # squared Jee_max
@@ -414,6 +426,8 @@ def timeIntegration_njit_elementwise(
     if filter_sigma:
         sigmae_f = sigmae_ext
         sigmai_f = sigmai_ext
+        
+    #print("start index = ", startind)
 
     ### integrate ODE system:
     for i in range(startind, startind + len(t)):
@@ -428,6 +442,8 @@ def timeIntegration_njit_elementwise(
                     rd_exc[l, no] = rates_exc[no, i - Dmat_ndt[l, no] - 1] * 1e-3  # convert Hz to kHz
                 # Warning: this is a vector and not a matrix as rd_exc
                 rd_inh[no] = rates_inh[no, i - ndt_di - 1] * 1e-3  # convert Hz to kHz
+               # print("excitatory and inhibitory rates : ", rates_exc[no, i - Dmat_ndt[l, no] - 1], " index ",  no, i - Dmat_ndt[l, no] - 1)
+                #print("inh =", rates_inh[no, i - ndt_di - 1], " index ", no, i - ndt_di - 1)
 
         # loop through all the nodes
         for no in range(N):
@@ -436,8 +452,10 @@ def timeIntegration_njit_elementwise(
             noise_exc[no] = rates_exc[no, i]
             noise_inh[no] = rates_inh[no, i]
 
-            mue = Jee_max * seem[no] + Jei_max * seim[no] + mue_ou[no] + ext_exc_current[no, i]
-            mui = Jie_max * siem[no] + Jii_max * siim[no] + mui_ou[no] + ext_inh_current[no, i]
+            mue = Jee_max * seem[no] + Jei_max * seim[no] + mue_ou[no] + ext_exc_current[no, i] + control_ext[no, 0, i-startind]
+            mui = Jie_max * siem[no] + Jii_max * siim[no] + mui_ou[no] + ext_inh_current[no, i] + control_ext[no, 1, i-startind]
+            #if (i in range(startind, startind + 3,1)):
+            #    print("mui computation: ", control_ext[no, 1, i-startind])
 
             # compute row sum of Cmat*rd_exc and Cmat**2*rd_exc
             rowsum = 0
@@ -455,6 +473,7 @@ def timeIntegration_njit_elementwise(
                 cie * Ke * rd_exc[no, no] + c_gl * Ke_gl * ext_inh_rate[no, i]
             )  # first test of external rate input to inh. population
             z1ii = cii * Ki * rd_inh[no]
+            #print("parameters of calculation: rd_exc[no, no], rd_inh[no]", rd_exc[no, no], rd_inh[no])
             # z2: weighted sum of delayed rates, weights=c^2*K (see thesis last ch.)
             z2ee = (
                 cee ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * rowsumsq + c_gl ** 2 * Ke_gl * ext_exc_rate[no, i]
@@ -476,6 +495,8 @@ def timeIntegration_njit_elementwise(
                 + 2 * sq_Jii_max * siiv[no] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
                 + sigmai_ext ** 2
             )  # mV/sqrt(ms)
+            #print("integration, sigmai ", sigmai)
+            #print("calculated from z1ie,  z1ii ", z1ie,  z1ii)
 
             if not filter_sigma:
                 sigmae_f = sigmae
@@ -483,6 +504,9 @@ def timeIntegration_njit_elementwise(
 
             # Read the transfer function from the lookup table
             # -------------------------------------------------------------
+            
+            #print("integration, inital parameters:: mufe,mufi,seem,seim,siem,siim,seev,seiv,siev,siiv,mue_ou,mui_ou",
+            #      mufe, mufi, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou)
 
             # ------- excitatory population
             # mufe[no] - IA[no] / C is the total current of the excitatory population
@@ -491,6 +515,7 @@ def timeIntegration_njit_elementwise(
             )
             xid1, yid1 = int(xid1), int(yid1)
 
+            #print("integration: xid1, yid1, dxid, dyid = ", xid1, yid1, dxid, dyid)
             rates_exc[no, i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             Vmean_exc = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
             tau_exc = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
@@ -499,12 +524,26 @@ def timeIntegration_njit_elementwise(
 
             # ------- inhibitory population
             #  mufi[no] are the (filtered) currents of the inhibitory population
+            
             xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f, Irange, dI, mufi[no])
             xid1, yid1 = int(xid1), int(yid1)
+            
+            #print("integration, ds, sigmai_f, dI", ds, sigmai_f, dI)
+            #print("integration, mufi = ", mufi[no])
+            
+            #if (i in range(startind, startind + 3,1)):
+                #print("sigmarange = ", sigmarange)
+                #print("ds = ", ds)
+                #print("sigmai_f = ", sigmai_f)
+                #print("Irange = ", Irange)
+                #print("dI = ", dI)
+                #print("mufi[no] = ", mufi[no])
+                #print("xid1, yid1, dxid, dyid = ", xid1, yid1, dxid, dyid)
 
             rates_inh[no, i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
             # Vmean_inh = interpolate_values(precalc_V, xid1, yid1, dxid, dyid) # not used
             tau_inh = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+            #print("integration: tau calculated from ", xid1, yid1, dxid, dyid)
             if filter_sigma:
                 tau_sigmai_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
 
@@ -514,6 +553,7 @@ def timeIntegration_njit_elementwise(
 
             mufe_rhs = (mue - mufe[no]) / tau_exc
             mufi_rhs = (mui - mufi[no]) / tau_inh
+            #print("integration: mufi rhs different because tau_inh different = ", tau_inh)
 
             # rate has to be kHz
             IA_rhs = (a * (Vmean_exc - EA) - IA[no, i - 1] + tauA * b * rates_exc[no, i] * 1e-3) / tauA
@@ -541,6 +581,8 @@ def timeIntegration_njit_elementwise(
 
             mufe[no] = mufe[no] + dt * mufe_rhs
             mufi[no] = mufi[no] + dt * mufi_rhs
+            #if (i in range(startind, startind + 3,1)):
+                #print("mui, mufi[no], tau_inh, mufi rhs = ", mui, mufi[no], tau_inh, mufi_rhs)
             IA[no, i] = IA[no, i - 1] + dt * IA_rhs
 
             if distr_delay:
@@ -580,6 +622,8 @@ def timeIntegration_njit_elementwise(
             mui_ou[no] = (
                 mui_ou[no] + (mui_ext_mean - mui_ou[no]) * dt / tau_ou + sigma_ou * sqrt_dt * noise_inh[no]
             )  # mV/ms
+            
+            #print("integration, final parameters::  mufe,mufi,seem,seim,siem,siim,seev,seiv,siev,siiv,mue_ou,mui_ou, mufi)
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou
 

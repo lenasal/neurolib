@@ -38,7 +38,7 @@ def loadDefaultParams(Cmat=None, Dmat=None, seed=None):
     # "diffusive" for diffusive coupling, "additive" for additive coupling
     params.coupling = "diffusive"
 
-    # signal transmission speec between areas
+    # signal transmission speed between areas
     params.signalV = 20.0
     params.K_gl = 0.6  # global coupling strength
 
@@ -52,6 +52,14 @@ def loadDefaultParams(Cmat=None, Dmat=None, seed=None):
         np.fill_diagonal(params.Cmat, 0)  # no self connections
         params.N = len(params.Cmat)  # number of nodes
         params.lengthMat = Dmat
+        
+    if Dmat is None:
+        params.Cmat = np.zeros((params.N, params.N))
+        params.Dmat = computeDelayMatrix(params.lengthMat, params.signalV)
+
+    else:
+        params.Dmat = Dmat.copy()  # delay matrix
+        np.fill_diagonal(params.Dmat, 0)  # no delay to self
 
     # ------------------------------------------------------------------------
     # local node parameters

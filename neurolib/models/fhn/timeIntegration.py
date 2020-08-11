@@ -4,7 +4,7 @@ import numba
 from . import loadDefaultParams as dp
 
 
-def timeIntegration(params, control=None):
+def timeIntegration(params, control):
     """Sets up the parameters for time integration
     
     :param params: Parameter dictionary of the model
@@ -75,6 +75,7 @@ def timeIntegration(params, control=None):
     # Floating point issue in np.arange() workaraound: use integers in np.arange()
     t = np.arange(1, round(duration, 6) / dt + 1) * dt  # Time variable (ms)
 
+
     sqrt_dt = np.sqrt(dt)
 
     max_global_delay = np.max(Dmat_ndt)
@@ -90,17 +91,31 @@ def timeIntegration(params, control=None):
     # they store initial conditions AND simulated data
     xs = np.zeros((N, startind + len(t)))
     ys = np.zeros((N, startind + len(t)))
+    
 
     # ------------------------------------------------------------------------
     # Set initial values
-    # if initial values are just a Nx1 array
-    if np.shape(params["xs_init"])[1] == 1:
-        xs_init = np.dot(params["xs_init"], np.ones((1, startind)))
-        ys_init = np.dot(params["ys_init"], np.ones((1, startind)))
-    # if initial values are a Nxt array
-    else:
-        xs_init = params["xs_init"][:, -startind:]
-        ys_init = params["ys_init"][:, -startind:]
+    # initial values are just one array
+    if (len(params['xs_init'].shape) == 1):
+        # one node case
+        if (params['N'] == 1):
+            xs_init = np.dot( params["xs_init"], np.ones((1, startind)) )
+            ys_init = np.dot( params["ys_init"], np.ones((1, startind)) )
+        else:
+            xs_init_params = params["xs_init"].reshape(params['xs_init'].shape[0],1)
+            ys_init_params = params["ys_init"].reshape(params['ys_init'].shape[0],1)
+            xs_init = np.matmul( xs_init_params, np.ones((1, startind)) )
+            ys_init = np.matmul( ys_init_params, np.ones((1, startind)) )
+    # if initial values are just a Nx1 array:multiply Nx1 matrix with 1xstartind matrix
+    if (len(params['xs_init'].shape) > 1):
+        if np.shape(params["xs_init"])[1] == 1:
+            xs_init = np.dot(params["xs_init"], np.ones((1, startind)))
+            ys_init = np.dot(params["ys_init"], np.ones((1, startind)))
+            # if initial values are a Nxt array: take last startind values
+        else:
+            xs_init = params["xs_init"][:, -startind:]
+            ys_init = params["ys_init"][:, -startind:]
+        
 
     # xsd = np.zeros((N,N))  # delayed activity
     xs_input_d = np.zeros(N)  # delayed input to x
@@ -156,7 +171,7 @@ def timeIntegration(params, control=None):
         y_ou_mean,
         tau_ou,
         sigma_ou,
-        control_ext
+        control_ext,
     )
 
 
@@ -194,7 +209,7 @@ def timeIntegration_njit_elementwise(
     y_ou_mean,
     tau_ou,
     sigma_ou,
-    control_ext
+    control_ext,
 ):
     """
     Fitz-Hugh Nagumo equations
@@ -205,7 +220,11 @@ def timeIntegration_njit_elementwise(
             du/dt = -alpha u^3 + beta u^2 - gamma u - w + I_{ext} + c_1
             dw/dt = 1/tau (u + delta  - epsilon w) + c_2
     """
+    
+    #print("start index = ", startind)
+    #print("control = ", control_ext)
     ### integrate ODE system:
+    
     for i in range(startind, startind + len(t)):
 
         # loop through all the nodes
@@ -219,6 +238,7 @@ def timeIntegration_njit_elementwise(
             xs_input_d[no] = 0
             ys_input_d[no] = 0
 
+        	
             # diffusive coupling
             if coupling == 0:
                 for l in range(N):
@@ -229,32 +249,39 @@ def timeIntegration_njit_elementwise(
                 for l in range(N):
                     xs_input_d[no] += K_gl * Cmat[no, l] * (xs[l, i - Dmat_ndt[no, l] - 1])
                     # ys_input_d[no] += K_gl * Cmat[no, l] * (ys[l, i - Dmat_ndt[no, l] - 1])
+            
 
             # Fitz-Hugh Nagumo equations
             x_rhs = (
-                -alpha * xs[no, i - 1] ** 3
+                - alpha * xs[no, i - 1] ** 3
                 + beta * xs[no, i - 1] ** 2
                 + gamma * xs[no, i - 1]
                 - ys[no, i - 1]
                 + xs_input_d[no]  # input from other nodes
                 + x_ou[no]  # ou noise
                 + x_ext[no]  # external input
-                + control_ext[no, 0, i - 1]  # external control
+                + control_ext[no, 0, i - startind]  # external control
             )
             y_rhs = (
                 (xs[no, i - 1] - delta - epsilon * ys[no, i - 1]) / tau
                 + ys_input_d[no]  # input from other nodes
                 + y_ou[no]  # ou noise
                 + y_ext[no]  # external input
-                + control_ext[no, 1, i - 1]  # external control
+    
             )
 
             # Euler integration
             xs[no, i] = xs[no, i - 1] + dt * x_rhs
             ys[no, i] = ys[no, i - 1] + dt * y_rhs
+            
+            #if ( i in [1,2]):
+                #print("x, y, rhs = ", x_rhs, y_rhs)
+                #print("x, y = ", xs[no, i], ys[no, i])
+                #print("parameteres: ", control_ext[no, 0, i - startind])
 
             # Ornstein-Uhlenberg process
             x_ou[no] = x_ou[no] + (x_ou_mean - x_ou[no]) * dt / tau_ou + sigma_ou * sqrt_dt * noise_xs[no]  # mV/ms
             y_ou[no] = y_ou[no] + (y_ou_mean - y_ou[no]) * dt / tau_ou + sigma_ou * sqrt_dt * noise_ys[no]  # mV/ms
+
 
     return t, xs, ys, x_ou, y_ou

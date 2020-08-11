@@ -14,9 +14,11 @@ class FHNModel(Model):
     init_vars = ["xs_init", "ys_init", "x_ou", "y_ou"]
     state_vars = ["x", "y", "x_ou", "y_ou"]
     output_vars = ["x", "y"]
+    target_output_vars = ["x", "y"]
     default_output = "x"
     input_vars = ["x_ext", "y_ext"]
     default_input = "x_ext"
+    control_input_vars = ["x_ext"]
 
     # because this is not a rate model, the input
     # to the bold model must be transformed

@@ -5,6 +5,10 @@ import numpy as np
 from ..models import bold
 
 from ..utils.collections import dotdict
+from ..utils import costFunctions as cost
+from ..utils import A1 as opti1
+from ..utils import A2 as opti2
+
 
 
 class Model:
@@ -154,7 +158,7 @@ class Model:
         :param append: append the chunkwise outputs to the outputs attribute, defaults to False, defaults to False
         :type append: bool, optional
         :param control: external control on the dynamical system
-        :type control: np.ndarray of size (N, len(output_vars), duration/dt)
+        :type control: np.ndarray of size (N, len(input_vars), duration/dt)
         """
         # TODO: legacy argument support
         if append_outputs is not None:
@@ -165,10 +169,10 @@ class Model:
             self.clearModelState()
             
         if control is not None:
-            self.checkControlInput(control)
+            self.checkControlInput(control, removeICs = False)
             cntrl = control
         else:
-            cntrl=self.getZeroControl()
+            cntrl=self.getZeroControl(removeICs = False)
 
         self.initializeRun(initializeBold=bold)
 
@@ -197,7 +201,7 @@ class Model:
         else:
             EXPLOSION_THRESHOLD = 1e20
             if (self.output > EXPLOSION_THRESHOLD).any() > 0:
-                logging.error("nan in model output!")
+                logging.error("explosion in model output!")
 
         # check nans in BOLD
         if "BOLD" in self.outputs:
@@ -211,7 +215,9 @@ class Model:
         :type append: bool, optional
         """
         # run integration
+        #print("before integration")
         t, *variables = self.integration(self.params, control=control)
+        #print("after integration")
         self.storeOutputsAndStates(t, variables, append=append_outputs)
 
         # force bold if params['bold'] == True
@@ -273,12 +279,12 @@ class Model:
         :type append: bool, optional
         """
         # save time array
-        self.setOutput("t", t, append=append, removeICs=True)
+        self.setOutput("t", t, append=append, removeICs=False)
         self.setStateVariables("t", t)
         # save outputs
         for svn, sv in zip(self.state_vars, variables):
             if svn in self.output_vars:
-                self.setOutput(svn, sv, append=append, removeICs=True)
+                self.setOutput(svn, sv, append=append, removeICs=False)
             self.setStateVariables(svn, sv)
 
     def setInitialValuesToLastState(self):
@@ -391,8 +397,11 @@ class Model:
         # else: data.copy()
         # there coulb be (N, 1)-dimensional output, right now
         # it is requred to be of shape (N, )
+        #print("data = ", name, data.shape, self.startindt)
         if data.ndim == 2:
-            self.state[name] = data[:, -self.startindt :].copy()
+            #self.state[name] = data[:, -self.startindt :].copy()
+            self.state[name] = data[:, self.startindt:].copy()
+            #print("data = ", name, self.state[name].shape)
         else:
             self.state[name] = data.copy()
 
@@ -407,12 +416,20 @@ class Model:
         assert isinstance(name, str), "Output name must be a string."
         assert isinstance(data, np.ndarray), "Output must be a `numpy.ndarray`."
 
-        # remove initial conditions from output
+        # remove initial conditions from output, start from start index
         if removeICs and name is not "t":
             if data.ndim == 1:
                 data = data[self.startindt :]
             elif data.ndim == 2:
                 data = data[:, self.startindt :]
+            else:
+                raise ValueError(f"Don't know how to truncate data of shape {data.shape}.")
+        # leave initial contidions at start index in output data
+        elif name is not "t":
+            if data.ndim == 1:
+                data = data[self.startindt-1 :]
+            elif data.ndim == 2:
+                data = data[:, self.startindt-1 :]
             else:
                 raise ValueError(f"Don't know how to truncate data of shape {data.shape}.")
 
@@ -427,6 +444,11 @@ class Model:
                 self.outputs[name] = np.hstack((self.outputs[name], data))
             else:
                 # save all data into output dict
+                if (removeICs == False and name == 't'):
+                    data1 = np.zeros((len(data)+1))
+                    data1[0] = 0.0
+                    data1[1:] = data
+                    data = data1
                 self.outputs[name] = data
             # set output as an attribute
             setattr(self, name, self.outputs[name])
@@ -551,12 +573,57 @@ class Model:
         result = xr.DataArray(allOutputsStacked, coords=[outputNames, nodes, t], dims=["output", "space", "time"])
         return result
 
-    def getZeroControl(self):
-        control = np.zeros((self.params["N"], len(self.output_vars), int(self.params["duration"]/self.params["dt"]) ))
+
+################################################################################################
+    def getZeroState(self, removeICs = True):
+        if removeICs:
+            state = np.zeros((self.params["N"], len(self.output_vars), int(round(self.params["duration"]/self.params["dt"],1) + 1) ))
+        else:
+            state = np.zeros((self.params["N"], len(self.output_vars), int(round(self.params["duration"]/self.params["dt"], 1) ) ))
+        return state    
+
+    def getZeroControl(self, removeICs = True):
+        if removeICs:
+            control = np.zeros((self.params["N"], len(self.control_input_vars), int(round(self.params["duration"]/self.params["dt"],1) + 1) ))
+        else:
+            control = np.zeros((self.params["N"], len(self.control_input_vars), int(round(self.params["duration"]/self.params["dt"], 1) ) ))
         return control
     
-    def checkControlInput(self, control):      
-        if (control.shape[0] == self.params["N"] and control.shape[1] == len(self.output_vars) and control.shape[2] == int(self.params["duration"]/self.params["dt"]) ):
-            return
+    def checkControlInput(self, control, removeICs = True):    
+        if removeICs:
+            if (control.shape[0] == self.params["N"] and control.shape[1] == len(self.control_input_vars)
+                and control.shape[2] == int(round(self.params["duration"]/self.params["dt"], 1)) ):
+                return
+            else:
+                logging.error("Wrong dimension in control array input")
+                return
         else:
-            logging.error("Wrong dimension in control array input")
+            if (control.shape[0] == self.params["N"] and control.shape[1] == len(self.control_input_vars)
+                and control.shape[2] == int(round(self.params["duration"]/self.params["dt"],1) + 1) ):
+                return
+            else:
+                logging.error("Wrong dimension in control array input")
+                return
+            
+    def getZeroTarget(self, removeICs = True):
+        if removeICs:
+            target = np.zeros((self.params["N"], len(self.target_output_vars), int(round(self.params["duration"]/self.params["dt"],1) + 1) ))
+        else:
+            target = np.zeros((self.params["N"], len(self.target_output_vars), int(round(self.params["duration"]/self.params["dt"], 1) ) ))
+        return target
+    
+#TODO implement correctly
+    def cost(self, state_, target_state_, control_):
+        return cost.f_cost(state_, target_state_, control_)
+    
+    def costIntegral(self, cost_, start_t_ = -1, stop_t_ = -1):
+        return cost.f_int(self.params['dt'], cost_, start_t_, stop_t_)
+    
+    def costPrecisionGradientT(self, state_t_, target_state_t_):
+        return cost.cost_precision_gradient_t(state_t_, target_state_t_)
+    
+    def A2(self, cntrl_, target_, max_iteration_ = 10, tolerance_ = 1e-12, include_timestep_ = 100, start_step_ = 10, test_step_ = 1e-8, max_control_ = 20.):
+        return opti2.A2(self, cntrl_, target_,  max_iteration_, tolerance_, include_timestep_, start_step_, test_step_, max_control_)
+    
+    def A1(self, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10., test_step_ = 1e-8,                                cntrl_max_ = 20., CGVar = None):
+        return opti1.A1(self, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, test_step_, cntrl_max_, CGVar)

@@ -1,0 +1,360 @@
+import numpy as np
+from timeit import default_timer as timer
+from . import costFunctions as cost
+
+
+
+VALID_VAR = {None, "FR", "HS"}
+
+def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, test_step_, cntrl_max_, CGVar):
+    
+    if CGVar not in VALID_VAR:
+        raise ValueError("u_opt control optimization: conjugate gradient variant must be one of %r." % VALID_VAR)
+        CGVar = None
+        
+    runtime_ = np.zeros((max_iteration_+1))
+    runtime_start_ = timer()
+    beta_ = 0.
+    
+    state0_ = state_.copy()
+    state1_ = state0_.copy()
+    u_opt0_ = control_.copy()
+    u_opt1_ = control_.copy()
+    phi_ = phi(model, state0_, target_state_, c_scheme_)
+    #print("phi = ", phi_)
+    g0_min_ = g(model, phi_, state1_, target_state_, u_opt1_, u_mat_, u_scheme_)
+    g1_min_ = g0_min_.copy()
+    #print("g_min = ", g_min_)
+    dir0_ = - g0_min_.copy()
+    dir1_ = dir0_.copy()
+    
+    dc1 = np.zeros(( state_.shape[2] ))
+    
+    """
+    #check descent condition   
+    for i_time in range(state_.shape[2]):
+        for i_node in range(state_.shape[0]):
+            for i_var in range(state_.shape[1]):
+                dc1[i_time] += (g1_min_[i_node, i_var, i_time] * dir0_[i_node, i_var, i_time])
+        if (dc1[i_time] > 0):
+            print("descent condition 1 not satisfied for time index ", i_time)
+            """
+    
+    
+    i=0
+    
+    total_cost_ = np.zeros((max_iteration_+1))
+    total_cost_[i] = cost.f_int(model.params['dt'], cost.f_cost(state0_, target_state_, control_) )
+    print("RUN ", i, ", total integrated cost = ", total_cost_[i])
+    runtime_[i] = timer() - runtime_start_
+    
+    while( np.amax(np.absolute(g0_min_[:,:,1:])) > tolerance_ and i < max_iteration_ - 1 ):
+        i += 1        
+        step_, total_cost_[i] = step_size(model, state1_, target_state_, u_opt1_, dir1_, start_step_ = startStep_,
+                                          max_control_ = cntrl_max_)
+        print("RUN ", i, ", total integrated cost = ", total_cost_[i])
+        #print("step = ", step_)
+        #print("dir = ", dir1_)
+        u_opt1_ = u_opt0_ + step_ * dir1_
+        #print("u opt = ", u_opt1_)
+        u_diff_ = ( np.absolute(u_opt1_ - u_opt0_) < tolerance_ )
+        if ( u_diff_.all() ):
+            print("Control only changes marginally.")
+            print("improved over ", i, " iterations by ", 100 - int(100.*(total_cost_[i]/total_cost_[0])), " percent.")
+            return u_opt0_, state0_, total_cost_, runtime_
+        u_opt0_ = u_opt1_.copy()
+        
+        state1_ = updateState(model, u_opt1_)
+        s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_ )
+        if ( s_diff_.all() ):
+            print("State only changes marginally.")
+            print("improved over ", i, " iterations by ", 100 - int(100.*(total_cost_[i]/total_cost_[0])), " percent.")
+            return u_opt0_, state0_, total_cost_, runtime_
+        state0_ = state1_.copy()
+        
+        runtime_[i] = timer() - runtime_start_
+        #print("new state = ", state_)
+        #print('-----------')
+        
+        
+        phi_ = phi(model, state1_, target_state_, c_scheme_)
+        g1_min_ = g(model, phi_, state1_, target_state_, u_opt1_, u_mat_, u_scheme_)
+        #print("phi = ", phi_)
+        #print("g = ", g1_min_)
+        
+        """
+        diffT = np.zeros(( state_.shape[2] ))
+        
+        for i_time in range(state_.shape[2]):
+            for i_node in range(state_.shape[0]):
+                for i_var in range(state_.shape[1]):
+                    diffT[i_time] += (g1_min_[i_node, i_var, i_time] * g0_min_[i_node, i_var, i_time])
+
+        print("gradient change min, max, mean : ", np.amin(diffT), np.amax(diffT), np.mean(diffT))
+        """
+        
+        CGVar1 = CGVar
+        #if (np.mean(diffT) <= 0.):
+        #    CGVar1 = None
+        
+        #dir_test_step_ = 0.
+        #test_step_size_ = test_step_
+        
+        #if (i == 5 or i == 6):
+          #  print(" phi = ", phi_)
+           # print(" g = ", g1_min_)
+            #print(" dir = ", dir_)
+            
+        if (CGVar1 == None):
+            # do not apply special variation of conjugate gradient descend
+            beta_ = 0.
+        elif (CGVar1 == "FR"):
+           beta_ = beta_FR_t(model, g1_min_, g0_min_)
+        elif (CGVar1 == "HS"):
+            beta_ = beta_HS(model, g1_min_, g0_min_, dir0_)
+           
+        #print("beta min, max = ", np.amin(beta_), np.amax(beta_) )
+ 
+        dir1_ = - g1_min_ + beta_ * dir0_
+        
+        dc1 = np.zeros(( state_.shape[2] ))
+        
+        #check descent condition   
+        for i_time in range(control_.shape[2]):
+            for i_node in range(control_.shape[0]):
+                for i_var in range(control_.shape[1]):
+                    dc1[i_time] += (g1_min_[i_node, i_var, i_time] * dir1_[i_node, i_var, i_time])
+            if (dc1[i_time] > 0):
+                #print("descent condition 1 not satisfied for time index ", i_time)
+                dir1_[:,:,i_time] = - g1_min_[:,:,i_time]
+        
+        print("descent condition min, max, mean = ", np.amin(dc1), np.amax(dc1), np.mean(dc1) )
+        
+        g0_min_ = g1_min_.copy()
+        dir0_ = dir1_.copy()
+ 
+        """
+        while(dir_test_step_ == 0.):
+            #dir1_ = - g1_min_ + beta_*dir_
+            #rint("1")
+            dir_test_step_, dir_test_cost_ = test_step(model, state0_, target_state_, u_opt1_, dir1_, test_step_size_)
+            print(dir_test_step_)
+            if (dir_test_step_ == 0.):
+                print("no descent direction")
+                dir1_ = - g1_min_
+                dir_test_step_, dir_test_cost_ = test_step(model, state0_, target_state_, u_opt1_, dir1_, test_step_size_)
+                if (dir_test_step_ == 0.): # not descent direction
+                    # can happen for unstable targets, when small changes cause overshooting
+                    # decrease size of test step for all future iterations, because dynamical state will stay unstable
+                    # change also initial step size because is likely to be much too large
+                    test_step_size_ /= 10.
+                    print("No descent direction found, try with smaller test step: ", test_step_size_)
+                    #startStep_ = test_step_size_
+                    if (test_step_size_ < 1e-30):
+                        print("Cannot find descent direction")
+                        return u_opt1_, state0_, total_cost_, runtime_
+        """
+        
+                        
+    i += 1
+    step_, total_cost_[i] = step_size(model, state1_, target_state_, u_opt1_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
+    print("RUN ", i, ", total integrated cost = ", total_cost_[i])
+    #print("step = ", step_)
+    #print("dir = ", dir_)
+    u_opt1_ += step_ * dir1_
+    #print("u optimal = ", u_opt_)
+    state1_ = updateState(model, u_opt1_)
+    runtime_[i] = timer() - runtime_start_
+    print("improved over ", max_iteration_, " iterations by ", 100 - int(100.*(total_cost_[-1]/total_cost_[0])), " percent.")
+    
+    return u_opt1_, state1_, total_cost_, runtime_    
+
+
+# computation of phi
+
+#@numba.njit
+def phi(model, state_, target_state_, c_scheme_, start_ind_ = 0):
+    phi_ = model.getZeroState()
+    dt = model.params['dt']
+    N = model.params['N']
+    alpha = model.params['alpha']
+    beta = model.params['beta']
+    gamma = model.params['gamma']
+    tau = model.params['tau']
+    epsilon = model.params['epsilon']
+    coupling_ = model.params['K_gl']
+    c_mat_ = model.params['Cmat']
+    
+    for ind_time in range(phi_.shape[2]-1, start_ind_, -1):
+        f_p_grad_t_ = cost.cost_precision_gradient_t(state_[:,:,ind_time],  target_state_[:,:,ind_time])
+        phi_dot_ = phi_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_,
+                           N, len(model.output_vars), alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_)
+        #print("phi, phi_dot = ", type(phi_), type(phi_dot_), phi_, phi_dot_)
+        phi_[:,:, ind_time-1] = phi_[:,:, ind_time] - phi_dot_[:,:] * dt
+    return phi_
+    
+#@numba.njit
+def phi_dot(state_t_, target_state_t_, phi_, f_p_grad_t_, N, no_output, alpha, beta, gamma, tau, epsilon, coupling_,
+            c_mat_, c_scheme_):
+    phi_dot_ = np.zeros(( N, no_output ))
+    jac_h_t_ = np.zeros(( N, N, no_output, no_output ))
+    jac_h_t_ = jac_h_t(jac_h_t_, state_t_, alpha, beta, gamma, tau, epsilon)
+    
+    for i_node in range(phi_dot_.shape[0]):
+        for i_var in range(phi_dot_.shape[1]):
+            matProd = 0.
+                
+            for j_node in range(phi_dot_.shape[0]):
+                for j_var in range(phi_dot_.shape[1]):
+                    matProd += (jac_h_t_[j_node, i_node, j_var, i_var] + coupling_
+                                * c_mat_[j_node, i_node] * c_scheme_[j_var, i_var]) * phi_[j_node, j_var]   
+            phi_dot_[i_node, i_var] += - matProd - f_p_grad_t_[i_node, i_var]
+            
+    return phi_dot_
+                
+
+# block-diagonal jacobian matrix
+#@numba.njit
+def jac_h_t(jac_h_t_, state_t_, alpha, beta, gamma, tau, epsilon):
+    #jac_h_t_ = np.zeros(( fhn.params['N'], fhn.params['N'], len(fhn.output_vars), len(fhn.output_vars) ))
+    #alpha = fhn.params['alpha']
+    #beta = fhn.params['beta']
+    #gamma = fhn.params['gamma']
+    #tau = fhn.params['tau']
+    #epsilon = fhn.params['epsilon']
+    x1_ = state_t_[:,0]
+    for ind_node in range(jac_h_t_.shape[0]):
+        jac_h_t_[ind_node, ind_node, 0, 0] = -3. * alpha * x1_[ind_node]**2 + 2. * beta *x1_[ind_node] + gamma
+        jac_h_t_[ind_node, ind_node, 0, 1] = -1.
+        jac_h_t_[ind_node, ind_node, 1, 0] = 1. / tau
+        jac_h_t_[ind_node, ind_node, 1, 1] = - epsilon / tau
+    return jac_h_t_
+
+# computation of g
+def g(model, phi_, state_, target_, control_, u_mat_, u_scheme_):
+    g_ = model.getZeroControl()
+    grad_cost_e_ = cost.cost_energy_gradient(model, control_)
+    grad_cost_s_ = cost.cost_sparsity_gradient1(model, control_)
+    
+    for i_time in range(g_.shape[2]):
+        for i_node in range(g_.shape[0]):
+            for i_var in range(g_.shape[1]):
+                matProd = 0.
+                for j_node in range(u_mat_.shape[0]):
+                    for j_var in range(u_scheme_.shape[0]):
+                        matProd += u_mat_[j_node, i_node] * u_scheme_[j_var, i_var] * phi_[j_node, j_var, i_time]
+                        
+                #print(g_.shape, grad_cost_e_.shape, grad_cost_s_.shape)
+                g_[i_node, i_var, i_time] = matProd + grad_cost_e_[i_node, i_var, i_time] + grad_cost_s_[i_node, i_var, i_time]
+    return g_
+
+def test_step(model, state_, target_, control_, dir_, test_step_ = 1e-12):
+    dt = model.params['dt']
+    cost0_int_ = cost.f_int(dt, cost.f_cost(state_, target_, control_))
+    
+    test_control_ = control_ + test_step_ * dir_
+    state1_ = updateState(model, test_control_)
+    cost1_int_ = cost.f_int(dt, cost.f_cost(state1_, target_, test_control_))
+    #print("test step size computation : ------ step size, cost1, cost0 : ", test_step_, cost1_int_, cost0_int_)
+        
+    if (cost1_int_ < cost0_int_):
+        return test_step_, cost1_int_
+    else:
+        return 0., cost0_int_
+
+def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_iteration_ = 1000,
+              bisec_factor_ = 2., max_control_ = 20.):
+    dt = model.params['dt']
+    cost0_int_ = cost.f_int(dt, cost.f_cost(state_, target_, control_))
+    cost_min_int_ = cost0_int_
+    step_ = start_step_
+    step_min_ = step_
+    
+    for i in range(max_iteration_):
+        test_control_ = control_ + step_ * dir_
+        
+        # include maximum control value to assure no divergence
+        if ( np.amax(np.absolute(test_control_)) > max_control_):
+            if (i < max_iteration_-1):
+                step_ /= bisec_factor_
+                continue
+            else:
+                print("control too big, but no further iteration")
+                return 0., cost0_int_
+            
+        state1_ = updateState(model, test_control_)
+        cost1_int_ = cost.f_int(dt, cost.f_cost(state1_, target_, test_control_))
+            
+        if (cost1_int_ < cost_min_int_):
+            #print("found step = ", step_, " with cost1, cost0 : ", cost1_int_, cost0_int_)
+            cost_min_int_ = cost1_int_
+            step_min_ = step_
+        # return smallest step size before cost is increasing again
+        elif (cost1_int_ >= cost_min_int_ and cost_min_int_ < cost0_int_):
+            #print("step size for minimal cost: ", step_min_)
+            if (step_min_ == start_step_):
+                print("Step agrees with starting step, might improve for larger initial value.")
+            return step_min_, cost_min_int_
+        
+        if (i == max_iteration_-1):
+            print(" max iteration reached, step size = ", step_)
+            return 0., cost0_int_
+        step_ /= bisec_factor_
+
+def updateState(model, control_):
+    # set initial conditions once in other function
+    state1_ = model.getZeroState()
+    output_vars = model.output_vars
+    model.run(control = control_)    
+    for i in range(len(output_vars)):
+        state1_[:,i,:] = model[output_vars[i]][:,:]
+    return state1_
+
+def beta_FR(model, g_1_, g_0_):
+    beta_ = 0.
+    denominator_ = 0.
+    numerator_ = 0.
+    for ind_time in range(g_1_.shape[2]):
+        for ind_node in range(g_1_.shape[0]):
+            for ind_var in range(g_1_.shape[1]):
+                denominator_ += g_1_[ind_node, ind_var, ind_time]**2.
+                numerator_ += g_1_[ind_node, ind_var, ind_time] * (g_1_[ind_node, ind_var, ind_time]
+                                                                   - g_0_[ind_node, ind_var, ind_time])
+        if (denominator_ == 0.):
+            print("zero denominator, numerator = ", numerator_)
+            denominator_ = 1.
+            
+        #print("numerator, denominator = ", numerator_, denominator_)
+        beta_ += numerator_/denominator_
+    return beta_
+
+def beta_FR_t(model, g_1_, g_0_):
+    beta_ = np.zeros((int( round(model.params['duration']/model.params['dt'],1) +1)))
+    denominator_ = 0.
+    numerator_ = 0.
+    for ind_time in range(g_1_.shape[2]):
+        for ind_node in range(g_1_.shape[0]):
+            for ind_var in range(g_1_.shape[1]):
+                denominator_ += g_1_[ind_node, ind_var, ind_time]**2.
+                numerator_ += g_1_[ind_node, ind_var, ind_time] * (g_1_[ind_node, ind_var, ind_time]
+                                                                   - g_0_[ind_node, ind_var, ind_time])
+        if (denominator_ == 0.):
+            print("zero denominator, numerator = ", numerator_)
+            denominator_ = 1.
+        beta_[ind_time] = numerator_/denominator_
+    return beta_
+
+def beta_HS(model, g_1_, g_0_, dir0_):
+    beta_ = np.zeros((int( round(model.params['duration']/model.params['dt'],1) +1)))
+    denominator_ = 0.
+    numerator_ = 0.
+    for ind_time in range(g_1_.shape[2]):
+        for ind_node in range(g_1_.shape[0]):
+            for ind_var in range(g_1_.shape[1]):
+                denominator_ += dir0_[ind_node, ind_var, ind_time] * (g_1_[ind_node, ind_var, ind_time] - g_0_[ind_node, ind_var, ind_time])
+                numerator_ += g_1_[ind_node, ind_var, ind_time] * (g_1_[ind_node, ind_var, ind_time] - g_0_[ind_node, ind_var, ind_time])
+        if (denominator_ == 0.):
+            print("zero denominator, numerator = ", numerator_)
+            denominator_ = 1.
+        beta_[ind_time] = numerator_/denominator_
+    return beta_

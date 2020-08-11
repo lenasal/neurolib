@@ -71,6 +71,7 @@ class BoxSearch:
         # bool to check whether pypet was initialized properly
         self.initialized = False
         self.initializeExploration(self.filename)
+        
 
     def initializeExploration(self, filename="exploration.hdf"):
         """Initialize the pypet environment
@@ -90,7 +91,9 @@ class BoxSearch:
 
         nprocesses = multiprocessing.cpu_count()
         logging.info("Number of processes: {}".format(nprocesses))
-
+        
+        NEUROLIB_BASEPATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)) ) )
+        
         # set up the pypet environment
         env = pypet.Environment(
             trajectory=trajectoryName,
@@ -98,7 +101,7 @@ class BoxSearch:
             multiproc=True,
             ncores=nprocesses,
             complevel=9,
-            log_config=paths.PYPET_LOGGING_CONFIG,
+            log_config=os.path.join(NEUROLIB_BASEPATH, paths.PYPET_LOGGING_CONFIG),
         )
         self.env = env
         # Get the trajectory from the environment
