@@ -196,6 +196,8 @@ def timeIntegration(params, control):
     # Set the initial firing rates.
     # if initial values are just N array:
     if len(np.shape(params["rates_exc_init"])) == 1:
+        #print("input rates = ", params["rates_exc_init"])
+        #print("multiplied by : ", np.ones((1, startind)).T)
         rates_exc_init = (params["rates_exc_init"] * np.ones((1, startind))).T   # kHz
         rates_inh_init = (params["rates_inh_init"] * np.ones((startind, 1))).T  # kHz
     # if initial values are just a Nx1 array
@@ -228,7 +230,6 @@ def timeIntegration(params, control):
 
     # tile external inputs to appropriate shape
     ext_exc_current = adjust_shape(params["ext_exc_current"], rates_exc)
-    print("ext exc current = ", ext_exc_current)
     ext_inh_current = adjust_shape(params["ext_inh_current"], rates_exc)
     ext_exc_rate = adjust_shape(params["ext_exc_rate"], rates_exc)
     ext_inh_rate = adjust_shape(params["ext_inh_rate"], rates_exc)

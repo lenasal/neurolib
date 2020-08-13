@@ -11,11 +11,11 @@ model = ALNModel()
 assertion_tolerance = 2
         
 controlmin, controlmax = -2., 2.
-duration = 0.5
+duration = 0.6
 algorithm_tolerance = 1e-16
 incl_steps = int(1. + duration/model.params.dt)
 max_iteration = int(1e3)
-start_step = 10.
+start_step = 20.
 test_step = 1e-12
 
 model.params.duration = duration
@@ -63,7 +63,9 @@ class TestStringMethods(unittest.TestCase):
                     target_[:,t_ind,:] = model[output_vars[o_ind]][:,:]
         return target_
         
+    
     def test_A2inputControlForPrecisionCostOnly(self):
+        print("test_A2inputControlForPrecisionCostOnly")
         
         model.params.duration = duration
         
@@ -86,6 +88,7 @@ class TestStringMethods(unittest.TestCase):
     def test_A1inputControlForPrecisionCostOnly(self):
         if (model.name == "aln"):
             return
+        print("test_A1inputControlForPrecisionCostOnly")
         
         model.params.duration = duration
         
@@ -109,9 +112,10 @@ class TestStringMethods(unittest.TestCase):
         for n in range(A1_bestControl.shape[0]):
             for v in range(A1_bestControl.shape[1]):
                 for t in range(A1_bestControl.shape[2] - 2):
-                    self.assertAlmostEquals(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance)
+                    self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance)
 
     def test_A2zeroControlForEnergyCostOnly(self):
+        print("test_A2zeroControlForEnergyCostOnly")
         
         model.params.duration = duration
         
@@ -133,6 +137,7 @@ class TestStringMethods(unittest.TestCase):
     def test_A1zeroControlForEnergyCostOnly(self):
         if (model.name == "aln"):
             return
+        print("test_A1zeroControlForEnergyCostOnly")
         
         model.params.duration = duration
         
@@ -157,6 +162,39 @@ class TestStringMethods(unittest.TestCase):
             for v in range(A1_bestControl.shape[1]):
                 for t in range(A1_bestControl.shape[2] - 2):
                     self.assertAlmostEqual(A1_bestControl[n, v, t], 0., assertion_tolerance)
+                    
+    def test_A1A2ConvergeForRandomTarget(self):
+        if (model.name == "aln"):
+            return
+        print("test_A1A2ConvergeForRandomTarget")
+        
+        model.params.duration = duration
+        
+        c_scheme = np.zeros((len(output_vars), len(output_vars) ))
+        c_scheme[0,0] = 1.
+
+        u_mat = np.identity(model.params['N'])
+        u_scheme = np.array([[1, 0], [0, 0]])
+        
+        control1 = self.getRandomControl()    
+        target = self.setTargetFromControl(control1)    
+        control2 = self.getRandomControl()
+        state2 = self.updateState(control2)  
+        
+        testip, testie, testis = random.uniform(0., 1.), random.uniform(0., 1.), random.uniform(0., 1.)
+        cost.setParams(testip, testie, testis)
+
+        A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
+                                                                          algorithm_tolerance, incl_steps, start_step, test_step)
+        
+        A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(state2, target, control2, c_scheme, u_mat, u_scheme, max_iteration,
+                                    algorithm_tolerance, start_step, test_step, controlmax, CGVar = None)
+        
+        for n in range(A2_bestControl.shape[0]):
+            for v in range(A2_bestControl.shape[1]):
+                for t in range(A2_bestControl.shape[2] - 2):
+                    print("assert convergence for random input")
+                    self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)
 
 
 if __name__ == '__main__':

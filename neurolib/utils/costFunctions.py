@@ -156,11 +156,9 @@ def f_cost_sparsity3_int(dt, control_):
 # acquisition cost
 def f_cost_sparsity4_int(dt, control_):
     i_p, i_e, i_s = getParams()
-    cost_node =  np.zeros((control_.shape[0]))
     cost = 0.
     for ind_node in range(control_.shape[0]):
         if np.any(control_[ind_node, :,:] != 0.):
-            cost_node[ind_node] = 1.
             cost += i_s 
     return cost
 

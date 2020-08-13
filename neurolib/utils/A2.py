@@ -106,6 +106,9 @@ def gf_dc(model, control_, target_, include_timestep_, start_step_, test_step_, 
     #IC = IC_init.copy()
     #print(init_vars, model.params[init_vars[0]])
     for ind_var in range(len(init_vars)):
+        #print(ind_var)
+        #print(model.params[init_vars[ind_var]][:])
+        #IC_init.append(model.params[init_vars[ind_var]][:])
         IC_init[:, ind_var] = model.params[init_vars[ind_var]][:]
         
     
@@ -293,22 +296,25 @@ def gf_dc(model, control_, target_, include_timestep_, start_step_, test_step_, 
             model.params['duration'] = dt
             model.run(control=control0_[:, :, ind_time:ind_time + 2])
             
-            for sv, iv in zip(state_vars, init_vars):
-                if (sv in iv):
-                    #if (print_):
-                        #print("setting initial value ", iv, " from ", sv)
-                    if (model.state[sv].ndim == 2):
+            for sv in state_vars:
+                for iv in init_vars:
+                    if (sv in iv):
+                        #print(sv)
                         #if (print_):
-                        #    print("setting initial value ", iv, " from ", sv)
-                        #    print(model.params[iv][0])
-                        #    print(model.state[sv])
-                        model.params[iv][:] = np.array( [model.state[sv][:, 0]] )
-                    else:
-                        model.params[iv] = model.state[sv]
-                        #if (print_): 
-                        #    print("setting initial value ", iv, model.params[iv], " from ", sv, model.state[sv])
-                        #    print(model.params[iv])
-                        #    print(model.state[sv])
+                            #print("setting initial value ", iv, " from ", sv)
+                        if (model.state[sv].ndim == 2):
+                            #if (print_):
+                            #    print("setting initial value ", iv, " from ", sv)
+                            #    print(model.params[iv][0])
+                            #    print(model.state[sv])
+                            #print( model.params[iv][:], [model.state[sv][:, 0]])
+                            model.params[iv][:] = model.state[sv][:, 0][0]         #np.array()
+                        else:
+                            model.params[iv] = model.state[sv]
+                            #if (print_): 
+                            #    print("setting initial value ", iv, model.params[iv], " from ", sv, model.state[sv])
+                            #    print(model.params[iv])
+                            #    print(model.state[sv])
             model.params.duration = duration_sim
                     
             
