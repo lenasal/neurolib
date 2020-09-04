@@ -198,6 +198,7 @@ class Model:
         # check nans in output
         if np.isnan(self.output).any():
             logging.error("nan in model output!")
+            print("error")
         else:
             EXPLOSION_THRESHOLD = 1e20
             if (self.output > EXPLOSION_THRESHOLD).any() > 0:
@@ -596,6 +597,9 @@ class Model:
                 return
             else:
                 logging.error("Wrong dimension in control array input")
+                print(control.shape[0], self.params["N"])
+                print(control.shape[1], len(self.control_input_vars))
+                print(control.shape[2], int(round(self.params["duration"]/self.params["dt"], 1)))
                 return
         else:
             if (control.shape[0] == self.params["N"] and control.shape[1] == len(self.control_input_vars)
@@ -603,6 +607,9 @@ class Model:
                 return
             else:
                 logging.error("Wrong dimension in control array input")
+                print(control.shape[0], self.params["N"])
+                print(control.shape[1], len(self.control_input_vars))
+                print(control.shape[2], int(round(self.params["duration"]/self.params["dt"], 1)))
                 return
             
     def getZeroTarget(self, removeICs = True):
@@ -622,8 +629,10 @@ class Model:
     def costPrecisionGradientT(self, state_t_, target_state_t_):
         return cost.cost_precision_gradient_t(state_t_, target_state_t_)
     
-    def A2(self, cntrl_, target_, max_iteration_ = 10, tolerance_ = 1e-12, include_timestep_ = 100, start_step_ = 10, test_step_ = 1e-8, max_control_ = 20.):
-        return opti2.A2(self, cntrl_, target_,  max_iteration_, tolerance_, include_timestep_, start_step_, test_step_, max_control_)
+    def A2(self, cntrl_, target_, max_iteration_ = 10, tolerance_ = 1e-12, include_timestep_ = 100, start_step_ = 10, test_step_ = 1e-8, max_control_ = 20.,
+       t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50):
+        return opti2.A2(self, cntrl_, target_,  max_iteration_, tolerance_, include_timestep_, start_step_, test_step_, max_control_,
+       t_sim_, t_sim_pre_, t_sim_post_)
     
-    def A1(self, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10., test_step_ = 1e-8,                                cntrl_max_ = 20., CGVar = None):
-        return opti1.A1(self, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, test_step_, cntrl_max_, CGVar)
+    def A1(self, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10., test_step_ = 1e-8,                                cntrl_max_ = 20., t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, CGVar = None):
+        return opti1.A1(self, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, test_step_, cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)

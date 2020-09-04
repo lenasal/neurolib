@@ -48,7 +48,7 @@ class ALNModel(Model):
         "mue_ou",
         "mui_ou",
     ]
-    output_vars = ["rates_exc", "rates_inh", "IA"] #"mufe", "mufi", "IA", "seem", "seim", "siem", "siim", "seev", "seiv", "siev", "siiv", "mue_ou", "mui_ou",]
+    output_vars = ["rates_exc", "rates_inh", "IA"]
     default_output = "rates_exc"
     target_output_vars = ["rates_exc", "rates_inh"]
     input_vars = ["ext_exc_current", "ext_exc_rate", "ext_inh_current", "ext_inh_rate"]

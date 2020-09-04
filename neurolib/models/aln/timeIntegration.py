@@ -1,5 +1,6 @@
 import numpy as np
 import numba
+import logging
 
 from . import loadDefaultParams as dp
 
@@ -58,6 +59,7 @@ def timeIntegration(params, control):
         )  # Interareal connection delays, Dmat(i,j) Connnection from jth node to ith (ms)
         Dmat[np.eye(len(Dmat)) == 1] = np.ones(len(Dmat)) * params["de"]
 
+    params["Dmat"] = Dmat
     Dmat_ndt = np.around(Dmat / dt).astype(int)  # delay matrix in multiples of dt
 
     # ------------------------------------------------------------------------
@@ -167,7 +169,6 @@ def timeIntegration(params, control):
     #    Dmat_ndt[l, l] = ndt_de  # if no distributed, this is a fixed value (E-E coupling)
 
     max_global_delay = max(np.max(Dmat_ndt), ndt_de, ndt_di)
-    #print(Dmat_ndt, ndt_de, ndt_di)
     startind = int(max_global_delay + 1)
 
     # state variable arrays, have length of t + startind
@@ -195,13 +196,14 @@ def timeIntegration(params, control):
 
     # Set the initial firing rates.
     # if initial values are just N array:
+    if type(params["rates_exc_init"]) is not type(np.array([])):
+        logging.error("wrong input for initial rates")
     if len(np.shape(params["rates_exc_init"])) == 1:
-        #print("input rates = ", params["rates_exc_init"])
-        #print("multiplied by : ", np.ones((1, startind)).T)
-        rates_exc_init = (params["rates_exc_init"] * np.ones((1, startind))).T   # kHz
-        rates_inh_init = (params["rates_inh_init"] * np.ones((startind, 1))).T  # kHz
+        logging.error("wrong input for initial rates")
+        #rates_exc_init = (params["rates_exc_init"] * np.ones((1, startind))).T   # kHz
+        #rates_inh_init = (params["rates_inh_init"] * np.ones((startind, 1))).T  # kHz
     # if initial values are just a Nx1 array
-    elif np.shape(params["rates_exc_init"])[1] == 1:
+    if np.shape(params["rates_exc_init"])[1] == 1:
         # repeat the 1-dim value stardind times
         rates_exc_init = np.dot(params["rates_exc_init"], np.ones((1, startind)))  # kHz
         rates_inh_init = np.dot(params["rates_inh_init"], np.ones((1, startind)))  # kHz
@@ -212,6 +214,11 @@ def timeIntegration(params, control):
         rates_exc_init = params["rates_exc_init"][:, -startind:]
         rates_inh_init = params["rates_inh_init"][:, -startind:]
         IA_init = params["IA_init"][:, -startind:]
+        
+    #params["rates_exc_init"] = rates_exc_init.copy()
+    #params["rates_inh_init"] = rates_inh_init.copy()
+    #params["IA_init"] = IA_init.copy()
+    
 
     if RNGseed:
         np.random.seed(RNGseed)
@@ -233,6 +240,8 @@ def timeIntegration(params, control):
     ext_inh_current = adjust_shape(params["ext_inh_current"], rates_exc)
     ext_exc_rate = adjust_shape(params["ext_exc_rate"], rates_exc)
     ext_inh_rate = adjust_shape(params["ext_inh_rate"], rates_exc)
+    
+    #print("after adjustment = ", ext_exc_current)
     
     control_ext = control.copy()
     #print("control = ", control_ext[0,0,0])
@@ -453,10 +462,13 @@ def timeIntegration_njit_elementwise(
             noise_exc[no] = rates_exc[no, i]
             noise_inh[no] = rates_inh[no, i]
 
-            mue = Jee_max * seem[no] + Jei_max * seim[no] + mue_ou[no] + ext_exc_current[no, i] + control_ext[no, 0, i-startind]
-            mui = Jie_max * siem[no] + Jii_max * siim[no] + mui_ou[no] + ext_inh_current[no, i] + control_ext[no, 1, i-startind]
+            # subtract startind from control, as initial conditions are not set.
+            mue = (Jee_max * seem[no] + Jei_max * seim[no] + mue_ou[no] + ext_exc_current[no, i]
+                   + control_ext[no, 0, i-startind])
+            mui = (Jie_max * siem[no] + Jii_max * siim[no] + mui_ou[no] + ext_inh_current[no, i]
+                   + control_ext[no, 1, i-startind])
             #if (i in range(startind, startind + 3,1)):
-            #    print("mui computation: ", control_ext[no, 1, i-startind])
+            #print("mue computation: ",no, i-startind, control_ext[no, 0, i-startind], control_ext[no, 1, i-startind])
 
             # compute row sum of Cmat*rd_exc and Cmat**2*rd_exc
             rowsum = 0
@@ -464,8 +476,11 @@ def timeIntegration_njit_elementwise(
             for col in range(N):
                 rowsum = rowsum + Cmat[no, col] * rd_exc[no, col]
                 rowsumsq = rowsumsq + Cmat[no, col] ** 2 * rd_exc[no, col]
+                
+            #print("input via coupling: time, node, rowsum = ", i, no, rowsum)
 
             # z1: weighted sum of delayed rates, weights=c*K
+            # Lena: where is the delay?
             z1ee = (
                 cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum + c_gl * Ke_gl * ext_exc_rate[no, i]
             )  # rate from other regions + exc_ext_rate
@@ -569,10 +584,12 @@ def timeIntegration_njit_elementwise(
                 sigmai_f_rhs = (sigmai - sigmai_f) / tau_sigmai_eff
 
             # integration of synaptic input (eq. 4.36)
+            ### Lena: only divide seem by tau?
             seem_rhs = ((1 - seem[no]) * z1ee - seem[no]) / tau_se
             seim_rhs = ((1 - seim[no]) * z1ei - seim[no]) / tau_si
             siem_rhs = ((1 - siem[no]) * z1ie - siem[no]) / tau_se
             siim_rhs = ((1 - siim[no]) * z1ii - siim[no]) / tau_si
+            # Lena: according to eq. 12, z2 corresponds to rho? not in last term (z1 + 1)? z2 calculation above does not agree
             seev_rhs = ((1 - seem[no]) ** 2 * z2ee + (z2ee - 2 * tau_se * (z1ee + 1)) * seev[no]) / tau_se ** 2
             seiv_rhs = ((1 - seim[no]) ** 2 * z2ei + (z2ei - 2 * tau_si * (z1ei + 1)) * seiv[no]) / tau_si ** 2
             siev_rhs = ((1 - siem[no]) ** 2 * z2ie + (z2ie - 2 * tau_se * (z1ie + 1)) * siev[no]) / tau_se ** 2

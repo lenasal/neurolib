@@ -260,7 +260,7 @@ def timeIntegration_njit_elementwise(
                 + xs_input_d[no]  # input from other nodes
                 + x_ou[no]  # ou noise
                 + x_ext[no]  # external input
-                + control_ext[no, 0, i - startind]  # external control
+                + control_ext[no, 0, i-startind]  # external control, subtract startind from control, as initial conditions are not set.
             )
             y_rhs = (
                 (xs[no, i - 1] - delta - epsilon * ys[no, i - 1]) / tau

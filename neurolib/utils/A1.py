@@ -1,16 +1,46 @@
 import numpy as np
+import logging
 from timeit import default_timer as timer
 from . import costFunctions as cost
-
+import numba
 
 
 VALID_VAR = {None, "FR", "HS"}
 
-def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, test_step_, cntrl_max_, CGVar):
+def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, test_step_, cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar):
     
     if CGVar not in VALID_VAR:
         raise ValueError("u_opt control optimization: conjugate gradient variant must be one of %r." % VALID_VAR)
         CGVar = None
+        
+    dt = model.params['dt']
+    state_vars = model.state_vars
+    init_vars = model.init_vars
+    
+    # simulate with duration t_sim_pre before start
+    if (t_sim_pre_ > dt):
+        model.params['duration'] = t_sim_pre_
+        control_pre_ = model.getZeroControl()
+        state_pre_ = updateState(model, control_pre_)
+        
+        #print("state vars = ", state_vars)
+        #print("init vars = ", init_vars)
+        
+        for iv, sv in zip( range(len(init_vars)), range(len(state_vars)) ):
+            if state_vars[sv] in init_vars[iv]:
+                #print("variable = ", state_vars[sv])
+                #print(" state = ", model.state[state_vars[sv]])
+                #print(" init param = ", model.params[init_vars[iv]])
+                if model.params[init_vars[iv]].ndim == 2:
+                    model.params[init_vars[iv]][:,0] = model.state[state_vars[sv]][:,-1]
+                else:
+                    model.params[init_vars[iv]][0] = model.state[state_vars[sv]][0]
+            else:
+                logging.error("Initial and state variable labelling does not agree.")
+                        
+                    #print("setting inital parameters for post-control run: ",init_vars[iv], " : ",  model.params[init_vars[iv]])
+    
+    model.params['duration'] = t_sim_    
         
     runtime_ = np.zeros((max_iteration_+1))
     runtime_start_ = timer()
@@ -19,10 +49,10 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
     state0_ = state_.copy()
     state1_ = state0_.copy()
     u_opt0_ = control_.copy()
-    u_opt1_ = control_.copy()
+    best_control_ = control_.copy()
     phi_ = phi(model, state0_, target_state_, c_scheme_)
-    #print("phi = ", phi_)
-    g0_min_ = g(model, phi_, state1_, target_state_, u_opt1_, u_mat_, u_scheme_)
+    #print("phi = ", phi_[0,0,-10:])
+    g0_min_ = g(model, phi_, state1_, target_state_, best_control_, u_mat_, u_scheme_)
     g1_min_ = g0_min_.copy()
     #print("g_min = ", g_min_)
     dir0_ = - g0_min_.copy()
@@ -50,26 +80,30 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
     
     while( np.amax(np.absolute(g0_min_[:,:,1:])) > tolerance_ and i < max_iteration_ - 1 ):
         i += 1        
-        step_, total_cost_[i] = step_size(model, state1_, target_state_, u_opt1_, dir1_, start_step_ = startStep_,
+        step_, total_cost_[i] = step_size(model, state1_, target_state_, best_control_, dir1_, start_step_ = startStep_,
                                           max_control_ = cntrl_max_)
         print("RUN ", i, ", total integrated cost = ", total_cost_[i])
         #print("step = ", step_)
         #print("dir = ", dir1_)
-        u_opt1_ = u_opt0_ + step_ * dir1_
-        #print("u opt = ", u_opt1_)
-        u_diff_ = ( np.absolute(u_opt1_ - u_opt0_) < tolerance_ )
+        best_control_ = u_opt0_ + step_ * dir1_
+        #print("u opt = ", best_control_)
+        u_diff_ = ( np.absolute(best_control_ - u_opt0_) < tolerance_ )
         if ( u_diff_.all() ):
             print("Control only changes marginally.")
-            print("improved over ", i, " iterations by ", 100 - int(100.*(total_cost_[i]/total_cost_[0])), " percent.")
-            return u_opt0_, state0_, total_cost_, runtime_
-        u_opt0_ = u_opt1_.copy()
+            max_iteration_ = i
+            #print("improved over ", i, " iterations by ", 100 - int(100.*(total_cost_[i]/total_cost_[0])), " percent.")
+            break
+            #return u_opt0_, state0_, total_cost_[:i-1], runtime_[:i-1]
+        u_opt0_ = best_control_.copy()
         
-        state1_ = updateState(model, u_opt1_)
+        state1_ = updateState(model, best_control_)
         s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_ )
         if ( s_diff_.all() ):
             print("State only changes marginally.")
-            print("improved over ", i, " iterations by ", 100 - int(100.*(total_cost_[i]/total_cost_[0])), " percent.")
-            return u_opt0_, state0_, total_cost_, runtime_
+            max_iteration_ = i
+            #print("improved over ", i, " iterations by ", 100 - int(100.*(total_cost_[i]/total_cost_[0])), " percent.")
+            break
+            #return u_opt0_, state0_, total_cost_[:i-1], runtime_[:i-1]
         state0_ = state1_.copy()
         
         runtime_[i] = timer() - runtime_start_
@@ -78,8 +112,8 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
         
         
         phi_ = phi(model, state1_, target_state_, c_scheme_)
-        g1_min_ = g(model, phi_, state1_, target_state_, u_opt1_, u_mat_, u_scheme_)
-        #print("phi = ", phi_)
+        g1_min_ = g(model, phi_, state1_, target_state_, best_control_, u_mat_, u_scheme_)
+        #print("phi = ", phi_[0,0,-10:])
         #print("g = ", g1_min_)
         
         """
@@ -128,7 +162,7 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
                 #print("descent condition 1 not satisfied for time index ", i_time)
                 dir1_[:,:,i_time] = - g1_min_[:,:,i_time]
         
-        print("descent condition min, max, mean = ", np.amin(dc1), np.amax(dc1), np.mean(dc1) )
+        #print("descent condition min, max, mean = ", np.amin(dc1), np.amax(dc1), np.mean(dc1) )
         
         g0_min_ = g1_min_.copy()
         dir0_ = dir1_.copy()
@@ -137,12 +171,12 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
         while(dir_test_step_ == 0.):
             #dir1_ = - g1_min_ + beta_*dir_
             #rint("1")
-            dir_test_step_, dir_test_cost_ = test_step(model, state0_, target_state_, u_opt1_, dir1_, test_step_size_)
+            dir_test_step_, dir_test_cost_ = test_step(model, state0_, target_state_, best_control_, dir1_, test_step_size_)
             print(dir_test_step_)
             if (dir_test_step_ == 0.):
                 print("no descent direction")
                 dir1_ = - g1_min_
-                dir_test_step_, dir_test_cost_ = test_step(model, state0_, target_state_, u_opt1_, dir1_, test_step_size_)
+                dir_test_step_, dir_test_cost_ = test_step(model, state0_, target_state_, best_control_, dir1_, test_step_size_)
                 if (dir_test_step_ == 0.): # not descent direction
                     # can happen for unstable targets, when small changes cause overshooting
                     # decrease size of test step for all future iterations, because dynamical state will stay unstable
@@ -152,28 +186,84 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
                     #startStep_ = test_step_size_
                     if (test_step_size_ < 1e-30):
                         print("Cannot find descent direction")
-                        return u_opt1_, state0_, total_cost_, runtime_
+                        return best_control_, state0_, total_cost_, runtime_
         """
         
                         
     i += 1
-    step_, total_cost_[i] = step_size(model, state1_, target_state_, u_opt1_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
+    step_, total_cost_[i] = step_size(model, state1_, target_state_, best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
     print("RUN ", i, ", total integrated cost = ", total_cost_[i])
     #print("step = ", step_)
-    #print("dir = ", dir_)
-    u_opt1_ += step_ * dir1_
+    #print("dir = ", dir1_)
+    best_control_ += step_ * dir1_
     #print("u optimal = ", u_opt_)
-    state1_ = updateState(model, u_opt1_)
+    state1_ = updateState(model, best_control_)
     runtime_[i] = timer() - runtime_start_
-    print("improved over ", max_iteration_, " iterations by ", 100 - int(100.*(total_cost_[-1]/total_cost_[0])), " percent.")
+    print("improved over ", i, " iterations by ", 100 - int(100.*(total_cost_[-1]/total_cost_[0])), " percent.")
     
-    return u_opt1_, state1_, total_cost_, runtime_    
+    
+    if (t_sim_pre_ <= dt and t_sim_post_ <= dt):
+        return best_control_, state1_, total_cost_, runtime_
+    
+    if (t_sim_post_ > dt):
+        
+        for iv, sv in zip( range(len(init_vars)), range(len(state_vars)) ):
+            if state_vars[sv] in init_vars[iv]:
+                #print("variable = ", state_vars[sv])
+                #print(" state = ", model.state[state_vars[sv]])
+                #print(" init param = ", model.params[init_vars[iv]])
+                if model.params[init_vars[iv]].ndim == 2:
+                    model.params[init_vars[iv]][0,0] = model.state[state_vars[sv]][0,-1]
+                else:
+                    model.params[init_vars[iv]][0] = model.state[state_vars[sv]][0]
+            else:
+                logging.error("Initial and state variable labelling does not agree.")
+                
+        model.params.duration = t_sim_post_ - dt
+        control_post_ = model.getZeroControl()
+        state_post_ = updateState(model, control_post_)
+    
+    
+    model.params.duration = t_sim_ + t_sim_pre_ + t_sim_post_
+    bc_ = model.getZeroControl()
+    bs_ = model.getZeroState()
+        
+    i1 = int(round(t_sim_pre_/dt, 1))
+    i2 = int(round(t_sim_post_/dt, 1))
+    
+    if (i2 != 0 and i1 != 0):   
+        bc_[:,:,i1:-i2] = best_control_[:,:,:]   
+        bs_[:,:,:i1+1] = state_pre_[:,:,:]
+        for n in range(bs_.shape[0]):
+            for v in range(bs_.shape[1]):
+                if bs_[n,v,i1+1] != state_[n,v,0]:
+                    logging.error("Problem in initial value trasfer")
+        bs_[:,:,i1:-i2] = state_[:,:,:]
+        bs_[:,:,-i2:] = state_post_[:,:,:]
+    elif (i2 == 0 and i1 != 0):
+        bc_[:,:,i1:] = best_control_[:,:,:]
+        bs_[:,:,:i1+1] = state_pre_[:,:,:]
+        for n in range(bs_.shape[0]):
+            for v in range(bs_.shape[1]):
+                if bs_[n,v,i1+1] != state_[n,v,0]:
+                    logging.error("Problem in initial value trasfer")
+        bs_[:,:,i1:] = state_[:,:,:]
+    elif (i2 != 0 and i1 == 0):
+        bc_[:,:,:-i2] = best_control_[:,:,:]
+        bs_[:,:,:-i2] = state_[:,:,:]
+        bs_[:,:,-i2:] = state_post_[:,:,:]
+    else:
+        bc_[:,:,:] = best_control_[:,:,:]
+        bs_[:,:,:] = state_[:,:,:]
+    
+    
+    return bc_, bs_, total_cost_, runtime_ 
 
 
 # computation of phi
 
 #@numba.njit
-def phi(model, state_, target_state_, c_scheme_, start_ind_ = 0):
+def phi(model, state_, target_state_, c_scheme_, start_ind_ = 0, runge_kutta_ = False):
     phi_ = model.getZeroState()
     dt = model.params['dt']
     N = model.params['N']
@@ -185,15 +275,41 @@ def phi(model, state_, target_state_, c_scheme_, start_ind_ = 0):
     coupling_ = model.params['K_gl']
     c_mat_ = model.params['Cmat']
     
+    no_output = len(model.output_vars)
+    
     for ind_time in range(phi_.shape[2]-1, start_ind_, -1):
         f_p_grad_t_ = cost.cost_precision_gradient_t(state_[:,:,ind_time],  target_state_[:,:,ind_time])
-        phi_dot_ = phi_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_,
+        #print("f grad = ", f_p_grad_t_)
+        if not runge_kutta_:
+            #test = test_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_,
+            #                N, no_output, alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_)
+            #print("fails")
+            phi_dot_ = phi_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_,
+                           N, no_output, alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_)
+            phi_[:,:, ind_time-1] = phi_[:,:, ind_time] + phi_dot_[:,:] * (-dt)
+        else:
+            k1 = phi_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_,
                            N, len(model.output_vars), alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_)
-        #print("phi, phi_dot = ", type(phi_), type(phi_dot_), phi_, phi_dot_)
-        phi_[:,:, ind_time-1] = phi_[:,:, ind_time] - phi_dot_[:,:] * dt
+            print("k1 = ", k1)
+            k2 = phi_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time] + 0.5 * (-dt) * k1, f_p_grad_t_,
+                           N, len(model.output_vars), alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_)
+            print("k2 = ", k2)
+            k3 = phi_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time] + 0.5 * (-dt) * k2, f_p_grad_t_,
+                           N, len(model.output_vars), alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_)
+            print("k3 = ", k3)
+            k4 = phi_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time] + (-dt) * k3, f_p_grad_t_,
+                           N, len(model.output_vars), alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_)
+            print("k4 = ", k4)
+            
+            phi_[:,:, ind_time-1] = phi_[:,:,ind_time] + ((-dt) / 6.) * (k1 + 2. * k2 + 2. * k3 + k4)
     return phi_
     
-#@numba.njit
+@numba.njit
+def test_dot(state_t_, target_state_t_, phi_, f_p_grad_t_, N, no_output, alpha, beta, gamma, tau, epsilon, coupling_,
+             c_mat_, c_scheme_):
+    print("works")
+
+@numba.njit
 def phi_dot(state_t_, target_state_t_, phi_, f_p_grad_t_, N, no_output, alpha, beta, gamma, tau, epsilon, coupling_,
             c_mat_, c_scheme_):
     phi_dot_ = np.zeros(( N, no_output ))
@@ -202,19 +318,25 @@ def phi_dot(state_t_, target_state_t_, phi_, f_p_grad_t_, N, no_output, alpha, b
     
     for i_node in range(phi_dot_.shape[0]):
         for i_var in range(phi_dot_.shape[1]):
-            matProd = 0.
+            coupling_prod = 0.
+            jac_prod = 0.
                 
             for j_node in range(phi_dot_.shape[0]):
                 for j_var in range(phi_dot_.shape[1]):
-                    matProd += (jac_h_t_[j_node, i_node, j_var, i_var] + coupling_
-                                * c_mat_[j_node, i_node] * c_scheme_[j_var, i_var]) * phi_[j_node, j_var]   
-            phi_dot_[i_node, i_var] += - matProd - f_p_grad_t_[i_node, i_var]
+                    jac_prod += jac_h_t_[j_node, i_node, j_var, i_var] * phi_[j_node, j_var]
+                    coupling_prod += coupling_ * c_mat_[j_node, i_node] * c_scheme_[j_var, i_var] * phi_[j_node, j_var] 
+                    #matProd += (jac_h_t_[j_node, i_node, j_var, i_var] + coupling_
+                    #            * c_mat_[j_node, i_node] * c_scheme_[j_var, i_var]) * phi_[j_node, j_var]   
+            phi_dot_[i_node, i_var] += - jac_prod - coupling_prod - f_p_grad_t_[i_node, i_var]
+            #print("jacobian = ", jac_prod)
+            #print("coupling = ", coupling_prod)
+            #print("gradient = ", f_p_grad_t_[i_node, i_var])
             
     return phi_dot_
                 
 
 # block-diagonal jacobian matrix
-#@numba.njit
+@numba.njit
 def jac_h_t(jac_h_t_, state_t_, alpha, beta, gamma, tau, epsilon):
     #jac_h_t_ = np.zeros(( fhn.params['N'], fhn.params['N'], len(fhn.output_vars), len(fhn.output_vars) ))
     #alpha = fhn.params['alpha']
@@ -231,9 +353,10 @@ def jac_h_t(jac_h_t_, state_t_, alpha, beta, gamma, tau, epsilon):
     return jac_h_t_
 
 # computation of g
+# does not work with numba because takes model as parameter
 def g(model, phi_, state_, target_, control_, u_mat_, u_scheme_):
     g_ = model.getZeroControl()
-    grad_cost_e_ = cost.cost_energy_gradient(model, control_)
+    grad_cost_e_ = cost.cost_energy_gradient(control_)
     grad_cost_s_ = cost.cost_sparsity_gradient1(model, control_)
     
     for i_time in range(g_.shape[2]):
@@ -289,6 +412,8 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_ite
             #print("found step = ", step_, " with cost1, cost0 : ", cost1_int_, cost0_int_)
             cost_min_int_ = cost1_int_
             step_min_ = step_
+            # remove following line to iterate until cost increases again
+            return step_min_, cost_min_int_
         # return smallest step size before cost is increasing again
         elif (cost1_int_ >= cost_min_int_ and cost_min_int_ < cost0_int_):
             #print("step size for minimal cost: ", step_min_)

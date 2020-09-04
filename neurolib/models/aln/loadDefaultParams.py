@@ -104,6 +104,17 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None, seed=None)
     # synaptic delays
     params.de = 4.0  # ms local constant delay "EE = IE"
     params.di = 2.0  # ms local constant delay "EI = II"
+   
+    """
+    if params.N == 1:
+        params.Dmat = np.ones((params.N, params.N)) * params.de
+    else:
+        params.Dmat = computeDelayMatrix(
+            params.lengthMat, params.signalV
+        )  # Interareal connection delays, Dmat(i,j) Connnection from jth node to ith (ms)
+        Dmat[np.eye(len(Dmat)) == 1] = np.ones(len(params.Dmat)) * params.de
+        params.Dmat = Dmat
+    """
 
     # synaptic time constants
     params.tau_se = 2.0  # ms  "EE = IE", for fixed delays
