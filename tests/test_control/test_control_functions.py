@@ -29,21 +29,3 @@ def setTargetFromControl(model, control_, output_vars, target_vars):
             if (target_vars[t_ind] == output_vars[o_ind]):
                 target_[:,t_ind,:] = model[output_vars[o_ind]][:,:]
     return target_
-
-def setup(model, duration):
-    incl_steps = int(1. + duration/model.params.dt)
-    model.params.duration = duration
-    
-    if model.name == "aln":
-        model.params.signalV = 0.
-        model.params.de = 0.
-        model.params.di = 0.
-    
-    state0 = model.getZeroState()
-    state1 = state0.copy()
-    state2 = state0.copy()
-    control0 = model.getZeroControl()
-            
-    target_vars = model.target_output_vars
-    output_vars = model.output_vars
-    init_vars = model.init_vars

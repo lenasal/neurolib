@@ -186,7 +186,7 @@ if __name__ == '__main__':
         print(testcaseind)
         model = getmodel(testcaseind)
     
-        suite = unittest.TestLoader().loadTestsFromTestCase(TestA1A2Conv)
+        suite = unittest.TestLoader().loadTestsFromTestCase(TestA1)
         result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
         runs += result[-1].testsRun
         if not result[-1].wasSuccessful():

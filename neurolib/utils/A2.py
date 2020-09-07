@@ -2,80 +2,8 @@ import numpy as np
 import logging
 from timeit import default_timer as timer
 from . import costFunctions as cost
+from . import func_optimize as fo
 
-
-def test_step(model, state_, target_, control_, dir_, test_step_ = 1e-12):
-    dt = model.params['dt']
-    cost0_int_ = cost.f_int(dt, cost.f_cost(state_, target_, control_))
-    
-    test_control_ = control_ + test_step_ * dir_
-    state1_ = updateState(model, test_control_)
-    cost1_int_ = cost.f_int(dt, cost.f_cost(state1_, target_, test_control_))
-    #print("test step size computation : ------ cost1, cost0 : ", cost1_int_, cost0_int_)
-        
-    if (cost1_int_ < cost0_int_):
-        return test_step_, cost1_int_
-    else:
-        return 0., cost0_int_
-
-def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_iteration_ = 1000,
-              bisec_factor_ = 2., max_control_ = 20.):
-    #if (max_iteration_ == 1):
-    #    print("2")
-    dt = model.params['dt']
-    cost0_ = cost.f_cost(state_, target_, control_)
-    cost0_int_ = cost.f_int(dt, cost0_)
-    cost_min_int_ = cost0_int_
-    step_ = start_step_
-    step_min_ = step_
-          
-    for i in range(max_iteration_):
-        #if (max_iteration_ == 1):
-        #    print("i = ", i)
-        test_control_ = control_ + step_ * dir_
-        
-        # include maximum control value to assure no divergence
-        if ( np.amax(np.absolute(test_control_)) > max_control_):
-            if (i < max_iteration_-1):
-                #print("too big control")
-                step_ /= bisec_factor_
-                continue
-            else:
-                print("control too big, but no further iteration")
-                return 0., cost0_int_
-            
-        state1_ = updateState(model, test_control_)
-        cost1_ = cost.f_cost(state1_, target_, test_control_)
-        cost1_int_ = cost.f_int(dt, cost1_)
-        
-   
-        if (cost1_int_ < cost_min_int_):
-            #print("found step = ", step_, " with cost1, cost0 : ", cost1_int_, cost0_int_)
-            cost_min_int_ = cost1_int_
-            step_min_ = step_
-        # return smallest step size before cost is increasing again
-        elif (cost1_int_ >= cost_min_int_ and cost_min_int_ < cost0_int_):
-            #print("step size for minimal cost: ", step_min_)
-            return step_min_, cost_min_int_
-        
-        if (i == max_iteration_-1):
-            if (max_iteration_ != 1):
-                print(" max iteration reached, step size = ", step_)
-            #else:
-                #plt.plot(state1_[0,0,:], state1_[0,1,:])
-               # plt.show()
-            return 0., cost0_int_
-        step_ /= bisec_factor_
-
-
-def updateState(model, control_):
-    # set initial conditions once in other function
-    state1_ = model.getZeroState()
-    output_vars = model.output_vars
-    model.run(control = control_)    
-    for i in range(len(output_vars)):
-        state1_[:,i,:] = model[output_vars[i]][:,:]
-    return state1_
 
 # control optimization
 
@@ -120,7 +48,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     if (t_sim_pre_ >= dt):
         model.params['duration'] = t_sim_pre_
         control_pre_ = model.getZeroControl()
-        state_pre_ = updateState(model, control_pre_)
+        state_pre_ = fo.updateState(model, control_pre_)
             
         for iv, sv in zip( range(len(init_vars)), range(len(state_vars)) ):
             if state_vars[sv] in init_vars[iv]:
@@ -160,7 +88,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     
     #print("try to update state with new initial values")
     
-    state_ = updateState(model, best_control_)
+    state_ = fo.updateState(model, best_control_)
     state0_ = state_.copy()
     #print("state with initial guess = ", state0_)
     
@@ -178,7 +106,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
         best_control_ += delta_
         best_control_[:,:,-1] = best_control_[:,:,-2]  
         state0_ = state_
-        state_ = updateState(model, best_control_)
+        state_ = fo.updateState(model, best_control_)
         
         runtime_[i] = timer() - runtime_start_
         
@@ -239,7 +167,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     
         model.params.duration = t_sim_post_ - dt
         control_post_ = model.getZeroControl()
-        state_post_ = updateState(model, control_post_)
+        state_post_ = fo.updateState(model, control_post_)
     
     
     model.params.duration = t_sim_ + t_sim_pre_ + t_sim_post_
@@ -329,7 +257,7 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
                     control0_ = control0_[:,:,1:].copy()
                     target0_ = target0_[:,:,1:].copy()
                     
-                state0 = updateState(model, control0_)
+                state0 = fo.updateState(model, control0_)
                 #print("state = ", state0)
                 #print("target = ", target0_)
                 
@@ -337,12 +265,12 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
                 dir_up_ = model.getZeroControl()
                 dir_up_[ind_node, ind_var, 0] += 1.
                 
-                step_up_ = test_step(model, state0, target0_, control0_, dir_up_, test_step_)
+                step_up_ = fo.test_step(model, state0, target0_, control0_, dir_up_, test_step_)
                 
                 dir_down_ = model.getZeroControl()
                 dir_down_[ind_node, ind_var, 0] -= 1.
                 
-                step_down_ = test_step(model, state0, target0_, control0_, dir_down_, test_step_)
+                step_down_ = fo.test_step(model, state0, target0_, control0_, dir_down_, test_step_)
                 
                 if (print_):
                     print("step up = ", step_up_)
@@ -360,7 +288,7 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
                     else:
                         print("something forgotten: step up, step down = ", step_up_, step_down_)
                         
-                    step_ = step_size(model, state0, target0_, control0_, dir_, start_step_, max_iteration_ = 100, bisec_factor_ = 2., max_control_=max_control_)
+                    step_ = fo.step_size(model, state0, target0_, control0_, dir_, start_step_, max_iteration_ = 100, bisec_factor_ = 2., max_control_=max_control_)
                     
                     #if (print_):
                     #    print("found stepsize = ", step_)

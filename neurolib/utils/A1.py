@@ -1,8 +1,10 @@
 import numpy as np
 import logging
+import numba
+
 from timeit import default_timer as timer
 from . import costFunctions as cost
-import numba
+from . import func_optimize as fo
 
 
 VALID_VAR = {None, "FR", "HS"}
@@ -21,7 +23,7 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
     if (t_sim_pre_ > dt):
         model.params['duration'] = t_sim_pre_
         control_pre_ = model.getZeroControl()
-        state_pre_ = updateState(model, control_pre_)
+        state_pre_ = fo.updateState(model, control_pre_)
         
         #print("state vars = ", state_vars)
         #print("init vars = ", init_vars)
@@ -80,7 +82,7 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
     
     while( np.amax(np.absolute(g0_min_[:,:,1:])) > tolerance_ and i < max_iteration_ - 1 ):
         i += 1        
-        step_, total_cost_[i] = step_size(model, state1_, target_state_, best_control_, dir1_, start_step_ = startStep_,
+        step_, total_cost_[i] = fo.step_size(model, state1_, target_state_, best_control_, dir1_, start_step_ = startStep_,
                                           max_control_ = cntrl_max_)
         print("RUN ", i, ", total integrated cost = ", total_cost_[i])
         #print("step = ", step_)
@@ -96,7 +98,7 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
             #return u_opt0_, state0_, total_cost_[:i-1], runtime_[:i-1]
         u_opt0_ = best_control_.copy()
         
-        state1_ = updateState(model, best_control_)
+        state1_ = fo.updateState(model, best_control_)
         s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_ )
         if ( s_diff_.all() ):
             print("State only changes marginally.")
@@ -191,13 +193,13 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
         
                         
     i += 1
-    step_, total_cost_[i] = step_size(model, state1_, target_state_, best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
+    step_, total_cost_[i] = fo.step_size(model, state1_, target_state_, best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
     print("RUN ", i, ", total integrated cost = ", total_cost_[i])
     #print("step = ", step_)
     #print("dir = ", dir1_)
     best_control_ += step_ * dir1_
     #print("u optimal = ", u_opt_)
-    state1_ = updateState(model, best_control_)
+    state1_ = fo.updateState(model, best_control_)
     runtime_[i] = timer() - runtime_start_
     print("improved over ", i, " iterations by ", 100 - int(100.*(total_cost_[-1]/total_cost_[0])), " percent.")
     
@@ -221,7 +223,7 @@ def A1(model, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max
                 
         model.params.duration = t_sim_post_ - dt
         control_post_ = model.getZeroControl()
-        state_post_ = updateState(model, control_post_)
+        state_post_ = fo.updateState(model, control_post_)
     
     
     model.params.duration = t_sim_ + t_sim_pre_ + t_sim_post_
@@ -281,9 +283,6 @@ def phi(model, state_, target_state_, c_scheme_, start_ind_ = 0, runge_kutta_ = 
         f_p_grad_t_ = cost.cost_precision_gradient_t(state_[:,:,ind_time],  target_state_[:,:,ind_time])
         #print("f grad = ", f_p_grad_t_)
         if not runge_kutta_:
-            #test = test_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_,
-            #                N, no_output, alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_)
-            #print("fails")
             phi_dot_ = phi_dot(state_[:,:,ind_time], target_state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_,
                            N, no_output, alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_)
             phi_[:,:, ind_time-1] = phi_[:,:, ind_time] + phi_dot_[:,:] * (-dt)
@@ -303,11 +302,6 @@ def phi(model, state_, target_state_, c_scheme_, start_ind_ = 0, runge_kutta_ = 
             
             phi_[:,:, ind_time-1] = phi_[:,:,ind_time] + ((-dt) / 6.) * (k1 + 2. * k2 + 2. * k3 + k4)
     return phi_
-    
-@numba.njit
-def test_dot(state_t_, target_state_t_, phi_, f_p_grad_t_, N, no_output, alpha, beta, gamma, tau, epsilon, coupling_,
-             c_mat_, c_scheme_):
-    print("works")
 
 @numba.njit
 def phi_dot(state_t_, target_state_t_, phi_, f_p_grad_t_, N, no_output, alpha, beta, gamma, tau, epsilon, coupling_,
@@ -371,69 +365,6 @@ def g(model, phi_, state_, target_, control_, u_mat_, u_scheme_):
                 g_[i_node, i_var, i_time] = matProd + grad_cost_e_[i_node, i_var, i_time] + grad_cost_s_[i_node, i_var, i_time]
     return g_
 
-def test_step(model, state_, target_, control_, dir_, test_step_ = 1e-12):
-    dt = model.params['dt']
-    cost0_int_ = cost.f_int(dt, cost.f_cost(state_, target_, control_))
-    
-    test_control_ = control_ + test_step_ * dir_
-    state1_ = updateState(model, test_control_)
-    cost1_int_ = cost.f_int(dt, cost.f_cost(state1_, target_, test_control_))
-    #print("test step size computation : ------ step size, cost1, cost0 : ", test_step_, cost1_int_, cost0_int_)
-        
-    if (cost1_int_ < cost0_int_):
-        return test_step_, cost1_int_
-    else:
-        return 0., cost0_int_
-
-def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_iteration_ = 1000,
-              bisec_factor_ = 2., max_control_ = 20.):
-    dt = model.params['dt']
-    cost0_int_ = cost.f_int(dt, cost.f_cost(state_, target_, control_))
-    cost_min_int_ = cost0_int_
-    step_ = start_step_
-    step_min_ = step_
-    
-    for i in range(max_iteration_):
-        test_control_ = control_ + step_ * dir_
-        
-        # include maximum control value to assure no divergence
-        if ( np.amax(np.absolute(test_control_)) > max_control_):
-            if (i < max_iteration_-1):
-                step_ /= bisec_factor_
-                continue
-            else:
-                print("control too big, but no further iteration")
-                return 0., cost0_int_
-            
-        state1_ = updateState(model, test_control_)
-        cost1_int_ = cost.f_int(dt, cost.f_cost(state1_, target_, test_control_))
-            
-        if (cost1_int_ < cost_min_int_):
-            #print("found step = ", step_, " with cost1, cost0 : ", cost1_int_, cost0_int_)
-            cost_min_int_ = cost1_int_
-            step_min_ = step_
-            # remove following line to iterate until cost increases again
-            return step_min_, cost_min_int_
-        # return smallest step size before cost is increasing again
-        elif (cost1_int_ >= cost_min_int_ and cost_min_int_ < cost0_int_):
-            #print("step size for minimal cost: ", step_min_)
-            if (step_min_ == start_step_):
-                print("Step agrees with starting step, might improve for larger initial value.")
-            return step_min_, cost_min_int_
-        
-        if (i == max_iteration_-1):
-            print(" max iteration reached, step size = ", step_)
-            return 0., cost0_int_
-        step_ /= bisec_factor_
-
-def updateState(model, control_):
-    # set initial conditions once in other function
-    state1_ = model.getZeroState()
-    output_vars = model.output_vars
-    model.run(control = control_)    
-    for i in range(len(output_vars)):
-        state1_[:,i,:] = model[output_vars[i]][:,:]
-    return state1_
 
 def beta_FR(model, g_1_, g_0_):
     beta_ = 0.
