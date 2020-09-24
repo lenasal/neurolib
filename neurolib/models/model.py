@@ -6,7 +6,9 @@ from ..models import bold
 
 from ..utils.collections import dotdict
 from ..utils import costFunctions as cost
-from ..utils import A1 as opti1
+from ..utils import A1_fhn as opti1_fhn
+from ..utils import A1_aln as opti1_aln
+from ..utils import A1_alnSimp as opti1_alnSimp
 from ..utils import A2 as opti2
 
 
@@ -286,7 +288,7 @@ class Model:
         for svn, sv in zip(self.state_vars, variables):
             if svn in self.output_vars:
                 self.setOutput(svn, sv, append=append, removeICs=False)
-            self.setStateVariables(svn, sv)
+            self.setStateVariables(svn, sv, removeICs=False)
 
     def setInitialValuesToLastState(self):
         """Reads the last state of the model and sets the initial conditions to that state for continuing a simulation.
@@ -378,7 +380,7 @@ class Model:
         max_global_delay = int(np.amax(Dmat_ndt))
         return max_global_delay
 
-    def setStateVariables(self, name, data):
+    def setStateVariables(self, name, data, removeICs=False):
         """Saves the models current state variables. 
         
         TODO: Cut state variables to length of self.maxDelay
@@ -398,12 +400,13 @@ class Model:
         # else: data.copy()
         # there coulb be (N, 1)-dimensional output, right now
         # it is requred to be of shape (N, )
-        #print("data = ", name, data.shape, self.startindt)
         if data.ndim == 2:
-            #self.state[name] = data[:, -self.startindt :].copy()
-            self.state[name] = data[:, self.startindt:].copy()
-            #print("data = ", name, self.state[name].shape)
+            if removeICs:
+                self.state[name] = data[:, self.startindt:].copy()
+            else:
+                self.state[name] = data[:, self.startindt-1:].copy()
         else:
+            # no time dimension
             self.state[name] = data.copy()
 
     def setOutput(self, name, data, append=False, removeICs=False):
@@ -583,6 +586,13 @@ class Model:
             state = np.zeros((self.params["N"], len(self.output_vars), int(round(self.params["duration"]/self.params["dt"], 1) ) ))
         return state    
 
+    def getZeroFullState(self, removeICs = True):
+        if removeICs:
+            state = np.zeros((self.params["N"], len(self.state_vars), int(round(self.params["duration"]/self.params["dt"],1) + 1) ))
+        else:
+            state = np.zeros((self.params["N"], len(self.state_vars), int(round(self.params["duration"]/self.params["dt"], 1) ) ))
+        return state  
+
     def getZeroControl(self, removeICs = True):
         if removeICs:
             control = np.zeros((self.params["N"], len(self.control_input_vars), int(round(self.params["duration"]/self.params["dt"],1) + 1) ))
@@ -609,7 +619,7 @@ class Model:
                 logging.error("Wrong dimension in control array input")
                 print(control.shape[0], self.params["N"])
                 print(control.shape[1], len(self.control_input_vars))
-                print(control.shape[2], int(round(self.params["duration"]/self.params["dt"], 1)))
+                print(control.shape[2], int(round(self.params["duration"]/self.params["dt"], 1) + 1))
                 return
             
     def getZeroTarget(self, removeICs = True):
@@ -634,5 +644,10 @@ class Model:
         return opti2.A2(self, cntrl_, target_,  max_iteration_, tolerance_, include_timestep_, start_step_, test_step_, max_control_,
        t_sim_, t_sim_pre_, t_sim_post_)
     
-    def A1(self, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10., test_step_ = 1e-8,                                cntrl_max_ = 20., t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, CGVar = None):
-        return opti1.A1(self, state_, target_state_, control_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, test_step_, cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
+    def A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10., max_control_ = 20., t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, CGVar = None):
+        if self.name == "fhn":
+            return opti1_fhn.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
+        elif self.name == "aln":
+            return opti1_aln.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
+        elif self.name == "alnSimp":
+            return opti1_alnSimp.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)

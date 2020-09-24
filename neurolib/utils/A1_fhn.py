@@ -20,11 +20,6 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     state_vars = model.state_vars
     init_vars = model.init_vars
     
-    if (model.name == "fhn"):
-        phi = phi_fhn
-    elif (model.name == "aln"):
-        phi = phi_aln
-    
     # simulate with duration t_sim_pre before start
     if (t_sim_pre_ > dt):
         model.params['duration'] = t_sim_pre_
@@ -269,43 +264,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
 
 
 # computation of phi
-
-def phi_aln(model, state_, target_state_, c_scheme_, start_ind_ = 0):
-    print("ALN phi computation")
-    phi_ = model.getZeroState()
-    dt = model.params['dt']
-    
-    for ind_time in range(phi_.shape[2]-1, start_ind_, -1):
-        f_p_grad_t_ = cost.cost_precision_gradient_t(state_[:,:,ind_time], target_state_[:,:,ind_time])
-        phi_dot_ = phi_dot_aln(model, state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_, c_scheme_)
-        phi_[:,:, ind_time-1] = phi_[:,:, ind_time] + phi_dot_[:,:] * (-dt)
-    return phi_
-
-def phi_dot_aln(model, state_t_, phi_, f_p_grad_t_, N, no_output, alpha, beta, gamma, tau, epsilon, coupling_, c_mat_, c_scheme_):
-    phi_dot_ = np.zeros(( N, no_output ))
-    jac_h_t_ = np.zeros(( N, N, no_output, no_output ))
-    jac_h_t_ = jac_aln.jac_h_t(model, jac_h_t_, state_t_)
-    
-    for i_node in range(phi_dot_.shape[0]):
-        for i_var in range(phi_dot_.shape[1]):
-            coupling_prod = 0.
-            jac_prod = 0.
-                
-            for j_node in range(phi_dot_.shape[0]):
-                for j_var in range(phi_dot_.shape[1]):
-                    jac_prod += jac_h_t_[j_node, i_node, j_var, i_var] * phi_[j_node, j_var]
-                    coupling_prod += coupling_ * c_mat_[j_node, i_node] * c_scheme_[j_var, i_var] * phi_[j_node, j_var] 
-                    #matProd += (jac_h_t_[j_node, i_node, j_var, i_var] + coupling_
-                    #            * c_mat_[j_node, i_node] * c_scheme_[j_var, i_var]) * phi_[j_node, j_var]   
-            phi_dot_[i_node, i_var] += - jac_prod - coupling_prod - f_p_grad_t_[i_node, i_var]
-            #print("jacobian = ", jac_prod)
-            #print("coupling = ", coupling_prod)
-            #print("gradient = ", f_p_grad_t_[i_node, i_var])
-            
-    return phi_dot_
-
-#@numba.njit
-def phi_fhn(model, state_, target_state_, c_scheme_, start_ind_ = 0, runge_kutta_ = False):
+def phi(model, state_, target_state_, c_scheme_, start_ind_ = 0, runge_kutta_ = False):
     phi_ = model.getZeroState()
     dt = model.params['dt']    
     
@@ -313,18 +272,18 @@ def phi_fhn(model, state_, target_state_, c_scheme_, start_ind_ = 0, runge_kutta
         f_p_grad_t_ = cost.cost_precision_gradient_t(state_[:,:,ind_time], target_state_[:,:,ind_time])
         #print("f grad = ", f_p_grad_t_)
         if not runge_kutta_:
-            phi_dot_ = phi_dot_fhn(model, state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_, c_scheme_)
+            phi_dot_ = phi_dot(model, state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_, c_scheme_)
             phi_[:,:, ind_time-1] = phi_[:,:, ind_time] + phi_dot_[:,:] * (-dt)
         else:
-            k1 = phi_dot_fhn(model, state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_, c_scheme_)
-            k2 = phi_dot_fhn(model, state_[:,:,ind_time], phi_[:,:,ind_time] + 0.5 * (-dt) * k1, f_p_grad_t_, c_scheme_)
-            k3 = phi_dot_fhn(model, state_[:,:,ind_time], phi_[:,:,ind_time] + 0.5 * (-dt) * k2, f_p_grad_t_, c_scheme_)
-            k4 = phi_dot_fhn(model, state_[:,:,ind_time], phi_[:,:,ind_time] + (-dt) * k3, f_p_grad_t_, c_scheme_)
+            k1 = phi_dot(model, state_[:,:,ind_time], phi_[:,:,ind_time], f_p_grad_t_, c_scheme_)
+            k2 = phi_dot(model, state_[:,:,ind_time], phi_[:,:,ind_time] + 0.5 * (-dt) * k1, f_p_grad_t_, c_scheme_)
+            k3 = phi_dot(model, state_[:,:,ind_time], phi_[:,:,ind_time] + 0.5 * (-dt) * k2, f_p_grad_t_, c_scheme_)
+            k4 = phi_dot(model, state_[:,:,ind_time], phi_[:,:,ind_time] + (-dt) * k3, f_p_grad_t_, c_scheme_)
             
             phi_[:,:, ind_time-1] = phi_[:,:,ind_time] + ((-dt) / 6.) * (k1 + 2. * k2 + 2. * k3 + k4)
     return phi_
 
-def phi_dot_fhn(model, state_t_, phi_, f_p_grad_t_, c_scheme_):
+def phi_dot(model, state_t_, phi_, f_p_grad_t_, c_scheme_):
     N = model.params['N']
     alpha = model.params['alpha']
     beta = model.params['beta']
@@ -356,12 +315,6 @@ def phi_dot_fhn(model, state_t_, phi_, f_p_grad_t_, c_scheme_):
 # block-diagonal jacobian matrix
 @numba.njit
 def jac_h_t(jac_h_t_, state_t_, alpha, beta, gamma, tau, epsilon):
-    #jac_h_t_ = np.zeros(( fhn.params['N'], fhn.params['N'], len(fhn.output_vars), len(fhn.output_vars) ))
-    #alpha = fhn.params['alpha']
-    #beta = fhn.params['beta']
-    #gamma = fhn.params['gamma']
-    #tau = fhn.params['tau']
-    #epsilon = fhn.params['epsilon']
     x1_ = state_t_[:,0]
     for ind_node in range(jac_h_t_.shape[0]):
         jac_h_t_[ind_node, ind_node, 0, 0] = -3. * alpha * x1_[ind_node]**2 + 2. * beta *x1_[ind_node] + gamma
@@ -371,7 +324,6 @@ def jac_h_t(jac_h_t_, state_t_, alpha, beta, gamma, tau, epsilon):
     return jac_h_t_
 
 # computation of g
-# does not work with numba because takes model as parameter
 def g(model, phi_, state_, target_, control_, u_mat_, u_scheme_):
     g_ = model.getZeroControl()
     grad_cost_e_ = cost.cost_energy_gradient(control_)

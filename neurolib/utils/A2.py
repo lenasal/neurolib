@@ -3,6 +3,7 @@ import logging
 from timeit import default_timer as timer
 from . import costFunctions as cost
 from . import func_optimize as fo
+np.set_printoptions(precision=8)
 
 
 # control optimization
@@ -14,7 +15,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     
     # run model with dt duration once to set delay matrix
     model.params['duration'] = dt
-    model.run()
+    model.run(control=model.getZeroControl())
     
     Dmat = model.params.Dmat
     Dmat_ndt = np.around(Dmat / dt).astype(int)
@@ -35,11 +36,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     init_vars = model.init_vars
     
     if (startind_ > 1):
-        for iv in range(len(init_vars)):
-            if model.params[init_vars[iv]].ndim == 2:
-                if (model.params[init_vars[iv]].shape[1] <= 1):
-                    model.params[init_vars[iv]] = np.dot( model.params[init_vars[iv]], np.ones((1, startind_)) )
-    
+        fo.adjust_shape_init_params(model, init_vars, startind_)    
     
     t_pre_ndt = np.around(t_sim_pre_ / dt).astype(int)
     delay_state_vars_ = np.zeros(( model.params.N, len(state_vars), startind_ ))
@@ -49,26 +46,11 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
         model.params['duration'] = t_sim_pre_
         control_pre_ = model.getZeroControl()
         state_pre_ = fo.updateState(model, control_pre_)
-            
-        for iv, sv in zip( range(len(init_vars)), range(len(state_vars)) ):
-            if state_vars[sv] in init_vars[iv]:
-                if model.params[init_vars[iv]].ndim == 2:
-                    if startind_ == 1:
-                        model.params[init_vars[iv]][:,0] = model.state[state_vars[sv]][:,-1]
-                    else:
-                        if (t_pre_ndt < startind_):
-                            # delay larger than pre simulation time
-                            #else:
-                            delay_state_vars_[:, sv, :-1] = model.params[init_vars[iv]][:,1:]
-                            delay_state_vars_[:, sv, -t_pre_ndt:] = model.state[state_vars[sv]][:,:]
-                            model.params[init_vars[iv]][:,:] = delay_state_vars_[:, sv, :]
-                        else:
-                            model.params[init_vars[iv]] = model.state[state_vars[sv]][:,-startind_:]
-                            delay_state_vars_[:, sv, :] = model.state[state_vars[sv]][:,-startind_:]
-                else:
-                    model.params[init_vars[iv]] = model.state[state_vars[sv]]
-            else:
-                logging.error("Initial and state variable labelling does not agree.")
+        
+        if startind_ == 1:
+            fo.update_init(model, init_vars, state_vars)
+        else:
+            fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_pre_ndt, startind_)
     
     model.params['duration'] = t_sim_
     len_time = int(round(t_sim_/dt,1)+1)
@@ -90,11 +72,16 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     
     state_ = fo.updateState(model, best_control_)
     state0_ = state_.copy()
-    #print("state with initial guess = ", state0_)
     
     for i in range( int(max_iteration_) ):
             
         cost_ = cost.f_cost(state_, target_, best_control_)
+        #print("1  cost = ", cost_)
+        for j in range(len(cost_)):
+            costsum = 0.1 * sum(cost_[j:])
+            #print("1 cost int starting from index ", j, " : ", costsum)
+            costsum_reverse = 0.1 * sum(cost_[:j+1])
+            #print("1 cost int up to index ", j+1, " : ", costsum_reverse)
         total_cost_[i] = cost.f_int(dt, cost_)
         print('RUN ', i, ', total integrated cost: ', total_cost_[i])
         #print("state = ", state_)
@@ -104,7 +91,9 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
         delta_ = gf_dc1(model, best_control_, target_, include_timestep_, start_step_, test_step_, max_control_,
                        startind_, delay_state_vars_)
         best_control_ += delta_
-        best_control_[:,:,-1] = best_control_[:,:,-2]  
+        #best_control_[:,:,-1] = best_control_[:,:,-2]
+        #best_control_[:,:,0] = best_control_[:,:,1]
+
         state0_ = state_
         state_ = fo.updateState(model, best_control_)
         
@@ -126,21 +115,17 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
             break
             #return best_control_, state_, total_cost_, runtime_
         
-        
-        
     model.run(control = best_control_)
     for i in range(len(output_vars)):
         state_[:,i,:] = model[output_vars[i]][:,:]
     cost_ = cost.f_cost(state_, target_, best_control_)
-    #print(cost_)
     total_cost_[max_iteration_] = cost.f_int(dt, cost_)
     print('RUN ', max_iteration_, ', total integrated cost: ', total_cost_[max_iteration_])
     runtime_[max_iteration_] = timer() - runtime_start_
     
-    if total_cost_[0] == 0.:
-        improvement = 100
-    else:
-        improvement = 100 - int(100.*(total_cost_[max_iteration_]/total_cost_[0]))
+    improvement = 100.
+    if total_cost_[0] != 0.:
+        improvement = improvement = 100 - int(100.*(total_cost_[max_iteration_]/total_cost_[0]))
         
     print("Improved over ", max_iteration_, " iterations by ", improvement, " percent.")
     
@@ -205,6 +190,51 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     return bc_, bs_, total_cost_, runtime_
 
 
+def get_dir(model, ind_node, ind_var, ind_time, state0, target0_, control0_, test_step_):
+    dir_ = model.getZeroControl()
+    
+    dir_up_ = model.getZeroControl()
+    dir_up_[ind_node, ind_var, 1] += 1.
+    
+    dir_down_ = model.getZeroControl()
+    dir_down_[ind_node, ind_var, 1] -= 1.
+    
+    counter = 0
+    maxcounter = 5
+    
+    while (np.all(dir_ == 0.) and counter < maxcounter):
+        step_up_ = fo.test_step(model, state0, target0_, control0_, dir_up_, test_step_)
+        step_down_ = fo.test_step(model, state0, target0_, control0_, dir_down_, test_step_)
+        #print("step up = ", step_up_)
+        #print("step down = ", step_down_)
+        
+        if (step_up_[0] != 0. or step_down_[0] != 0.):
+            if (step_down_ == 0. or step_up_[1] < step_down_[1]):
+                dir_ = dir_up_.copy()
+            elif (step_up_ == 0. or step_up_[1] > step_down_[1]):
+                dir_ = dir_down_.copy()
+            # both directions improvement
+            else:
+                if (counter == maxcounter - 1):
+                    dir_ = dir_up_.copy()         
+                test_step_ *= 4.
+                counter += 1
+        # both directions no improvement
+        else:
+            test_step_ *= 4.
+            counter += 1
+            
+    if (dir_.any() != 0. and counter != 0): 
+        print("change helped, counter = ", counter)
+    #if (dir_.any() == 0. and counter == maxcounter): 
+    #    print("change did not help")
+    
+    if counter == 5:
+        "change did not help"
+        
+    return dir_
+    
+
 
 # Gradient of the cost function with respect to the control
 def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_, max_control_, startind_, delay_state_vars_):
@@ -239,86 +269,76 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
             IC_init[:, ind_var, 0] = model.params[init_vars[ind_var]][:]    
     
     change_dur_ = False
-    
+        
     ##!!!!! -1 ???
-    for ind_time in range(control_.shape[2]-1):
+    for ind_time in range(control_.shape[2]-2):#2):
         for ind_node in range(N):
             for ind_var in range(len(control_input)):
                 
                 print_ = False
-                if (ind_time in [-1]):
+                if (ind_time in range(0,-1,1)):
                     print_ = True
                     
-                if (print_):
-                    print('time, node, var: ', ind_time, ind_node, ind_var) 
+                #if (print_):
+                #print('time, node, var: ', ind_time, ind_node, ind_var) 
                 
                 if (change_dur_):
                     change_dur_ = False
                     control0_ = control0_[:,:,1:].copy()
                     target0_ = target0_[:,:,1:].copy()
                     
+                    
+                #print("0: rates exc = ", model.rates_exc) 
                 state0 = fo.updateState(model, control0_)
-                #print("state = ", state0)
-                #print("target = ", target0_)
+                #print("1: rates exc = ", model.rates_exc)
                 
-                dir_ = model.getZeroControl()
-                dir_up_ = model.getZeroControl()
-                dir_up_[ind_node, ind_var, 0] += 1.
+                dir_ = get_dir(model, ind_node, ind_var, ind_time, state0, target0_, control0_, test_step_)
                 
-                step_up_ = fo.test_step(model, state0, target0_, control0_, dir_up_, test_step_)
+    #            if (ind_time == 0):
+    #                dir_[:,:,0] = dir_[:,:,1]
+     #           elif (ind_time == control_.shape[2]-3):
+    #                dir_[:,:,-1] = dir_[:,:,-2]
                 
-                dir_down_ = model.getZeroControl()
-                dir_down_[ind_node, ind_var, 0] -= 1.
-                
-                step_down_ = fo.test_step(model, state0, target0_, control0_, dir_down_, test_step_)
-                
-                if (print_):
-                    print("step up = ", step_up_)
-                    print("step down = ", step_down_)
-                
-                if (step_up_[0] != 0. or step_down_[0] != 0.):
-                    if (step_down_ == 0. or step_up_[1] < step_down_[1]):
-                        dir_ = dir_up_
-                        #if (print_):
-                        #    print("go up")
-                    elif (step_up_ == 0. or step_up_[1] > step_down_[1]):
-                        dir_ = dir_down_
-                        #if (print_):
-                        #    print("go down")
-                    else:
-                        print("something forgotten: step up, step down = ", step_up_, step_down_)
+                #print("direction : ", dir_)
                         
-                    step_ = fo.step_size(model, state0, target0_, control0_, dir_, start_step_, max_iteration_ = 100, bisec_factor_ = 2., max_control_=max_control_)
+                if (dir_.any() != 0.): 
+                    step_ = fo.step_size(model, state0, target0_, control0_, dir_, start_step_, max_it_ = 10000, bisec_factor_ = 2., max_control_=max_control_)
                     
                     #if (print_):
-                    #    print("found stepsize = ", step_)
+                    #print("found stepsize = ", step_)
                 
-                    control0_[ind_node, ind_var, 0] += step_[0] * dir_[ind_node, ind_var, 0]
-                    delta_c[ind_node, ind_var, ind_time] = step_[0] * dir_[ind_node, ind_var, 0]
+                    control0_[ind_node, ind_var, 1] += step_[0] * dir_[ind_node, ind_var, 1]
+                    delta_c[ind_node, ind_var, ind_time+1] = step_[0] * dir_[ind_node, ind_var, 1]
+                    
+                    ##### debugging
+                    teststate = fo.updateState(model, control0_)
+                    testcost = cost.f_cost(teststate, target0_, control0_)
+                    #print("2  cost = ", testcost)
+                    for j in range(len(testcost)):
+                        costsum = 0.1 * sum(testcost[j:])
+                        #print("1 cost int starting from index ", j, " : ", costsum)
+                        costsum_reverse = 0.1 * sum(testcost[:j+1])
+                        #print("1 cost int up to index ", j+1, " : ", costsum_reverse)
+                    testtotalcost = cost.f_int(dt, testcost)
+                    #print("2 total cost = ", testtotalcost)
+                                
+                    
+                    
         
-        # simulate one time step for initial conditions
-        model.params['duration'] = dt
-        model.run(control=control0_[:, :, :2])
-                
-        for sv, iv in zip( range(len(state_vars)), range(len(init_vars)) ):
-            if (state_vars[sv] in init_vars[iv]):
-                if model.params[init_vars[iv]].ndim == 2:
-                    if startind_ == 1:
-                        model.params[init_vars[iv]][:,0] = model.state[state_vars[sv]][:,-1]
-                    else:
-                        delay_state_vars0_[:, sv, :-1] = delay_state_vars0_[:, sv, 1:]
-                        delay_state_vars0_[:, sv, -1] = model.state[state_vars[sv]][:,-1]
-                        model.params[init_vars[iv]][:,:] = delay_state_vars0_[:, sv, :]
-                else:
-                    model.params[init_vars[iv]] = model.state[state_vars[sv]]
-            else:
-                logging.error("Initial and state variable labelling does not agree.")
+        #print("2: rates exc = ", model.rates_exc)
+        # simulate two/ one time step for initial conditions
+        model.params['duration'] = 2. * dt
+        model.run(control=control0_[:, :, :3])
+        #print("rates exc: ", model.rates_exc)
+        fo.update_delayed_state(model, delay_state_vars0_, state_vars, init_vars, startind_)
+        
+        
         duration_sim -= dt
         model.params['duration'] = duration_sim
         change_dur_ = True
     
     model.params['duration'] = duration_init
-    
+        
     for j_var in range(len(init_vars)):
         if model.params[init_vars[j_var]].ndim == 1:
             model.params[init_vars[j_var]][:] = IC_init[:, j_var, 0]
@@ -331,3 +351,4 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
     
                 
     return delta_c
+

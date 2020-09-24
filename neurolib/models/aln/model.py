@@ -47,6 +47,11 @@ class ALNModel(Model):
         "siiv",
         "mue_ou",
         "mui_ou",
+        "sigmae_f",
+        "sigmai_f",
+        "VE",
+        "tau_exc",
+        "tau_inh",
     ]
     output_vars = ["rates_exc", "rates_inh", "IA"]
     default_output = "rates_exc"

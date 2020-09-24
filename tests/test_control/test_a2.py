@@ -16,10 +16,11 @@ start_step = 20.
 test_step = 1e-12
 
 duration = 0.6
-dur_pre = 0.5
-dur_post = 0.5
+dur_pre = 0.#5
+dur_post = 0.#5
 
-tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
+#tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
+tests = ["aln1"]
 
 def getmodel(i):
     if i == "fhn1":
@@ -82,9 +83,7 @@ class TestA2(unittest.TestCase):
  
 # set init vars zero everywhere or nowhere
     def test_A2inputControlForPrecisionCostOnly(self):
-        if (model.name == "aln"):
-           return
-        print("test_A1inputControlForPrecisionCostOnly for model ", testcaseind)
+        print("test_A2inputControlForPrecisionCostOnly for model ", testcaseind)
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = getSchemes(model)
@@ -99,6 +98,7 @@ class TestA2(unittest.TestCase):
         cntrl_zeros_post = int(dur_post / model.params.dt)
         
         control1 = func.getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax) 
+        
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
             cntrl_zeros_post = 1
@@ -107,27 +107,26 @@ class TestA2(unittest.TestCase):
             
         model.params.duration = duration
         control2 = func.getRandomControl(model, 0, controlmin, controlmax)
-                
+                        
         testip, testie, testis = 1., 0., 0.
         cost.setParams(testip, testie, testis)
         
         func.setInitVarsZero(model, init_vars)
         
         A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
-                algorithm_tolerance, incl_steps, start_step, test_step, 2.*controlmax, duration, dur_pre, dur_post)
+                algorithm_tolerance, incl_steps, start_step, test_step, 1e5 * controlmax, duration, dur_pre, dur_post)
         
         
         self.assertEqual(A2_bestControl.shape[2], cntrl_len)
         
         for n in range(A2_bestControl.shape[0]):
             for v in range(A2_bestControl.shape[1]):
-                for t in range(control1.shape[2]-2):
+                for t in range(1, control1.shape[2]-2):
                     self.assertAlmostEqual(A2_bestControl[n, v, t], control1[n, v, t], assertion_tolerance)
   
+    
     def test_A2zeroControlForEnergyCostOnly(self):
-        if (model.name == "aln"):
-           return
-        print("test_A1inputControlForPrecisionCostOnly for model ", testcaseind)
+        print("test_A2inputControlForPrecisionCostOnly for model ", testcaseind)
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = getSchemes(model)
@@ -157,15 +156,16 @@ class TestA2(unittest.TestCase):
         func.setInitVarsZero(model, init_vars)
 
         A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
-                            algorithm_tolerance, incl_steps, start_step, test_step, 2.*controlmax, duration, dur_pre, dur_post)
+                            algorithm_tolerance, incl_steps, start_step, test_step, 1e5 * controlmax, duration, dur_pre, dur_post)
         
         
         self.assertEqual(A2_bestControl.shape[2], cntrl_len)
         
         for n in range(A2_bestControl.shape[0]):
             for v in range(A2_bestControl.shape[1]):
-                for t in range(A2_bestControl.shape[2] - 2):
+                for t in range(1, A2_bestControl.shape[2] - 2):
                     self.assertAlmostEqual(A2_bestControl[n, v, t], 0., assertion_tolerance)
+    
 
 
 if __name__ == '__main__':

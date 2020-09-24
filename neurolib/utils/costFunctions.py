@@ -6,6 +6,7 @@ from ..utils.collections import dotdict
 
 costparams = dotdict({})
 costparamsdefault = np.array([1., 1., 1.])
+tolerance = 1e-16
 
 
 def getParams():
@@ -54,6 +55,8 @@ def numba_cost_precision(i_p, state_, target_state_):
             for ind_var in range(target_state_.shape[1]):
                 if target_state_[ind_node, ind_var, ind_time] == -1:
                     cost[ind_time] += 0.
+                elif (np.abs(state_[ind_node, ind_var, ind_time] - target_state_[ind_node, ind_var, ind_time]) < tolerance):
+                    cost[ind_time] += 0.
                 else:
                     cost[ind_time] += 0.5 * i_p * (state_[ind_node, ind_var, ind_time] - 
                                                target_state_[ind_node, ind_var, ind_time])**2.
@@ -61,13 +64,12 @@ def numba_cost_precision(i_p, state_, target_state_):
 
 # gradient of cost function for precision at time t
 # time interval for transition can be set by defining respective target state to -1.
-#@numba.njit
 def cost_precision_gradient_t(state_t_, target_state_t_):
     i_p, i_e, i_s = getParams()
     cost_gradient_ = numba_precision_gradient_t(i_p, state_t_, target_state_t_)
     return cost_gradient_
 
-@numba.njit
+#@numba.njit
 def numba_precision_gradient_t(i_p, state_t_, target_state_t_):
     cost_gradient_ = np.zeros(( target_state_t_.shape[0], target_state_t_.shape[1] ))
     for ind_node in range(target_state_t_.shape[0]):
@@ -98,7 +100,7 @@ def numba_cost_energy(i_e, control_):
    
 """     
 # gradient of cost function for energy at time t
-@numba.njit
+#@numba.njit
 def cost_energy_gradient(control_, I_e = 1e-3):
     # state_t: [N,dim_Model] dimensional array containing all nodes and state variables for all times
     cost_gradient_ = np.zeros(( control_.shape[0], control_.shape[1], control_.shape[2]))
@@ -201,7 +203,7 @@ def numba_cost_sparsity4_int(i_s, dt, control_):
 
 """
 # gradient of cost function for energy at time t
-@numba.njit
+#@numba.njit
 def cost_sparsity_gradient1(control_, I_s = 1.):
     # state_t: [N,dim_Model] dimensional array containing all nodes and state variables for one specific point of time
     cost_gradient_ = np.zeros(( control_.shape[0], control_.shape[1], control_.shape[2]))
@@ -213,7 +215,6 @@ def cost_sparsity_gradient1(control_, I_s = 1.):
 """
 
 # gradient of cost function for energy at time t
-#@numba.njit
 def cost_sparsity_gradient1(model, control_):
     # state_t: [N,dim_Model] dimensional array containing all nodes and state variables for one specific point of time
     i_p, i_e, i_s = getParams()
@@ -222,7 +223,7 @@ def cost_sparsity_gradient1(model, control_):
 
 #@numba.njit
 def numba_sparsity_gradient1(i_s, model, control_):
-    cost_gradient_ = model.getZeroState()
+    cost_gradient_ = model.getZeroControl()
     for ind_time in range(control_.shape[2]):
         for ind_node in range(control_.shape[0]):
             for state_index in range(len(model.output_vars)):
@@ -234,6 +235,7 @@ def numba_sparsity_gradient1(i_s, model, control_):
 # total cost
 def f_cost(state_, target_state_, control_):
     i_p, i_e, i_s = getParams()
+    #print("parameters = ", i_p, i_e, i_s)
     cost =  numba_cost(i_p, i_e, i_s, state_, target_state_, control_)
     return cost
 
@@ -242,16 +244,20 @@ def numba_cost(i_p, i_e, i_s, state_, target_state_, control_):
     cost =  np.zeros((control_.shape[2]))
     if not (i_p == 0.):
         c_precision_ = numba_cost_precision(i_p, state_, target_state_)
+        #print("precision cost = ", c_precision_)
         for ind_time in range(control_.shape[2]):
             cost[ind_time] += c_precision_[ind_time]
     if not (i_e == 0.):
         c_energy_ = numba_cost_energy(i_e, control_)
+        #print("energy cost = ", c_energy_)
         for ind_time in range(control_.shape[2]):
             cost[ind_time] += c_energy_[ind_time]
     if not (i_s == 0.):
         c_sparsity_ = numba_cost_sparsity1(i_s, control_)
+        #print("sparsity cost = ", c_sparsity_)
         for ind_time in range(control_.shape[2]):
             cost[ind_time] += c_sparsity_[ind_time]
+    #print("total cost = ", cost)
     return cost
 
 # integrated cost
