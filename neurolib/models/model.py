@@ -14,6 +14,7 @@ from ..utils import A1_a as opti1_a
 from ..utils import A1_b as opti1_b
 from ..utils import A1_c as opti1_c
 from ..utils import A1_d as opti1_d
+from ..utils import A1_e as opti1_e
 from ..utils import A2 as opti2
 
 
@@ -666,3 +667,5 @@ class Model:
             return opti1_c.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
         elif self.name == "d":
             return opti1_d.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
+        elif self.name == "e":
+            return opti1_e.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)

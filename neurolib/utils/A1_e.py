@@ -111,23 +111,25 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
         full_cost_grad[0] = f_p_grad_t_[0,0]
         
-        jac1 = np.delete(jac, (1,2), axis=0)
-        jac1 = np.delete(jac1, (1,2), axis=1)
+        jac1 = np.delete(jac, (1), axis=0)
+        jac1 = np.delete(jac1, (1), axis=1)
         jac2 = np.delete(jac, (0,2), axis=0)
-        jac2 = np.delete(jac2, (1,2), axis=1)
-        res = np.dot( - full_cost_grad[0] - np.dot( phi_[0,1,ind_time],jac2 ) , np.linalg.inv(jac1))
-        #print("res = ", res)
-                
+        jac2 = np.delete(jac2, (1), axis=1)
+        res = np.dot( - np.array( [full_cost_grad[0], full_cost_grad[2]] ) - np.dot( phi_[0,1,ind_time],jac2 ) , np.linalg.inv(jac1))
+        
+        phi_[0,2,ind_time] = res[0,1]
+        phi_[0,0,ind_time] = res[0,0]
+     
         if (ind_time != phi_.shape[2]-1 ):  
-            f_p_grad_t_shift = cost.cost_precision_gradient_t(out_state[:,:,ind_time+1], target_state_[:,:,ind_time+1])
-            full_cost_grad_shift = np.zeros(( state_[0,:,ind_time].shape ))
-            full_cost_grad_shift[0] = f_p_grad_t_shift[0,0]
-            phi_[0,0,ind_time] = full_cost_grad_shift[0]
             
-            der = phi_[0,0,ind_time+1] * jac[0,1] + phi_[0,1,ind_time] * jac[1,1]
+            phi_[0,0,ind_time] = phi_[0,0,ind_time+1]
+            
+            #maybe also shift tau phi?
+            
+            der = full_cost_grad[1] + phi_[0,0,ind_time] * jac[0,1] + phi_[0,1,ind_time] * jac[1,1] + phi_[0,2,ind_time] * jac[2,1]
             phi_[0,1,ind_time-1] = phi_[0,1,ind_time] - dt * der
    
-        phi_[0,0,ind_time] = res[0]
+        phi_[0,0,ind_time] = res[0,0]
                 
     return phi_
 
@@ -155,7 +157,12 @@ def jacobian(model, state_t_, control_t_):
     jacobian_ = np.zeros((state_t_.shape[1], state_t_.shape[1]))
     jacobian_[0,0] = 1.
     jacobian_[0,1] = - dh_dmu(model, 1.5, state_t_[0,1], model.params.precalc_r) *1e3
-    jacobian_[1,1] = 1.
+    
+    jacobian_[1,1] = 1. / state_t_[0,2]
+    jacobian_[1,2] = - (state_t_[0,1] - control_t_[0,0] - model.params.ext_exc_current) / state_t_[0,2]**2
+    
+    jacobian_[2,1] = 0.#- dh_dmu(model, 1.5, state_t_[0,1], model.params.precalc_tau_mu)
+    jacobian_[2,2] = 1.
     
     return jacobian_
 
@@ -165,7 +172,7 @@ def D_xdot(model, state_t_):
 
 def D_u_h(model, state_t_):
     duh_ = np.zeros(( state_t_.shape[1], state_t_.shape[1] ))
-    duh_[1,1] = -1.
+    duh_[1,1] = -1. / state_t_[0,2]
     return duh_
 
 def dh_dmu(model, sigma, mu, table):

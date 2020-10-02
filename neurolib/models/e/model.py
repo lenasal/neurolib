@@ -5,18 +5,17 @@ from . import timeIntegration as ti
 from ..model import Model
 
 
-class Model_d(Model):
+class Model_e(Model):
     """
     Multi-population mean-field model with exciatory and inhibitory neurons per population.
     """
 
-    name = "d"
+    name = "e"
     description = "Simplified version of simplified aln for testing purposes"
 
     init_vars = [
         "rates_exc_init",
         "mufe_init",
-        "tau_exc",
     ]
 
     state_vars = [
