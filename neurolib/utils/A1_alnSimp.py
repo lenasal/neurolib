@@ -19,6 +19,8 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     model.params['duration'] = t_sim_
     i=0
     
+    zeroControl_ = model.getZeroControl()
+    
     rate_ = fo.updateState(model, control_)
     state0_ = model.getZeroFullState()
     state0_[:,0,:] = rate_[:,0,:]
@@ -51,8 +53,18 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         #diff = np.abs(phi_-phi2_)
         #print("equal results : ", diff.all() < 1e-16)
         #print("phi 0, 15, 2 : ", phi_[0,15,2], phi2_[0,15,2])
+        
+        outstate_ = model.getZeroState()
+        outstate_[:,:,:] = state1_[:,0,:]
+        
+        d0_precision_ = - g(model, phi_, state1_, zeroControl_)
+        step_precision_ = fo.step_size(model, outstate_[:,:,:], target_state_,
+                     best_control_, d0_precision_, start_step_ = startStep_, max_control_ = cntrl_max_)
+        
+        control_precision_ = u_opt0_ + step_precision_[0] * d0_precision_
     
-        g0_min_ = g(model, phi_, state1_, best_control_)
+        g0_min_ = g(model, phi_, state1_, control_precision_)
+        #g0_min_ = g(model, phi_, state1_, best_control_)
         g1_min_ = g0_min_.copy()
         #print("g_min = ", g0_min_)
 
@@ -61,12 +73,11 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         #dir0_[:,:,-1] = dir0_[:,:,-2].copy()
         dir1_ = dir0_.copy()
         
-        outstate_ = model.getZeroState()
-        outstate_[:,:,:] = state1_[:,0,:]
+        
         
         step_, total_cost_[i] = fo.step_size(model, outstate_[:,:,:], target_state_,
                      best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
-        print("step size = ", step_, total_cost_[i])
+        #print("step size = ", step_, total_cost_[i])
         
         print("RUN ", i, ", total integrated cost = ", total_cost_[i])
         best_control_ = u_opt0_ + step_ * dir1_
@@ -130,8 +141,11 @@ def phi(model, state_, target_state_, control_, start_ind_ = 0):
         jac = jacobian(model, state_[:,:,ind_time], control_[:,:,ind_time])
         full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
         full_cost_grad[0] = f_p_grad_t_[0,0]
+        #if (ind_time != phi_.shape[2]-1 ):
+        #    f_p_grad_tplus_ = cost.cost_precision_gradient_t(out_state[:,:,ind_time+1], target_state_[:,:,ind_time+1])
+        #    full_cost_grad[0] = f_p_grad_tplus_[0,0]
         
-        phi_[0,0,ind_time] = - f_p_grad_t_[0,0]
+        #phi_[0,0,ind_time] = - f_p_grad_t_[0,0]
         #print("grad = ", phi_[0,0,ind_time])
         
         jac1 = np.delete(jac, (1,2), axis=0)
@@ -154,9 +168,9 @@ def phi(model, state_, target_state_, control_, start_ind_ = 0):
         #print("summands : ", f_p_grad_t_[0,0] * dh_dmu(model, state_[0,2,ind_time], model.params.precalc_r), 
         #      + phi_[0,2,ind_time] / state_[0,4,ind_time],
         #      + phi_[0,2,ind_time] * d1 * dh_dmu(model, state_[0,2,ind_time], model.params.precalc_tau_mu))
-        
                 
-        phi2[0,1:3,ind_time-1] = np.dot(phi_[0,:,ind_time],Dxdot[:,1:3]) - dt * ( full_cost_grad[1:3] + np.dot(phi_[0,:,ind_time],jac[:,1:3]))
+        phi2[0,1:3,ind_time-1] = np.dot(phi2[0,:,ind_time],Dxdot[:,1:3]) - dt * ( full_cost_grad[1:3] + np.dot(phi2[0,:,ind_time],jac[:,1:3]))
+
      
     #print("phi as calc from matrix : ", phi2)
     return phi2
@@ -169,7 +183,12 @@ def g(model, phi_, state_, control_):
     grad_cost_e_ = cost.cost_energy_gradient(control_)
     grad_cost_s_ = cost.cost_sparsity_gradient1(model, control_)
     
-    g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] - phi_[0,1,:] / state_[0,4,:]
+    phi_shift = np.zeros(( phi_.shape ))
+    #phi_shift[:,:,0:-1] = phi_[:,:,1:]
+    phi_shift[:,:,1:] = phi_[:,:,0:-1]
+    
+    #g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] - phi_[0,1,:] / state_[0,4,:]
+    g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] - phi_shift[0,1,:] / state_[0,4,:]
     #print("control = ", control_)
     #print("energy cost contribution exc: ", grad_cost_e_[0,0,:])
     #print("energy cost contribution inh: ", grad_cost_e_[0,1,:])

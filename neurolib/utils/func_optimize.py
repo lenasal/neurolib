@@ -183,16 +183,16 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         # decrease bisection factor once we approach the minimum value, such that we don't miss it
         if ( cost1_int_/cost0_int_ < 1.5 and bisec_factor_ > 1.2 ): 
             bisec_factor_ = 1.2
-            print("change bisection factor to ", bisec_factor_)
+            #print("change bisection factor to ", bisec_factor_)
         if ( cost1_int_/cost0_int_ < 1.2 and bisec_factor_ > 1.1 ): 
             bisec_factor_ = 1.1
-            print("change bisection factor to ", bisec_factor_)
-        #if ( cost1_int_/cost0_int_ < 1.1 and bisec_factor_ > 1.05 ): 
-        #    bisec_factor_ = 1.05
+            #print("change bisection factor to ", bisec_factor_)
+        if ( cost1_int_/cost0_int_ < 1.1 and bisec_factor_ > 1.05 ): 
+            bisec_factor_ = 1.05
         #    print("change bisection factor to ", bisec_factor_)
-        #if ( cost1_int_/cost0_int_ < 1.05 and bisec_factor_ > 1.01 ): 
-        #    bisec_factor_ = 1.01
-        #    print("change bisection factor to ", bisec_factor_)
+        if ( cost1_int_/cost0_int_ < 1.05 and bisec_factor_ > 1.04 ): 
+            bisec_factor_ = 1.04
+            #print("change bisection factor to ", bisec_factor_)
         #if ( cost1_int_/cost0_int_ < 1.01 and bisec_factor_ > 1.001 ): 
         #    bisec_factor_ = 1.001
         #    print("change bisection factor to ", bisec_factor_)

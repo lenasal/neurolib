@@ -216,6 +216,7 @@ def timeIntegration_njit_elementwise(
            # print("r, rho ", z1ee, z2ee)
             
             sigmae_f[no,i] = np.sqrt( 2. * Jee**2 * seev[no,i-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se) + sigmae**2 )
+            sigmae_f[no,i] = 1.5
             #print("pref sigma e ", 2. * Jee**2 * tau_se * taum / ((1 + z1ee) * taum + tau_se), seev[no,i-1])
             #print(2. * Jee**2 * seev[no,i-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se), sigmae**2)
             sigmai_f[no,i] = sigmai
@@ -252,6 +253,8 @@ def timeIntegration_njit_elementwise(
                 rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
                 tau_exc[no,i] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
                 
+                tau_exc[no,i] = 1.5
+                
                 #xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,i-1], Irange, dI, mufi[no,i-1])
                 #xid1, yid1 = int(xid1), int(yid1)
                 #rates_inh[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
@@ -259,10 +262,11 @@ def timeIntegration_njit_elementwise(
                 
                 mufe_rhs = (ext_current_e[no,i] + control_ext[no,0,i-startind+1] - mufe[no,i-1]) / tau_exc[no,i]   
                 mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
+                #mufe[no,i] = 1.5
                 
                 if (mufe[no,i] < 0.5 or mufe[no,i] > 6.):
                     if (firstwarn):
-                        #print("warning: too small or too large value for reasonable backwards computation")
+                        print("warning: too small or too large value for reasonable backwards computation with mufe = ", mufe[no,i])
                         firstwarn = False
                     mufe[no,i] = mufe[no,i-1]
                 #mufi_rhs = (ext_current_i[no,i] + control_ext[no,1,i-startind+1] - mufi[no,i-1]) / tau_inh[no,i]
@@ -270,6 +274,7 @@ def timeIntegration_njit_elementwise(
                 
                 seev_rhs = ( (z2ee - 2. * tau_se * (z1ee + 1)) * seev[no,i-1]) / tau_se ** 2
                 seev[no,i] = seev[no,i-1] + dt * seev_rhs
+                seev[no,i] = 0.
                 #print("seev = ", seev[no,i])
                 if seev[no,i] < 0:
                     seev[no,i] = 0.0

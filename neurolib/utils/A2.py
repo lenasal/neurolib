@@ -260,7 +260,9 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
     delay_state_vars0_ = delay_state_vars_.copy()
     
     for ind_var in range(len(init_vars)):
-        if len(model.params[init_vars[ind_var]][:].shape) == 2:
+        if ( type(model.params[init_vars[ind_var]]) == np.float64 or type(model.params[init_vars[ind_var]]) == float ):
+            IC_init[:, ind_var, 0] = model.params[init_vars[ind_var]]
+        elif len(model.params[init_vars[ind_var]][:].shape) == 2:
             if startind_ == 1:
                 IC_init[:, ind_var, 0] = model.params[init_vars[ind_var]][:,0]
             else:
