@@ -51,7 +51,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         dir0_ = - g0_min_.copy()
         dir1_ = dir0_.copy()
         
-        #print("phi = ", phi1_)
+        print("grad  = ", g0_min_)
 
         
         step_, total_cost_[i] = fo.step_size(model, outstate_[:,:,:], target_state_,
@@ -95,6 +95,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         improvement = improvement = 100. - (100.*(total_cost_[max_iteration_]/total_cost_[0]))
         
     print("Improved over ", max_iteration_, " iterations by ", improvement, " percent.")
+    print("final gradient = ", g0_min_)
     
     return best_control_, state1_, total_cost_, 0.
 

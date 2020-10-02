@@ -128,7 +128,7 @@ def test_step(model, state_, target_, control_, dir_, test_step_ = 1e-12):
         return 0., cost0_int_
     
     
-def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
+def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 10000,
               bisec_factor_ = 2., max_control_ = 20.):
     
     dt = model.params['dt']
@@ -193,9 +193,13 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         if ( cost1_int_/cost0_int_ < 1.05 and bisec_factor_ > 1.04 ): 
             bisec_factor_ = 1.04
             #print("change bisection factor to ", bisec_factor_)
-        #if ( cost1_int_/cost0_int_ < 1.01 and bisec_factor_ > 1.001 ): 
-        #    bisec_factor_ = 1.001
+        if ( cost1_int_/cost0_int_ < 1.04 and bisec_factor_ > 1.03 ): 
+            bisec_factor_ = 1.03
+        if ( cost1_int_/cost0_int_ < 1.03 and bisec_factor_ > 1.02 ): 
+            bisec_factor_ = 1.02
         #    print("change bisection factor to ", bisec_factor_)
+        #if ( cost1_int_/cost0_int_ < 1.02 and bisec_factor_ > 1.01 ): 
+        #    bisec_factor_ = 1.01
         
         
         step_ /= bisec_factor_

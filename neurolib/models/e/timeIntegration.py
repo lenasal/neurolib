@@ -21,18 +21,22 @@ def timeIntegration(params, control):
     N = params["N"]
     dt = params["dt"]  # Time step for the Euler intergration (ms)
     duration = params["duration"]  # imulation duration (ms)
+    
+    startind = 1
 
     # Initialization
     # Floating point issue in np.arange() workaraound: use integers in np.arange()
     t = np.arange(1, round(duration, 6) / dt + 1) * dt  # Time variable (ms)
 
-    rates_exc = np.zeros((N, len(t)+1))
-    mufe = np.zeros((N, len(t)+1))
-    tau_exc = np.zeros((N, len(t)+1))
-    ext_exc_current = np.zeros((N, len(t)+1))
+    rates_exc = np.zeros((N, len(t)+startind))
+    mufe = np.zeros((N, len(t)+startind))
+    seev = np.zeros((N, len(t)+startind))
+    sigmae_f = np.zeros((N, len(t)+startind))
+    tau_exc = np.zeros((N, len(t)+startind))
+    ext_exc_current = np.zeros((N, len(t)+startind))
 
-    rates_exc[:,0] = params["rates_exc_init"]
-    mufe[:,0] = params["mufe_init"]
+    rates_exc[:,:startind] = params["rates_exc_init"]
+    mufe[:,:startind] = params["mufe_init"]
     ext_exc_current[:,:] = params["ext_exc_current"]
     
     dI = params["dI"]
@@ -41,6 +45,9 @@ def timeIntegration(params, control):
     Irange = params["Irange"]
     
     precalc_r = params["precalc_r"]
+    precalc_tau_mu = params["precalc_tau_mu"]
+    
+    
 
     control_ext = control.copy()
     
@@ -50,14 +57,18 @@ def timeIntegration(params, control):
         N,
         dt,
         t,
+        startind,
         rates_exc,
         mufe,
+        seev,
+        sigmae_f,
         tau_exc,
         dI,
         ds,
         sigmarange,
         Irange,
         precalc_r,
+        precalc_tau_mu,
         ext_exc_current,
         control_ext,
     )
@@ -68,34 +79,38 @@ def timeIntegration_njit_elementwise(
         N,
         dt,
         t,
+        startind,
         rates_exc,
         mufe,
+        seev,
+        sigmae_f,
         tau_exc,
         dI,
         ds,
         sigmarange,
         Irange,
         precalc_r,
+        precalc_tau_mu,
         ext_exc_current,
         control_ext,
 ):
     
-    for i in range(1,len(t)+1):
+    for i in range(startind, startind + len(t)):
         for no in range(N):
             
             xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, 1.5, Irange, dI, mufe[no,i-1])
             xid1, yid1 = int(xid1), int(yid1)
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             
-            tau_exc[no,i] = 1.
+            tau_exc[no,i] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
             
-            mufe_rhs = (control_ext[no,0,i] + ext_exc_current[no,i] - mufe[no,i-1] ) / tau_exc[no,i]
+            mufe_rhs = (control_ext[no,0,i] + ext_exc_current[no,i-startind+1] - mufe[no,i-1] ) / tau_exc[no,i]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             #rates_exc[no,i] = mufe[no,i-1]
             
-    tau_exc[:,0] = 1.
+    tau_exc[:,0] = tau_exc[:,1]
               
-    return t, rates_exc, mufe, tau_exc
+    return t, rates_exc, mufe, seev, sigmae_f, tau_exc
 
 
 def interpolate_values(table, xid1, yid1, dxid, dyid):

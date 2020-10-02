@@ -40,6 +40,7 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     # if zero, no handle on rates
     params.rates_exc_init = np.array( [[0.]] )
     params.mufe_init = np.array( [[1.]] )  # (linear) filtered mean input
+    params.seev_init = np.array( [[0.]] )
     params.ext_exc_current = 0.0
     
     if lookupTableFileName is None:
@@ -52,6 +53,7 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     params.ds = params.sigmarange[1] - params.sigmarange[0]
     
     params.precalc_r = hf.get("r_ss")[()][()]
+    params.precalc_tau_mu = hf.get("tau_mu_exp")[()]
     
     params.C = 200.0  # pF
 
