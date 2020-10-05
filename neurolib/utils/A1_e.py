@@ -121,6 +121,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         jac2 = np.delete(jac, (0,2,3,4), axis=0)
         jac2 = np.delete(jac2, (1,2,3), axis=1)
         res = np.dot( - np.array( [full_cost_grad[0], full_cost_grad[4]] ) - np.dot( phi_[0,1,ind_time],jac2 ) , np.linalg.inv(jac1))
+        #res = np.dot( - np.array( [full_cost_grad[0]] ) - np.dot( phi_[0,1,ind_time],jac2 ) , np.linalg.inv(jac1))
         
         phi_[0,4,ind_time] = res[0,1]
         phi_[0,0,ind_time] = res[0,0]
@@ -132,7 +133,9 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
             
             #maybe also shift tau phi?
             
-            der = full_cost_grad[1] + phi_[0,0,ind_time] * jac[0,1] + phi_[0,1,ind_time] * jac[1,1] + phi_[0,4,ind_time] * jac[4,1]
+            der = full_cost_grad[1]
+            for i in range(phi_.shape[1]):
+               der += phi_[0,i,ind_time] * jac[i,1]
             phi_[0,1,ind_time-1] = phi_[0,1,ind_time] - dt * der
    
         phi_[0,0,ind_time] = res[0,0]
@@ -183,7 +186,13 @@ def D_u_h(model, state_t_):
     return duh_
 
 def dh_dmu(model, sigma, mu, table):
-    return jac_aln.der_mu(model, sigma, mu, 0., table)
+    result_ = jac_aln.der_mu(model, sigma, mu, 0., table)
+    if np.abs(result_) < 0.01:
+        print("Derivative of transfer function small, inefficient computation. Mu = ", mu, ". Sigma = ", sigma)
+    return result_
 
 def dh_dsigma(model, sigma, mu, table):
-    return jac_aln.der_sigma(model, sigma, mu, 0., table)
+    result_ = jac_aln.der_sigma(model, sigma, mu, 0., table)
+    if np.abs(result_) < 0.01:
+        logging.warning("Derivative of transfer function small, inefficient computation.")
+    return result_
