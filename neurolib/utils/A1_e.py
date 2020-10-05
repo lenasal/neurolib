@@ -187,6 +187,7 @@ def jacobian(model, state_t_, control_t_):
     jacobian_[4,4] = 1.
     
     jacobian_[5,1] = - dh_dmu(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
+    jacobian_[5,1] = 0.
     #jacobian_[5,4] = - dh_dsigma(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
     jacobian_[5,5] = 1.
     

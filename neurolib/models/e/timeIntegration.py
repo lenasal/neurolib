@@ -126,8 +126,8 @@ def timeIntegration_njit_elementwise(
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             
             tau_exc[no,i] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-            #tau_exc[no,i] = mufe[no,i-1]
-            #tau_exc[no,i] = 1.
+            tau_exc[no,i] = mufe[no,i-1]
+            tau_exc[no,i] = 1.
             
             mufe_rhs = (control_ext[no,0,i] + ext_exc_current[no,i-startind+1] - mufe[no,i-1] ) / tau_exc[no,i]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
