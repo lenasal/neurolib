@@ -79,11 +79,11 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         state1_[:,5,:] = model.state["tau_exc"][:,:]
         
         
-        s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_ )
-        if ( s_diff_.all() ):
-            print("State only changes marginally.")
-            max_iteration_ = i
-            break
+        #s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_ )
+        #if ( s_diff_.all() ):
+        #    print("State only changes marginally.")
+        #    max_iteration_ = i
+        #    break
         
         g0_min_ = g1_min_.copy()
         if ( np.amax(np.absolute(g0_min_[:,:,1:])) < tolerance_ ):
@@ -174,17 +174,20 @@ def g(model, phi_, state_, control_):
 def jacobian(model, state_t_, control_t_):
     jacobian_ = np.zeros((state_t_.shape[1], state_t_.shape[1]))
     jacobian_[0,0] = 1.
-    jacobian_[0,1] = - dh_dmu(model, state_t_[0,4], state_t_[0,1], model.params.precalc_r) *1e3
-    jacobian_[0,4] = - dh_dsigma(model, state_t_[0,4], state_t_[0,1], model.params.precalc_r)
+    jacobian_[0,1] = - dh_dmu(model, state_t_[0,4], state_t_[0,1], model.params.precalc_r) * 1e3
+    #jacobian_[0,4] = - dh_dsigma(model, state_t_[0,4], state_t_[0,1], model.params.precalc_r) * 1e3
     
     jacobian_[1,1] = 1. / state_t_[0,5]
     jacobian_[1,5] = - (state_t_[0,1] - control_t_[0,0] - model.params.ext_exc_current) / state_t_[0,5]**2
     
-    jacobian_[4,3] = - 0.5 * (state_t_[0,3] + model.params.sigmae_ext**2)**(-1./2.)
+    #jacobian_[3,0] = - 0.1 * state_t_[0,3]
+    #jacobian_[3,3] = - 0.1 * state_t_[0,0]
+    
+    #jacobian_[4,3] = - 0.5 * (state_t_[0,3] + model.params.sigmae_ext**2)**(-1./2.)
     jacobian_[4,4] = 1.
     
     jacobian_[5,1] = - dh_dmu(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
-    jacobian_[5,4] = - dh_dsigma(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
+    #jacobian_[5,4] = - dh_dsigma(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
     jacobian_[5,5] = 1.
     
     return jacobian_

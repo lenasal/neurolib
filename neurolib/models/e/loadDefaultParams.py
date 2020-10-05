@@ -40,8 +40,8 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     # if zero, no handle on rates
     params.rates_exc_init = np.array( [[0.]] )
     params.mufe_init = np.array( [[1.]] )  # (linear) filtered mean input
-    params.seem_init = np.array( [[1.0]] )
-    params.seev_init = np.array( [[1.0]] )
+    params.seem_init = np.array( [[0.0]] )
+    params.seev_init = np.array( [[0.0]] )
     params.ext_exc_current = 0.0
     
     params.sigmae_ext = 1.5

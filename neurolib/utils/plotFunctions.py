@@ -84,8 +84,8 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     target_legend = ['Target']
     cntrl_time_legend = ['Control > {} pA'.format(cntrl_limit_scaled * 1000), 'Control active']
     
-    sim_legend = ['Rate', 'mue', 'sigma_bar', 'sigma_e', 'tau_e']
-    y_labels_rates = ['Rates exc. [Hz]', 'mue', 'sigma_bar', 'sigma_e', 'tau_e']
+    sim_legend = ['Rate', 'mue', 's', 'sigma_s', 'sigma_e', 'tau_e']
+    y_labels_rates = ['Rates exc. [Hz]', 'mue', 's', 'sigma_s', 'sigma_e', 'tau_e']
     y_labels_control = ['Control exc. [nA]', 'Control inh. [nA]']
     
     if len(model.output_vars) > 1:
