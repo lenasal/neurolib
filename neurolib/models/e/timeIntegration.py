@@ -31,18 +31,25 @@ def timeIntegration(params, control):
     rates_exc = np.zeros((N, len(t)+startind))
     mufe = np.zeros((N, len(t)+startind))
     seev = np.zeros((N, len(t)+startind))
+    seem = np.zeros((N, len(t)+startind))
     sigmae_f = np.zeros((N, len(t)+startind))
     tau_exc = np.zeros((N, len(t)+startind))
     ext_exc_current = np.zeros((N, len(t)+startind))
 
     rates_exc[:,:startind] = params["rates_exc_init"]
     mufe[:,:startind] = params["mufe_init"]
+    seem[:,:startind] = params["seem_init"]
+    seev[:,:startind] = params["seev_init"]
     ext_exc_current[:,:] = params["ext_exc_current"]
+    
+    rd_exc = np.zeros((N, N))
     
     dI = params["dI"]
     ds = params["ds"]
     sigmarange = params["sigmarange"]
     Irange = params["Irange"]
+    
+    sigmae_ext = params["sigmae_ext"]
     
     precalc_r = params["precalc_r"]
     precalc_tau_mu = params["precalc_tau_mu"]
@@ -61,6 +68,7 @@ def timeIntegration(params, control):
         rates_exc,
         mufe,
         seev,
+        seem,
         sigmae_f,
         tau_exc,
         dI,
@@ -70,6 +78,8 @@ def timeIntegration(params, control):
         precalc_r,
         precalc_tau_mu,
         ext_exc_current,
+        sigmae_ext,
+        rd_exc,
         control_ext,
     )
 
@@ -83,6 +93,7 @@ def timeIntegration_njit_elementwise(
         rates_exc,
         mufe,
         seev,
+        seem,
         sigmae_f,
         tau_exc,
         dI,
@@ -92,13 +103,24 @@ def timeIntegration_njit_elementwise(
         precalc_r,
         precalc_tau_mu,
         ext_exc_current,
+        sigmae_ext,
+        rd_exc,
         control_ext,
 ):
     
     for i in range(startind, startind + len(t)):
         for no in range(N):
             
-            xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, 1.5, Irange, dI, mufe[no,i-1])
+            rd_exc[no] = rates_exc[no,i-1] * 1e-3
+            
+            z1ee = rd_exc[no, no]
+            z1ee = 0.
+            z2ee = rd_exc[no, no]
+            z2ee = 0.
+            
+            sigmae_f[no,i-1] = np.sqrt(2 * seev[no,i-1] / ((1 + z1ee) + 1) + sigmae_ext ** 2 )  # mV/sqrt(ms)
+            
+            xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmae_f[no,i-1], Irange, dI, mufe[no,i-1])
             xid1, yid1 = int(xid1), int(yid1)
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             
@@ -111,8 +133,9 @@ def timeIntegration_njit_elementwise(
             #rates_exc[no,i] = mufe[no,i-1]
             
     tau_exc[:,0] = tau_exc[:,1]
+    sigmae_f[:,-1] = sigmae_f[:,-2]
               
-    return t, rates_exc, mufe, seev, sigmae_f, tau_exc
+    return t, rates_exc, mufe, seem, seev, sigmae_f, tau_exc
 
 
 def interpolate_values(table, xid1, yid1, dxid, dyid):

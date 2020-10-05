@@ -24,8 +24,9 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     state0_[:,0,:] = rate_[:,0,:]
     state0_[:,1,:] = model.state["mufe"][:,:]
     state0_[:,2,:] = model.state["seev"][:,:]
-    state0_[:,3,:] = model.state["sigmae_f"][:,:]
-    state0_[:,4,:] = model.state["tau_exc"][:,:]
+    state0_[:,3,:] = model.state["seem"][:,:]
+    state0_[:,4,:] = model.state["sigmae_f"][:,:]
+    state0_[:,5,:] = model.state["tau_exc"][:,:]
     
 
     total_cost_ = np.zeros((max_iteration_+1))
@@ -73,8 +74,9 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         state1_[:,0,:] = rate_[:,0,:]
         state1_[:,1,:] = model.state["mufe"][:,:]
         state1_[:,2,:] = model.state["seev"][:,:]
-        state1_[:,3,:] = model.state["sigmae_f"][:,:]
-        state1_[:,4,:] = model.state["tau_exc"][:,:]
+        state1_[:,3,:] = model.state["seem"][:,:]
+        state1_[:,4,:] = model.state["sigmae_f"][:,:]
+        state1_[:,5,:] = model.state["tau_exc"][:,:]
         
         
         s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_ )
@@ -116,20 +118,19 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
         full_cost_grad[0] = f_p_grad_t_[0,0]
         
-        jac1 = np.delete(jac, (1,2,3), axis=0)
-        jac1 = np.delete(jac1, (1,2,3), axis=1)
-        jac2 = np.delete(jac, (0,2,3,4), axis=0)
-        jac2 = np.delete(jac2, (1,2,3), axis=1)
-        res = np.dot( - np.array( [full_cost_grad[0], full_cost_grad[4]] ) - np.dot( phi_[0,1,ind_time],jac2 ) , np.linalg.inv(jac1))
-        #res = np.dot( - np.array( [full_cost_grad[0]] ) - np.dot( phi_[0,1,ind_time],jac2 ) , np.linalg.inv(jac1))
+        jac1 = np.delete(jac, (1,2,3,4), axis=0)
+        jac1 = np.delete(jac1, (1,2,3,4), axis=1)
+        jac2 = np.delete(jac, (0,2,3,4,5), axis=0)
+        jac2 = np.delete(jac2, (1,2,3,4), axis=1)
+        res = np.dot( - np.array( [full_cost_grad[0], full_cost_grad[5]] ) - np.dot( phi_[0,1,ind_time],jac2 ) , np.linalg.inv(jac1))
         
-        phi_[0,4,ind_time] = res[0,1]
+        phi_[0,5,ind_time] = res[0,1]
         phi_[0,0,ind_time] = res[0,0]
      
         if (ind_time != phi_.shape[2]-1 ):  
             
             phi_[0,0,ind_time] = phi_[0,0,ind_time+1]
-            phi_[0,4,ind_time] = phi_[0,4,ind_time+1]
+            phi_[0,5,ind_time] = phi_[0,5,ind_time+1]
             
             #maybe also shift tau phi?
             
@@ -139,7 +140,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
             phi_[0,1,ind_time-1] = phi_[0,1,ind_time] - dt * der
    
         phi_[0,0,ind_time] = res[0,0]
-        phi_[0,4,ind_time] = res[0,1]
+        phi_[0,5,ind_time] = res[0,1]
                 
     return phi_
 
@@ -168,11 +169,11 @@ def jacobian(model, state_t_, control_t_):
     jacobian_[0,0] = 1.
     jacobian_[0,1] = - dh_dmu(model, 1.5, state_t_[0,1], model.params.precalc_r) *1e3
     
-    jacobian_[1,1] = 1. / state_t_[0,4]
-    jacobian_[1,4] = - (state_t_[0,1] - control_t_[0,0] - model.params.ext_exc_current) / state_t_[0,4]**2
+    jacobian_[1,1] = 1. / state_t_[0,5]
+    jacobian_[1,5] = - (state_t_[0,1] - control_t_[0,0] - model.params.ext_exc_current) / state_t_[0,5]**2
     
-    jacobian_[4,1] = - dh_dmu(model, 1.5, state_t_[0,1], model.params.precalc_tau_mu)
-    jacobian_[4,4] = 1.
+    jacobian_[5,1] = - dh_dmu(model, 1.5, state_t_[0,1], model.params.precalc_tau_mu)
+    jacobian_[5,5] = 1.
     
     return jacobian_
 
@@ -182,7 +183,7 @@ def D_xdot(model, state_t_):
 
 def D_u_h(model, state_t_):
     duh_ = np.zeros(( state_t_.shape[1], state_t_.shape[1] ))
-    duh_[1,1] = -1. / state_t_[0,4]
+    duh_[1,1] = -1. / state_t_[0,5]
     return duh_
 
 def dh_dmu(model, sigma, mu, table):
