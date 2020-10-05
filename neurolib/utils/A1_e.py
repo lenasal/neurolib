@@ -118,29 +118,36 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
         full_cost_grad[0] = f_p_grad_t_[0,0]
         
-        jac1 = np.delete(jac, (1,2,3,4), axis=0)
-        jac1 = np.delete(jac1, (1,2,3,4), axis=1)
-        jac2 = np.delete(jac, (0,2,3,4,5), axis=0)
-        jac2 = np.delete(jac2, (1,2,3,4), axis=1)
-        res = np.dot( - np.array( [full_cost_grad[0], full_cost_grad[5]] ) - np.dot( phi_[0,1,ind_time],jac2 ) , np.linalg.inv(jac1))
+        jac1 = np.delete(jac, (1,2,3), axis=0)
+        jac1 = np.delete(jac1, (1,2,3), axis=1)
+        jac2 = np.delete(jac, (0,4,5), axis=0) # remove all lines that do not have time derivative
+        jac2 = np.delete(jac2, (1,2,3), axis=1)
+        res = np.dot( - np.array( [ full_cost_grad[0], full_cost_grad[4], full_cost_grad[5] ] )
+                     - np.dot( np.array( [ phi_[0,1,ind_time], phi_[0,2,ind_time], phi_[0,3,ind_time] ] ) ,jac2 ) , np.linalg.inv(jac1))
+        #print(res)
         
-        phi_[0,5,ind_time] = res[0,1]
-        phi_[0,0,ind_time] = res[0,0]
+        
+        phi_[0,0,ind_time] = res[0]
+        phi_[0,4,ind_time] = res[1]
+        phi_[0,5,ind_time] = res[2]
      
         if (ind_time != phi_.shape[2]-1 ):  
             
             phi_[0,0,ind_time] = phi_[0,0,ind_time+1]
+            phi_[0,4,ind_time] = phi_[0,4,ind_time+1]
             phi_[0,5,ind_time] = phi_[0,5,ind_time+1]
             
             #maybe also shift tau phi?
             
-            der = full_cost_grad[1]
-            for i in range(phi_.shape[1]):
-               der += phi_[0,i,ind_time] * jac[i,1]
-            phi_[0,1,ind_time-1] = phi_[0,1,ind_time] - dt * der
+            for j in [1,2,3]:
+                der = full_cost_grad[j]
+                for i in range(phi_.shape[1]):
+                   der += phi_[0,i,ind_time] * jac[i,j]
+                phi_[0,j,ind_time-1] = phi_[0,j,ind_time] - dt * der
    
-        phi_[0,0,ind_time] = res[0,0]
-        phi_[0,5,ind_time] = res[0,1]
+        phi_[0,0,ind_time] = res[0]
+        phi_[0,4,ind_time] = res[1]
+        phi_[0,5,ind_time] = res[2]
                 
     return phi_
 
@@ -167,12 +174,17 @@ def g(model, phi_, state_, control_):
 def jacobian(model, state_t_, control_t_):
     jacobian_ = np.zeros((state_t_.shape[1], state_t_.shape[1]))
     jacobian_[0,0] = 1.
-    jacobian_[0,1] = - dh_dmu(model, 1.5, state_t_[0,1], model.params.precalc_r) *1e3
+    jacobian_[0,1] = - dh_dmu(model, state_t_[0,4], state_t_[0,1], model.params.precalc_r) *1e3
+    jacobian_[0,4] = - dh_dsigma(model, state_t_[0,4], state_t_[0,1], model.params.precalc_r)
     
     jacobian_[1,1] = 1. / state_t_[0,5]
     jacobian_[1,5] = - (state_t_[0,1] - control_t_[0,0] - model.params.ext_exc_current) / state_t_[0,5]**2
     
-    jacobian_[5,1] = - dh_dmu(model, 1.5, state_t_[0,1], model.params.precalc_tau_mu)
+    jacobian_[4,3] = - 0.5 * (state_t_[0,3] + model.params.sigmae_ext**2)**(-1./2.)
+    jacobian_[4,4] = 1.
+    
+    jacobian_[5,1] = - dh_dmu(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
+    jacobian_[5,4] = - dh_dsigma(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
     jacobian_[5,5] = 1.
     
     return jacobian_
@@ -188,12 +200,22 @@ def D_u_h(model, state_t_):
 
 def dh_dmu(model, sigma, mu, table):
     result_ = jac_aln.der_mu(model, sigma, mu, 0., table)
-    if np.abs(result_) < 0.01:
-        print("Derivative of transfer function small, inefficient computation. Mu = ", mu, ". Sigma = ", sigma)
+    if np.abs(result_) < 1e-2:
+        tabname = var_name(model, table)
+        print("Derivative of transfer function wrt mu small. Table = ", tabname, ". Mu = ", mu, ". Sigma = ", sigma)
     return result_
 
 def dh_dsigma(model, sigma, mu, table):
     result_ = jac_aln.der_sigma(model, sigma, mu, 0., table)
-    if np.abs(result_) < 0.01:
-        logging.warning("Derivative of transfer function small, inefficient computation.")
+    if np.abs(result_) < 1e-6 and np.abs(result_) > 1e-14:
+        tabname = var_name(model, table)
+        print("Derivative of transfer function wrt sigma small. Table = ", tabname, ". Mu = ", mu, ". Sigma = ", sigma)
     return result_
+
+def var_name(model, table):
+    rate_name = (table == model.params.precalc_r)
+    tau_name = (table == model.params.precalc_tau_mu)
+    if rate_name.all():
+        return "rate"
+    elif tau_name.all():
+        return "tau"
