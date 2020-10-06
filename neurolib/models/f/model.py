@@ -14,15 +14,23 @@ class Model_f(Model):
     description = "Simplified version of simplified aln for testing purposes"
 
     init_vars = [
+        "rates_exc_init",
         "mufe_init",
+        "seem_init",
+        "seev_init",
     ]
 
     state_vars = [
+        "rates_exc",
         "mufe",
+        "seem",
+        "seev",
+        "sigmae_f",
+        "tau_exc",
     ]
-    output_vars = ["mufe"]
-    default_output = "mufe"
-    target_output_vars = ["mufe"]
+    output_vars = ["rates_exc", "mufe", "seem", "seev", "sigmae_f", "tau_exc"]
+    default_output = "rates_exc"
+    target_output_vars = ["rates_exc"]
     input_vars = ["ext_exc_current"]
     default_input = "ext_exc_current"
     control_input_vars = ["ext_exc_current"]

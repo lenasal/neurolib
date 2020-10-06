@@ -127,9 +127,9 @@ def timeIntegration_njit_elementwise(
             
             #tau_exc[no,i] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
             tau_exc[no,i] = mufe[no,i-1]
-            #tau_exc[no,i] = 5.
+            tau_exc[no,i] = 5.
             
-            mufe_rhs = (control_ext[no,0,i] + ext_exc_current[no,i-startind+1]) / tau_exc[no,i]# - mufe[no,i-1]) / tau_exc[no,i] #+ ext_exc_current[no,i-startind+1] - mufe[no,i-1]) / tau_exc[no,i]#  ) 
+            mufe_rhs = (control_ext[no,0,i-startind] + ext_exc_current[no,i-startind+1]) / tau_exc[no,i]# - mufe[no,i-1]) / tau_exc[no,i] #+ ext_exc_current[no,i-startind+1] - mufe[no,i-1]) / tau_exc[no,i]#  ) 
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             rates_exc[no,i] = mufe[no,i-1]
             
@@ -240,6 +240,5 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
         yid1 = np.floor(yid)
         dyid = yid - yid1
         
-    print(xid1, yid1, dxid, dyid)
 
     return xid1, yid1, dxid, dyid

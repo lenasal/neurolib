@@ -54,13 +54,13 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         dir0_ = - g0_min_.copy()
         dir1_ = dir0_.copy()
         
-        print("grad  = ", g0_min_)
+        #print("grad  = ", g0_min_)
 
         
         step_, total_cost_[i] = fo.step_size(model, outstate_[:,:,:], target_state_,
                      best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
         
-        print("step = ", step_)
+        #print("step = ", step_)
         
         print("RUN ", i, ", total integrated cost = ", total_cost_[i])
         best_control_ = u_opt0_ + step_ * dir1_
@@ -114,10 +114,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
     out_state[:,:,:] = state_[:,0,:]
             
     for ind_time in range(phi_.shape[2]-1, start_ind_-1, -1):
-        if (ind_time != 0 ):  
-            jac = jacobian(model, state_[:,:,ind_time], control_[:,:,ind_time], state_[:,:,ind_time-1])
-        else:
-            jac = jacobian(model, state_[:,:,ind_time], control_[:,:,ind_time], state_[:,:,ind_time])
+        jac = jacobian(model, state_[:,:,ind_time], control_[:,:,ind_time])
         
         f_p_grad_t_ = cost.cost_precision_gradient_t(out_state[:,:,ind_time], target_state_[:,:,ind_time])
         full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
@@ -143,7 +140,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
             
             phi_[0,0,ind_time] = phi_[0,0,ind_time+1]
             #phi_[0,4,ind_time] = phi_[0,4,ind_time+1]
-            phi_[0,5,ind_time] = phi_[0,5,ind_time+1]
+            #phi_[0,5,ind_time] = phi_[0,5,ind_time+1]
             
             #maybe also shift tau phi?
             
@@ -178,13 +175,13 @@ def g(model, phi_, state_, control_):
     phi1_ = np.zeros(( grad_cost_e_.shape ))
     for t in range(state_.shape[2]):
         jac_u_ = D_u_h(model, state_[:,:,t])
-        phi1_[0,0,t] = np.dot(phi_shift[0,:,t], jac_u_)[1]
+        phi1_[0,0,t] = np.dot(phi_[0,:,t], jac_u_)[1]
     
     g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_[0,0,:]
 
     return g_
 
-def jacobian(model, state_t_, control_t_, state_tmin1):
+def jacobian(model, state_t_, control_t_):
     jacobian_ = np.zeros((state_t_.shape[1], state_t_.shape[1]))
     jacobian_[0,0] = 1.
     jacobian_[0,1] = - dh_dmu(model, state_t_[0,4], state_t_[0,1], model.params.precalc_r) * 1e3
@@ -202,9 +199,10 @@ def jacobian(model, state_t_, control_t_, state_tmin1):
     #jacobian_[4,3] = - 0.5 * (state_t_[0,3] + model.params.sigmae_ext**2)**(-1./2.)
     jacobian_[4,4] = 1.
     
-    #jacobian_[5,1] = - dh_dmu(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
+    jacobian_[5,1] = - dh_dmu(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
+    print("jacobian = ", jacobian_[5,1])
     jacobian_[5,1] = - 1.
-    #jacobian_[5,1] = 0.
+    jacobian_[5,1] = 0.
     #jacobian_[5,4] = - dh_dsigma(model, state_t_[0,4], state_t_[0,1], model.params.precalc_tau_mu)
     jacobian_[5,5] = 1.
     

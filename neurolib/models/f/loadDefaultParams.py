@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import h5py
 
 from ...utils.collections import dotdict
 
@@ -37,7 +38,31 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     params.duration = 2000  # Simulation duration (ms)
 
     # if zero, no handle on rates
-    params.mufe_init = np.array( [1.] )  # (linear) filtered mean input
+    params.rates_exc_init = np.array( [[0.]] )
+    params.mufe_init = np.array( [[1.]] )  # (linear) filtered mean input
+    params.seem_init = np.array( [[0.0]] )
+    params.seev_init = np.array( [[0.0]] )
+    params.ext_exc_current = 0.0
+    
+    params.sigmae_ext = 1.5
+    
+    if lookupTableFileName is None:
+        lookupTableFileName = os.path.join(os.path.dirname(__file__), "aln-precalc", "quantities_cascade.h5")
+
+    hf = h5py.File(lookupTableFileName, "r")
+    params.Irange = hf.get("mu_vals")[()]
+    params.sigmarange = hf.get("sigma_vals")[()]
+    params.dI = params.Irange[1] - params.Irange[0]
+    params.ds = params.sigmarange[1] - params.sigmarange[0]
+    
+    params.precalc_r = hf.get("r_ss")[()][()]
+    params.precalc_tau_mu = hf.get("tau_mu_exp")[()]
+    
+    #params.precalc_tau_mu = np.ones(( params.precalc_tau_mu.shape ))
+    #for j in range(params.precalc_tau_mu.shape[1]):
+    #    params.precalc_tau_mu[:,j] = 2. + np.sin(np.linspace(params.Irange[0],params.Irange[-1],params.precalc_tau_mu.shape[0]))
+    
+    params.C = 200.0  # pF
 
     return params
 

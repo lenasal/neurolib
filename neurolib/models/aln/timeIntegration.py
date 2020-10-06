@@ -572,6 +572,8 @@ def timeIntegration_njit_elementwise(
             #print("integration: xid1, yid1, dxid, dyid = ", xid1, yid1, dxid, dyid)
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
+            
+            # shift tau by one???
             tau_exc[no,i] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
             if filter_sigma:
                 tau_sigmae_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
