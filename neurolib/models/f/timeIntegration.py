@@ -26,12 +26,10 @@ def timeIntegration(params, control):
     # Floating point issue in np.arange() workaraound: use integers in np.arange()
     t = np.arange(1, round(duration, 6) / dt + 1) * dt  # Time variable (ms)
 
-    rates_exc = np.zeros((N, len(t)+1))
     mufe = np.zeros((N, len(t)+1))
-    tau_exc = np.zeros((N, len(t)+1))
 
-    rates_exc[:,0] = params["rates_exc_init"]
     mufe[:,0] = params["mufe_init"]
+    
 
     control_ext = control.copy()
     
@@ -41,9 +39,7 @@ def timeIntegration(params, control):
         N,
         dt,
         t,
-        rates_exc,
         mufe,
-        tau_exc,
         control_ext,
     )
 
@@ -53,21 +49,14 @@ def timeIntegration_njit_elementwise(
         N,
         dt,
         t,
-        rates_exc,
         mufe,
-        tau_exc,
         control_ext,
 ):
     
     for i in range(1,len(t)+1):
         for no in range(N):
             
-            rates_exc[no,i] = mufe[no,i-1]
-            tau_exc[no,i] = mufe[no,i-1]
-            #tau_exc[no,i] = 1.
-            mufe[no,i] = control_ext[no,0,i] / tau_exc[no,i]
-            #print("mufe =", mufe[no,i])
-  
-    tau_exc[:,0] = tau_exc[:,1]
+            mufe_rhs = control_ext[no,0,i-1] / mufe[no,i-1]
+            mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
     
-    return t, rates_exc, mufe, tau_exc
+    return t, mufe

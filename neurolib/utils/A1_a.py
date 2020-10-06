@@ -23,6 +23,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     state0_ = model.getZeroFullState()
     state0_[:,0,:] = rate_[:,0,:]
     state0_[:,1,:] = model.state["mufe"][:,:]
+    state0_[:,2,:] = model.state["tau_exc"][:,:]
     
 
     total_cost_ = np.zeros((max_iteration_+1))
@@ -46,6 +47,8 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     
         g0_min_ = g(model, phi1_, state1_, best_control_)
         g1_min_ = g0_min_.copy()
+        #print("phi = ", phi1_)
+        print("g = ", g0_min_)
 
         dir0_ = - g0_min_.copy()
         dir1_ = dir0_.copy()
@@ -54,8 +57,18 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         step_, total_cost_[i] = fo.step_size(model, outstate_[:,:,:], target_state_,
                      best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
         
+        #print("step = ", step_, total_cost_[i])
+        #if (step_ == 0.):
+            #print("try other direction")
+            #dir1_ *= -1.
+            #step_, total_cost_[i] = fo.step_size(model, outstate_[:,:,:], target_state_,
+            #         best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
+            #print("step = ", step_, total_cost_[i])
+        
         print("RUN ", i, ", total integrated cost = ", total_cost_[i])
         best_control_ = u_opt0_ + step_ * dir1_
+        
+        #print("control = ", best_control_)
         
         u_diff_ = ( np.absolute(best_control_ - u_opt0_) < tolerance_ )
         if ( u_diff_.all() ):
@@ -67,6 +80,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         rate_ = fo.updateState(model, best_control_)
         state1_[:,0,:] = rate_[:,0,:]
         state1_[:,1,:] = model.state["mufe"][:,:]
+        state1_[:,2,:] = model.state["tau_exc"][:,:]
         
         
         s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_ )
@@ -119,6 +133,8 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
    
         res = - np.dot( full_cost_grad, np.linalg.inv(jac) )
         phi_[0,0,ind_time] = res[0]
+        
+       # print("inverse = ", np.linalg.inv(jac))
                 
     return phi_
 
@@ -136,6 +152,9 @@ def g(model, phi_, state_, control_):
         phi1_[0,0,t] = np.dot(phi_[0,:,t], jac_u_)[1]
     
     g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_
+    
+   # print("energy contribution = ", grad_cost_e_[0,0,:])
+   # print("phi contribution = ", phi1_)
 
     return g_
 
@@ -145,6 +164,10 @@ def jacobian(model, state_t_, control_t_):
     jacobian_[0,1] = - 1.
     
     jacobian_[1,1] = 1.
+    jacobian_[1,2] = control_t_[0,0] / state_t_[0,2]**2
+    
+    #jacobian_[2,1] = - 1.
+    jacobian_[2,2] = 1.
     
     return jacobian_
 
@@ -154,5 +177,5 @@ def D_xdot(model, state_t_):
 
 def D_u_h(model, state_t_):
     duh_ = np.zeros(( state_t_.shape[1], state_t_.shape[1] ))
-    duh_[1,1] = -1.
+    duh_[1,1] = -1. / state_t_[0,2]
     return duh_

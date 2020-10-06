@@ -31,10 +31,8 @@ def calc_EIF_output_and_cascade_quants(
     else:
         N_procs = params["N_procs"]
 
-    print("1")
     # create EIF_output_dict arrays to be filled
     for n in output_names:
-        print("2")
         # complex values dependent on mu, sigma, frequency
         if n in ["r1_mumod", "r1_sigmamod"] and save_rate_mod:
             EIF_output_dict[n] = np.zeros((N_mu_vals, N_sigma_vals, len(params["freq_vals"]))) + 0j
@@ -49,7 +47,6 @@ def calc_EIF_output_and_cascade_quants(
 
     # create quantities_dict arrays to be filled
     for n in quantity_names:
-        print("3")
         # real values dependent on mu, sigma
         LN_quantities_dict[n] = np.zeros((N_mu_vals, N_sigma_vals))
 
@@ -71,7 +68,6 @@ def calc_EIF_output_and_cascade_quants(
 
     finished = 0
     for isig, res_given_sigma_dict in result:
-        print("4")
         finished += 1
         print(
             ("{count} of {tot} steady-state / rate response and LN quantity " + "calculations completed").format(
@@ -79,7 +75,6 @@ def calc_EIF_output_and_cascade_quants(
             )
         )
         for k in res_given_sigma_dict.keys():
-            print("5")
             for imu, mu in enumerate(mu_vals):
                 if k in ["r1_mumod", "r1_sigmamod"] and save_rate_mod:
                     EIF_output_dict[k][imu, isig, :] = res_given_sigma_dict[k][imu, :]
@@ -89,8 +84,6 @@ def calc_EIF_output_and_cascade_quants(
                     LN_quantities_dict[k][imu, isig] = res_given_sigma_dict[k][imu]
     if pool:
         pool.close()
-        
-    print("6")
 
     # also include mu_vals, sigma_vals, and freq_vals in output dictionaries
     EIF_output_dict["mu_vals"] = mu_vals

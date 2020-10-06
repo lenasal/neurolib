@@ -156,7 +156,8 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         cost1_ = cost.f_cost(state1_, target_, test_control_)
         cost1_int_ = cost.f_int(dt, cost1_)
         
-        #print("step = ", step_, " , cost = ", cost1_int_, ", initial cost = ", cost0_int_)
+        #if (bisec_factor_ == 1.005):
+         #   print("step = ", step_, " , cost = ", cost1_int_, ", initial cost = ", cost0_int_)
 
         if (cost1_int_ < cost_min_int_):
             #print("found step = ", step_, " with cost1, cost0 : ", cost1_int_, cost0_int_)
@@ -181,25 +182,24 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         
         
         # decrease bisection factor once we approach the minimum value, such that we don't miss it
-        if ( cost1_int_/cost0_int_ < 1.5 and bisec_factor_ > 1.2 ): 
+        if ( cost1_int_/cost0_int_ < 1.4 and bisec_factor_ > 1.2 ): 
             bisec_factor_ = 1.2
             #print("change bisection factor to ", bisec_factor_)
-        if ( cost1_int_/cost0_int_ < 1.2 and bisec_factor_ > 1.1 ): 
+        if ( cost1_int_/cost0_int_ < 1.1 and bisec_factor_ > 1.1 ): 
             bisec_factor_ = 1.1
             #print("change bisection factor to ", bisec_factor_)
-        if ( cost1_int_/cost0_int_ < 1.1 and bisec_factor_ > 1.05 ): 
+        if ( cost1_int_/cost0_int_ < 1.05 and bisec_factor_ > 1.05 ): 
             bisec_factor_ = 1.05
         #    print("change bisection factor to ", bisec_factor_)
-        if ( cost1_int_/cost0_int_ < 1.05 and bisec_factor_ > 1.04 ): 
-            bisec_factor_ = 1.04
-            #print("change bisection factor to ", bisec_factor_)
-        if ( cost1_int_/cost0_int_ < 1.04 and bisec_factor_ > 1.03 ): 
+        if ( cost1_int_/cost0_int_ < 1.01 and bisec_factor_ > 1.03 ): 
             bisec_factor_ = 1.03
-        if ( cost1_int_/cost0_int_ < 1.03 and bisec_factor_ > 1.02 ): 
-            bisec_factor_ = 1.02
             #print("change bisection factor to ", bisec_factor_)
-        if ( cost1_int_/cost0_int_ < 1.02 and bisec_factor_ > 1.01 ): 
+        if ( cost1_int_/cost0_int_ < 1.005 and bisec_factor_ > 1.01 ): 
             bisec_factor_ = 1.01
+        if ( cost1_int_/cost0_int_ < 1.0001 and bisec_factor_ > 1.005 ): 
+            bisec_factor_ = 1.005
+        #if ( cost1_int_/cost0_int_ < 1.005 and bisec_factor_ > 1.002 ): 
+            #bisec_factor_ = 1.002
         
         
         step_ /= bisec_factor_

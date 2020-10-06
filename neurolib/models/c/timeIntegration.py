@@ -28,6 +28,7 @@ def timeIntegration(params, control):
 
     rates_exc = np.zeros((N, len(t)+1))
     mufe = np.zeros((N, len(t)+1))
+    tau_exc = np.zeros((N, len(t)+1))
 
     rates_exc[:,0] = params["rates_exc_init"]
     mufe[:,0] = params["mufe_init"]
@@ -49,6 +50,7 @@ def timeIntegration(params, control):
         t,
         rates_exc,
         mufe,
+        tau_exc,
         dI,
         ds,
         sigmarange,
@@ -65,6 +67,7 @@ def timeIntegration_njit_elementwise(
         t,
         rates_exc,
         mufe,
+        tau_exc,
         dI,
         ds,
         sigmarange,
@@ -80,11 +83,16 @@ def timeIntegration_njit_elementwise(
             xid1, yid1 = int(xid1), int(yid1)
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             
-            mufe_rhs = control_ext[no,0,i]
+            tau_exc[no,i] = mufe[no,i-1]
+            tau_exc[no,i] = 2.
+            
+            mufe_rhs = control_ext[no,0,i] / tau_exc[no,i]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
-            #rates_exc[no,i] = mufe[no,i-1]
+            rates_exc[no,i] = mufe[no,i-1]
+            
+    tau_exc[:,0] = tau_exc[:,1]
               
-    return t, rates_exc, mufe
+    return t, rates_exc, mufe, tau_exc
 
 
 def interpolate_values(table, xid1, yid1, dxid, dyid):

@@ -32,10 +32,14 @@ def der_mu(model, sigma_f, muf, IAmin1, precalc_table):
     
     result0 = interpolate(model, sigma_f, muf, IAmin1, precalc_table)
     result1 = interpolate(model, sigma_f, muf + dI, IAmin1, precalc_table)
+    result2 = interpolate(model, sigma_f, muf - dI, IAmin1, precalc_table)
         
-    der = ( result1 - result0) / dI
+    der1 = ( result1 - result0) / dI
+    der2 = -( result2 - result0) / dI
+    
+    #print("difference in der : ", der1 - der2)
             
-    return der
+    return der1
 
 
 def interpolate_values(table, xid1, yid1, dxid, dyid):

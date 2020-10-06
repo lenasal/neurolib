@@ -48,13 +48,6 @@ N_mu_vals = 350  # 241
 N_sigma_vals = 64
 mu_vals = np.linspace(-1.0, 5.0, N_mu_vals)
 sigma_vals = np.linspace(0.5, 5.0, N_sigma_vals)
-
-N_mu_vals = 3  # 241
-N_sigma_vals = 3
-mu_vals = np.linspace(1.0, 2.5, N_mu_vals)
-sigma_vals = np.linspace(1.4, 1.6, N_sigma_vals)
-
-
 # these values above were used to generate the files EIF_output_for_cascade.h5
 # and quantities_cascade.h5 available on Github
 
