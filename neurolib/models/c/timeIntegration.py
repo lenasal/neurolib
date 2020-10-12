@@ -78,19 +78,16 @@ def timeIntegration_njit_elementwise(
     
     for i in range(1,len(t)+1):
         for no in range(N):
+        
+            rates_exc[no,i-1] =  r_func_mu(mufe[no,i-1], 1.5)* 1e3  # convert kHz to Hz
             
-            xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, 1.5, Irange, dI, mufe[no,i-1])
-            xid1, yid1 = int(xid1), int(yid1)
-            rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
-            
-            tau_exc[no,i] = mufe[no,i-1]
-            tau_exc[no,i] = 2.
-            
-            mufe_rhs = control_ext[no,0,i] / tau_exc[no,i]
+            mufe_rhs = control_ext[no,0,i-1] #/ tau_exc[no,i]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
-            rates_exc[no,i] = mufe[no,i-1]
+            #rates_exc[no,i-1] = mufe[no,i-1]
             
-    tau_exc[:,0] = tau_exc[:,1]
+    rates_exc[no,-1] = r_func_mu(mufe[no,-1], 1.5)* 1e3
+    #rates_exc[no,-1] = mufe[no,-1]
+
               
     return t, rates_exc, mufe, tau_exc
 
@@ -105,88 +102,9 @@ def interpolate_values(table, xid1, yid1, dxid, dyid):
     return output
 
 
-#@numba.njit(locals={"xid1": numba.int64, "yid1": numba.int64, "dxid": numba.float64, "dyid": numba.float64})
-def fast_interp2_opt(x, dx, xi, y, dy, yi):
-
-    """
-    Returns the values needed for interpolation:
-    - bilinear (2D) interpolation within ranges,
-    - linear (1D) if "one edge" is crossed,
-    - corner value if "two edges" are crossed
-
-    x     ... range of the x value
-    xi    ... interpolation value on x-axis
-    dx    ... grid width of x ( dx = x[1]-x[0] )
-    (same for y)
-
-    return:   xid1    ... index of the lower interpolation value
-              dxid    ... distance of xi to the lower interpolation value
-              (same for y)
-    """
-    
-    xid1, yid1, dxid, dyid = -1000, -1000, -1000, -1000
-
-    # within all boundaries
-    if xi >= x[0] and xi < x[-1] and yi >= y[0] and yi < y[-1]:
-        xid = (xi - x[0]) / dx
-        xid1 = np.floor(xid)
-        dxid = xid - xid1
-        yid = (yi - y[0]) / dy
-        yid1 = np.floor(yid)
-        dyid = yid - yid1
-        return xid1, yid1, dxid, dyid
-
-    # outside one boundary
-    if yi < y[0]:
-        yid1 = 0
-        dyid = 0.0
-        if xi >= x[0] and xi < x[-1]:
-            xid = (xi - x[0]) / dx
-            xid1 = np.floor(xid)
-            dxid = xid - xid1
-
-        elif xi < x[0]:
-            xid1 = 0
-            dxid = 0.0
-        else:  # xi >= x(end)
-            xid1 = -1
-            dxid = 0.0
-        return xid1, yid1, dxid, dyid
-
-    if yi >= y[-1]:
-        yid1 = -1
-        dyid = 0.0
-        if xi >= x[0] and xi < x[-1]:
-            xid = (xi - x[0]) / dx
-            xid1 = np.floor(xid)
-            dxid = xid - xid1
-
-        elif xi < x[0]:
-            xid1 = 0
-            dxid = 0.0
-
-        else:  # xi >= x(end)
-            xid1 = -1
-            dxid = 0.0
-        return xid1, yid1, dxid, dyid
-
-    if xi < x[0]:
-        xid1 = 0
-        dxid = 0.0
-        # We know that yi is within the boundaries
-        yid = (yi - y[0]) / dy
-        yid1 = np.floor(yid)
-        dyid = yid - yid1
-        return xid1, yid1, dxid, dyid
-
-    if xi >= x[-1]:
-        xid1 = -1
-        dxid = 0.0
-        # We know that yi is within the boundaries
-        yid = (yi - y[0]) / dy
-        yid1 = np.floor(yid)
-        dyid = yid - yid1
-        
-    print(xid1, yid1, dxid, dyid)
-
-    return xid1, yid1, dxid, dyid
+def r_func_mu(mu, sigma):
+    x_shift = - 2.
+    x_scale = 0.6
+    y_shift = 0.1
+    y_scale = 0.1
+    return y_shift + np.tanh(x_scale * mu + x_shift) * y_scale

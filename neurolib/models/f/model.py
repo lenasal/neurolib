@@ -60,3 +60,6 @@ class Model_f(Model):
 
         # Initialize base class Model
         super().__init__(integration=integration, params=params)
+        
+    def getMaxDelay(self):
+        return int(self.params["delay"])

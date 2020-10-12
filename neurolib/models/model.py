@@ -128,7 +128,7 @@ class Model:
 
         # length of the initial condition
         self.startindt = self.maxDelay + 1
-
+        
         # force bold if params['bold'] == True
         if "bold" in self.params:
             if self.params["bold"]:

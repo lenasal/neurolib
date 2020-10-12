@@ -36,11 +36,13 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     # runtime parameters
     params.dt = 0.1  # ms 0.1ms is reasonable
     params.duration = 2000  # Simulation duration (ms)
+    
+    params.delay = 1
 
     # if zero, no handle on rates
     params.rates_exc_init = np.array( [[0.]] )
     params.mufe_init = np.array( [[1.]] )  # (linear) filtered mean input
-    params.seem_init = np.array( [[0.0]] )
+    params.seem_init = np.array( [[0.1]] )
     params.seev_init = np.array( [[0.0]] )
     params.ext_exc_current = 0.0
     
@@ -58,11 +60,25 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     params.precalc_r = hf.get("r_ss")[()][()]
     params.precalc_tau_mu = hf.get("tau_mu_exp")[()]
     
-    #params.precalc_tau_mu = np.ones(( params.precalc_tau_mu.shape ))
-    #for j in range(params.precalc_tau_mu.shape[1]):
-    #    params.precalc_tau_mu[:,j] = 2. + np.sin(np.linspace(params.Irange[0],params.Irange[-1],params.precalc_tau_mu.shape[0]))
+    #params.precalc_r = np.ones(( params.precalc_r.shape ))
+    #for j in range(params.precalc_r.shape[1]):
+    #    params.precalc_r[:,j] = 0.02+0.01*np.linspace(params.Irange[0],params.Irange[-1],params.precalc_r.shape[0])
+    
+    
+    # recurrent coupling parameters
+    params.Ke = 800.0  # Number of excitatory inputs per neuron
+    
+    # synaptic time constants
+    params.tau_se = 2.0  # ms  "EE = IE", for fixed delays
+    
+    # PSC amplitudes
+    params.cee = 0.3  # mV/ms
+    
+    # Coupling strengths used in Cakan2020
+    params.Jee_max = 2.43  # mV/ms
     
     params.C = 200.0  # pF
+    params.gL = 10.0  # nS
 
     return params
 

@@ -23,6 +23,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     state0_ = model.getZeroFullState()
     state0_[:,0,:] = rate_[:,0,:]
     state0_[:,1,:] = model.state["mufe"][:,:]
+    state0_[:,2,:] = model.state["sigmae_f"][:,:]
     
 
     total_cost_ = np.zeros((max_iteration_+1))
@@ -40,6 +41,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         i += 1   
         
         phi1_ = phi(model, state0_, target_state_, best_control_, phi0_)
+        #print("phi = ", phi1_)
         
         outstate_ = model.getZeroState()
         outstate_[:,:,:] = state1_[:,0,:]
@@ -67,6 +69,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         rate_ = fo.updateState(model, best_control_)
         state1_[:,0,:] = rate_[:,0,:]
         state1_[:,1,:] = model.state["mufe"][:,:]
+        state1_[:,2,:] = model.state["sigmae_f"][:,:]
         
         
         s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_ )
@@ -91,6 +94,8 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         improvement = improvement = 100. - (100.*(total_cost_[max_iteration_]/total_cost_[0]))
         
     print("Improved over ", max_iteration_, " iterations by ", improvement, " percent.")
+    if max_iteration_ != 0:
+        print("final gradient = ", g0_min_)
     
     return best_control_, state1_, total_cost_, 0.
 
@@ -101,22 +106,53 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
     out_state[:,:,:] = state_[:,0,:]
             
     for ind_time in range(phi_.shape[2]-1, start_ind_-1, -1):
-        jac = jacobian(model, state_[:,:,ind_time], control_[:,:,ind_time])
+        jac = jacobian(model, state_[:,:,:], control_[:,:,:], ind_time)
         
         f_p_grad_t_ = cost.cost_precision_gradient_t(out_state[:,:,ind_time], target_state_[:,:,ind_time])
         full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
         full_cost_grad[0] = f_p_grad_t_[0,0]
         
-        if (ind_time != phi_.shape[2]-1 ):  
+        #res = np.dot( - np.array( [full_cost_grad[0], full_cost_grad[1], full_cost_grad[2]] ), np.linalg.inv(jac))   
+        #phi_[0,0,ind_time] = res[0]
+        #phi_[0,1,ind_time-1] = res[1]
+        #phi_[0,2,ind_time-1] = res[2]
+        
+        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,1,ind_time], phi_[0,2,ind_time]] ), np.array( [jac[1,0], jac[2,0]] ) )
+        
+        if (ind_time == 0):
+            break
+        
+        
+        res = np.dot( np.array( [phi_[0,0,ind_time], phi_[0,1,ind_time], phi_[0,2,ind_time]] ), np.linalg.inv(jac) )
+                                        
+                                        #phi_[0,0,ind_time] * jac[0,1]
+        res = - phi_[0,0,ind_time] *jac[0,:]
+        phi_[0,1,ind_time-1] = res[1]
+        phi_[0,2,ind_time-1] = res[2]
+        
+        #print("res 0 = ", res)
+        
+        
+        
+        """
+        if (ind_time != phi_.shape[2]-1 ):
             f_p_grad_t_shift = cost.cost_precision_gradient_t(out_state[:,:,ind_time+1], target_state_[:,:,ind_time+1])
-            full_cost_grad_shift = np.zeros(( state_[0,:,ind_time].shape ))
-            full_cost_grad_shift[0] = f_p_grad_t_shift[0,0]
-            
-            res = - np.dot( full_cost_grad_shift, np.linalg.inv(jac) )
+            full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
+            full_cost_grad[0] = f_p_grad_t_shift[0,0]
+            res = np.dot( - np.array( [full_cost_grad[0], full_cost_grad[1], full_cost_grad[2]] ), np.linalg.inv(jac[1:,1:]))
+            #print("res 1 = ", res)
+            #phi_[0,1,ind_time] = phi_[0,0,ind_time+1]
             phi_[0,1,ind_time] = res[1]
+            phi_[0,2,ind_time] = res[2]
+        
+        
+        # phi[1,-1] needs to b zero!
+        else:
+            phi_[0,1,-1] =  0.
+            phi_[0,2,-1] =  0.
+        """    
+                
    
-        res = - np.dot( full_cost_grad, np.linalg.inv(jac) )
-        phi_[0,0,ind_time] = res[0]
                 
     return phi_
 
@@ -128,21 +164,33 @@ def g(model, phi_, state_, control_):
     grad_cost_e_ = cost.cost_energy_gradient(control_)
     grad_cost_s_ = cost.cost_sparsity_gradient1(model, control_)
     
+    # shift if control is applied shifted wrt mu
+    phi_shift = np.zeros(( phi_.shape ))
+    phi_shift[:,:,1:] = phi_[:,:,0:-1] 
+    
     phi1_ = np.zeros(( grad_cost_e_.shape ))
     for t in range(state_.shape[2]):
         jac_u_ = D_u_h(model, state_[:,:,t])
         phi1_[0,0,t] = np.dot(phi_[0,:,t], jac_u_)[1]
+        
+    #print("phi = ", phi_[0,1,:])
+    #print("phi shift = ", phi_shift[0,1,:])
+    #print("phi 1 = ", phi1_[0,0,:])
     
     g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_
 
     return g_
 
-def jacobian(model, state_t_, control_t_):
-    jacobian_ = np.zeros((state_t_.shape[1], state_t_.shape[1]))
+def jacobian(model, state_, control_, t_):
+    jacobian_ = np.zeros((state_.shape[1], state_.shape[1]))
     jacobian_[0,0] = 1.
-    jacobian_[0,1] = - dh_dmu(model, 1.5, state_t_[0,1], model.params.precalc_r) *1e3
+    jacobian_[0,1] = - d_r_func_mu(state_[0,1,t_-1], state_[0,2,t_-1]) * 1e3
+    #jacobian_[0,1] = - 1.
+    jacobian_[0,2] = - d_r_func_sigma(state_[0,1,t_-1], state_[0,2,t_-1]) * 1e3
     
     jacobian_[1,1] = 1.
+    jacobian_[2,0] = -1. *1e-3
+    jacobian_[2,2] = 1.
     
     return jacobian_
 
@@ -155,8 +203,14 @@ def D_u_h(model, state_t_):
     duh_[1,1] = -1.
     return duh_
 
-def dh_dmu(model, sigma, mu, table):
-    return jac_aln.der_mu(model, sigma, mu, 0., table)
+def d_r_func_mu(mu, sigma):
+    x_shift_mu = - 2.
+    x_scale_mu = 0.6
+    y_scale_mu = 0.1
+    return y_scale_mu * x_scale_mu / np.cosh(x_scale_mu * mu + x_shift_mu)**2
 
-def dh_dsigma(model, sigma, mu, table):
-    return jac_aln.der_sigma(model, sigma, mu, 0., table)
+def d_r_func_sigma(mu, sigma):
+    x_shift_sigma = -1.
+    x_scale_sigma = 0.6
+    y_scale_sigma = 1./2500.
+    return np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma

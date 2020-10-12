@@ -27,7 +27,23 @@ def der_sigma(model, sigma_f, muf, IAmin1, precalc_table):
     return der
 
 # gradient of transfer function wrt changes in mu
-def der_mu(model, sigma_f, muf, IAmin1, precalc_table):
+def der_mu_up(model, sigma_f, muf, IAmin1, precalc_table):
+    dI = model.params.dI
+    
+    result0 = interpolate(model, sigma_f, muf, IAmin1, precalc_table)
+    result1 = interpolate(model, sigma_f, muf + dI, IAmin1, precalc_table)
+    result2 = interpolate(model, sigma_f, muf - dI, IAmin1, precalc_table)
+        
+    der1 = ( result1 - result0) / dI
+    der2 = -( result2 - result0) / dI
+    
+    der_analytical = 0.001 * (1./np.cosh(muf)**2)
+    
+    #("difference in der : ", der1 - der_analytical)
+            
+    return der_analytical
+
+def der_mu_down(model, sigma_f, muf, IAmin1, precalc_table):
     dI = model.params.dI
     
     result0 = interpolate(model, sigma_f, muf, IAmin1, precalc_table)
@@ -39,7 +55,7 @@ def der_mu(model, sigma_f, muf, IAmin1, precalc_table):
     
     #print("difference in der : ", der1 - der2)
             
-    return der1
+    return der2
 
 
 def interpolate_values(table, xid1, yid1, dxid, dyid):

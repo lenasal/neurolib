@@ -21,9 +21,9 @@ class Model_b(Model):
     state_vars = [
         "rates_exc",
         "mufe",
-        "tau_exc",
+        "sigmae_f"
     ]
-    output_vars = ["rates_exc", "mufe", "tau_exc"]
+    output_vars = ["rates_exc", "mufe", "sigmae_f"]
     default_output = "rates_exc"
     target_output_vars = ["rates_exc"]
     input_vars = ["ext_exc_current"]

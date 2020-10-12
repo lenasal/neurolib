@@ -170,6 +170,8 @@ def timeIntegration(params, control):
 
     max_global_delay = max(np.max(Dmat_ndt), ndt_de, ndt_di)
     startind = int(max_global_delay + 1)
+    
+    print(startind)
 
     # state variable arrays, have length of t + startind
     # they store initial conditions AND simulated data
@@ -583,23 +585,10 @@ def timeIntegration_njit_elementwise(
             
             xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,i-1], Irange, dI, mufi[no,i-1])
             xid1, yid1 = int(xid1), int(yid1)
-            
-            #print("integration, ds, sigmai_f, dI", ds, sigmai_f, dI)
-            #print("integration, mufi = ", mufi[no])
-            
-            #if (i in range(startind, startind + 3,1)):
-                #print("sigmarange = ", sigmarange)
-                #print("ds = ", ds)
-                #print("sigmai_f = ", sigmai_f)
-                #print("Irange = ", Irange)
-                #print("dI = ", dI)
-                #print("mufi[no] = ", mufi[no])
-                #print("xid1, yid1, dxid, dyid = ", xid1, yid1, dxid, dyid)
 
             rates_inh[no, i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
             # Vmean_inh = interpolate_values(precalc_V, xid1, yid1, dxid, dyid) # not used
             tau_inh[no,i] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-            #print("integration: tau calculated from ", xid1, yid1, dxid, dyid)
             if filter_sigma:
                 tau_sigmai_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
 
@@ -638,8 +627,8 @@ def timeIntegration_njit_elementwise(
             siev_rhs = ((1 - siem[no,i-1]) ** 2 * z2ie + (z2ie - 2 * tau_se * (z1ie + 1)) * siev[no,i-1]) / tau_se ** 2
             siiv_rhs = ((1 - siim[no,i-1]) ** 2 * z2ii + (z2ii - 2 * tau_si * (z1ii + 1)) * siiv[no,i-1]) / tau_si ** 2
             
-            seev_rhs = ( (z2ee - 2 * tau_se * (z1ee + 1)) * seev[no,i-1]) / tau_se ** 2
-            seem_rhs = 0.
+            #seev_rhs = ( (z2ee - 2 * tau_se * (z1ee + 1)) * seev[no,i-1]) / tau_se ** 2
+            #seem_rhs = 0.
 
             # -------------- integration --------------
 
@@ -703,6 +692,8 @@ def timeIntegration_njit_elementwise(
     Vmean_exc[:,:startind] = Vmean_exc[:,startind]
     tau_exc[:,:startind] = tau_exc[:,startind]
     tau_inh[:,:startind] = tau_inh[:,startind]
+    
+    print(rates_exc.shape)
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou, sigmae_f, sigmai_f, Vmean_exc, tau_exc, tau_inh
 

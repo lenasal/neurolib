@@ -24,8 +24,8 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
 
     # Todo: Model metadata
     # recently added for easier simulation of aln and brian in pypet
-    params.model = "a"
-    params.name = "a"
+    params.model = "c"
+    params.name = "c"
     params.description = "Simplified version of simplified aln for testing purposes"
     
     params.N = 1
@@ -47,10 +47,22 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     hf = h5py.File(lookupTableFileName, "r")
     params.Irange = hf.get("mu_vals")[()]
     params.sigmarange = hf.get("sigma_vals")[()]
-    params.dI = params.Irange[1] - params.Irange[0]
+    
+    factor = 1
+    
+    params.dI = factor * (params.Irange[1] - params.Irange[0] )
     params.ds = params.sigmarange[1] - params.sigmarange[0]
     
+    params.Irange = np.arange(params.Irange[0],params.Irange[-1],params.dI)
+    params.sigmarange = np.arange(params.sigmarange[0], params.sigmarange[-1], params.ds)
+    
     params.precalc_r = hf.get("r_ss")[()][()]
+    
+    #params.precalc_r = np.zeros(( params.Irange.shape[0], params.sigmarange.shape[0] ))
+    
+    #for j in range(params.precalc_r.shape[1]):
+        #params.precalc_r[:,j] = 0.001 * (3. + np.linspace(params.Irange[0],params.Irange[-1],params.precalc_r.shape[0]) )
+        #params.precalc_r[:,j] = 0.001 * (3. + np.tanh(params.Irange))
     
     params.C = 200.0  # pF
 

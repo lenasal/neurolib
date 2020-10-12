@@ -26,15 +26,18 @@ def timeIntegration(params, control):
     # Floating point issue in np.arange() workaraound: use integers in np.arange()
     t = np.arange(1, round(duration, 6) / dt + 1) * dt  # Time variable (ms)
     
-    startind = 1
+    delay = params["delay"]
+    startind = 1 + delay
 
     rates_exc = np.zeros((N, len(t)+startind))
     mufe = np.zeros((N, len(t)+startind))
-    seev = np.zeros((N, len(t)+startind))
     seem = np.zeros((N, len(t)+startind))
+    seev = np.zeros((N, len(t)+startind))
     sigmae_f = np.zeros((N, len(t)+startind))
     tau_exc = np.zeros((N, len(t)+startind))
     ext_exc_current = np.zeros((N, len(t)+startind))
+    
+    rd_exc = np.zeros((N, N))
     
     rates_exc[:,:startind] = params["rates_exc_init"]
     mufe[:,:startind] = params["mufe_init"]
@@ -54,6 +57,22 @@ def timeIntegration(params, control):
     
     precalc_r = params["precalc_r"]
     precalc_tau_mu = params["precalc_tau_mu"]    
+    
+    # recurrent coupling parameters
+    Ke = params["Ke"]  # Recurrent Exc coupling. "EE = IE" assumed for act_dep_coupling in current implementation
+    
+    tau_se = params["tau_se"]  # Synaptic decay time constant for exc. connections "EE = IE" (ms)
+    
+    cee = params["cee"]  # strength of exc. connection
+    
+    # Recurrent connections coupling strength
+    Jee_max = params["Jee_max"]  # ( mV/ms )
+    
+    # if params below are changed, preprocessing required
+    C = params["C"]  # membrane capacitance ( pF )
+    gL = params["gL"]  # Membrane conductance ( nS )    
+    taum = C / gL  # membrane time constant
+    
 
     control_ext = control.copy()
     
@@ -64,20 +83,21 @@ def timeIntegration(params, control):
         dt,
         t,
         startind,
+        delay,
         rates_exc,
         mufe,
-        seev,
         seem,
+        seev,
         sigmae_f,
         tau_exc,
         ext_exc_current,
         sigmae_ext,
-        dI,
-        ds,
-        sigmarange,
-        Irange,
-        precalc_r,
-        precalc_tau_mu,
+        rd_exc,
+        Ke,
+        tau_se,
+        cee,
+        Jee_max,
+        taum,
         control_ext,
     )
 
@@ -88,48 +108,77 @@ def timeIntegration_njit_elementwise(
         dt,
         t,
         startind,
+        delay,
         rates_exc,
         mufe,
-        seev,
         seem,
+        seev,
         sigmae_f,
         tau_exc,
         ext_exc_current,
         sigmae_ext,
-        dI,
-        ds,
-        sigmarange,
-        Irange,
-        precalc_r,
-        precalc_tau_mu,
+        rd_exc,
+        Ke,
+        tau_se,
+        cee,
+        Jee_max,
+        taum,
         control_ext,
 ):
     
     for i in range(startind, startind + len(t)):
         for no in range(N):
             
+            delay = 0
+                        
+            sigma_ee = (2. * Jee_max**2 * seev[no,i-1] * tau_se * taum)
+            
             sigmae_f[no,i-1] = np.sqrt(seev[no,i-1] + sigmae_ext ** 2 )  # mV/sqrt(ms)
+            rates_exc[no,i-1] = r_func_mu(mufe[no,i-1], sigmae_f[no,i-1]) * 1e3 # convert kHz to Hz          
+            tau_exc[no,i-1] = tau_func(mufe[no,i-1])
             
-            xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmae_f[no,i-1], Irange, dI, mufe[no,i-1])
-            xid1, yid1 = int(xid1), int(yid1)
-            rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
+            rd_exc[no,no] = rates_exc[no,i-1-delay] * 1e-3
             
-            tau_exc[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-            #tau_exc[no,i-1] = mufe[no,i-1]
-                               
-            mufe_rhs = (control_ext[no,0,i-1] + ext_exc_current[no,i-startind+1] - mufe[no,i-1]) / tau_exc[no,i-1]
+            factor_ee1 = ( cee * Ke * tau_se / Jee_max )
+            factor_ee2 = ( cee**2 * Ke * tau_se**2 / Jee_max**2 )
+            z1ee = factor_ee1 * rd_exc[no, no]
+            z2ee = factor_ee2 * rd_exc[no, no]
+            
+            seem_rhs = ( - seem[no,i-1] / tau_se + ( 1. - seem[no,i-1] ) * z1ee )
+            seem[no,i] = seem[no,i-1] + dt * seem_rhs
+            seev_rhs = 0.
+            seev[no,i] = seev[no,i-1] + dt * seev_rhs
+            
+            mufe_rhs = (seem[no,i-1] + control_ext[no,0,i-startind] + ext_exc_current[no,i] - mufe[no,i-1]) / tau_exc[no,i-1]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
-            rates_exc[no,i] = mufe[no,i]
+            
       
     sigmae_f[no,-1] = np.sqrt(seev[no,-1] + sigmae_ext ** 2 )  # mV/sqrt(ms)
-    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmae_f[no,-1], Irange, dI, mufe[no,-1])
-    xid1, yid1 = int(xid1), int(yid1)
-    #rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
-            
-    tau_exc[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-    #tau_exc[no,-1] = mufe[no,-1]
+    tau_exc[no,-1] = tau_func(mufe[no,-1])
+    rates_exc[no,-1] = r_func_mu(mufe[no,-1], sigmae_f[no,-1]) * 1e3
     
-    return t, rates_exc, mufe, seev, seem, sigmae_f, tau_exc
+    return t, rates_exc, mufe, seem, seev, sigmae_f, tau_exc
+
+def r_func_mu(mu, sigma):
+    x_shift = - 2.
+    x_scale = 0.6
+    y_shift = 0.1
+    y_scale = 0.1
+    return y_shift + np.tanh(x_scale * mu + x_shift) * y_scale
+
+def r_func_sigma(sigma):
+    x_shift = -1.
+    x_scale = 0.6
+    y_shift = 0.07
+    y_scale = 1./2500.
+    return y_shift + np.cosh(x_scale * sigma + x_shift) * y_scale
+
+def tau_func(mu):
+    x_shift = -1.
+    x_scale = 1.
+    y_shift = 11.
+    y_scale = -10.
+    return y_shift + np.tanh(x_scale * mu + x_shift) * y_scale 
 
 
 def interpolate_values(table, xid1, yid1, dxid, dyid):

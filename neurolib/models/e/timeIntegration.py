@@ -111,7 +111,7 @@ def timeIntegration_njit_elementwise(
     for i in range(startind, startind + len(t)):
         for no in range(N):
             
-            rd_exc[no] = rates_exc[no,i-1] * 1e-3
+            rd_exc[no,no] = rates_exc[no,i-1] * 1e-3
             
             z1ee = rd_exc[no, no]
             z1ee = 0.
