@@ -41,7 +41,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         i += 1   
         
         phi1_ = phi(model, state0_, target_state_, best_control_, phi0_)
-        #print("phi = ", phi1_)
+        print("phi = ", phi1_)
         
         outstate_ = model.getZeroState()
         outstate_[:,:,:] = state1_[:,0,:]
@@ -100,7 +100,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     return best_control_, state1_, total_cost_, 0.
 
 def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
-    #print("ALN phi2 computation")
+    dt = model.params.dt
     phi_ = model.getZeroFullState()
     out_state = model.getZeroState()
     out_state[:,:,:] = state_[:,0,:]
@@ -122,37 +122,15 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         if (ind_time == 0):
             break
         
+        if (ind_time != phi_.shape[2]-1):
+            der = phi_[0,0,ind_time+1] *jac[0,1]
+            phi_[0,1,ind_time-1] = phi_[0,1,ind_time] - dt * der
         
-        res = np.dot( np.array( [phi_[0,0,ind_time], phi_[0,1,ind_time], phi_[0,2,ind_time]] ), np.linalg.inv(jac) )
-                                        
-                                        #phi_[0,0,ind_time] * jac[0,1]
+        #res = np.dot( np.array( [phi_[0,0,ind_time], phi_[0,1,ind_time], phi_[0,2,ind_time]] ), np.linalg.inv(jac) )
+
         res = - phi_[0,0,ind_time] *jac[0,:]
-        phi_[0,1,ind_time-1] = res[1]
-        phi_[0,2,ind_time-1] = res[2]
-        
-        #print("res 0 = ", res)
-        
-        
-        
-        """
-        if (ind_time != phi_.shape[2]-1 ):
-            f_p_grad_t_shift = cost.cost_precision_gradient_t(out_state[:,:,ind_time+1], target_state_[:,:,ind_time+1])
-            full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
-            full_cost_grad[0] = f_p_grad_t_shift[0,0]
-            res = np.dot( - np.array( [full_cost_grad[0], full_cost_grad[1], full_cost_grad[2]] ), np.linalg.inv(jac[1:,1:]))
-            #print("res 1 = ", res)
-            #phi_[0,1,ind_time] = phi_[0,0,ind_time+1]
-            phi_[0,1,ind_time] = res[1]
-            phi_[0,2,ind_time] = res[2]
-        
-        
-        # phi[1,-1] needs to b zero!
-        else:
-            phi_[0,1,-1] =  0.
-            phi_[0,2,-1] =  0.
-        """    
-                
-   
+        #phi_[0,1,ind_time-1] = res[1]
+        phi_[0,2,ind_time-1] = res[2]   
                 
     return phi_
 
@@ -184,11 +162,11 @@ def g(model, phi_, state_, control_):
 def jacobian(model, state_, control_, t_):
     jacobian_ = np.zeros((state_.shape[1], state_.shape[1]))
     jacobian_[0,0] = 1.
-    jacobian_[0,1] = - d_r_func_mu(state_[0,1,t_-1], state_[0,2,t_-1]) * 1e3
+    jacobian_[0,1] = - d_r_func_mu(state_[0,1,t_], state_[0,2,t_]) * 1e3
     #jacobian_[0,1] = - 1.
     jacobian_[0,2] = - d_r_func_sigma(state_[0,1,t_-1], state_[0,2,t_-1]) * 1e3
     
-    jacobian_[1,1] = 1.
+    #jacobian_[1,1] = 1.
     jacobian_[2,0] = -1. *1e-3
     jacobian_[2,2] = 1.
     

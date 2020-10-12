@@ -48,7 +48,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         g0_min_ = g(model, phi1_, state1_, best_control_)
         g1_min_ = g0_min_.copy()
         #print("phi = ", phi1_)
-        print("g = ", g0_min_)
+        #print("g = ", g0_min_)
 
         dir0_ = - g0_min_.copy()
         dir1_ = dir0_.copy()
@@ -105,6 +105,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         improvement = improvement = 100. - (100.*(total_cost_[max_iteration_]/total_cost_[0]))
         
     print("Improved over ", max_iteration_, " iterations by ", improvement, " percent.")
+    print("final grad = ", g0_min_)
     
     return best_control_, state1_, total_cost_, 0.
 
@@ -123,6 +124,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
         full_cost_grad[0] = f_p_grad_t_[0,0]
         
+        """
         if (ind_time != phi_.shape[2]-1 ):  
             f_p_grad_t_shift = cost.cost_precision_gradient_t(out_state[:,:,ind_time+1], target_state_[:,:,ind_time+1])
             full_cost_grad_shift = np.zeros(( state_[0,:,ind_time].shape ))
@@ -130,9 +132,17 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
             
             res = - np.dot( full_cost_grad_shift, np.linalg.inv(jac) )
             phi_[0,1,ind_time] = res[1]
+        """
    
-        res = - np.dot( full_cost_grad, np.linalg.inv(jac) )
-        phi_[0,0,ind_time] = res[0]
+        res = - full_cost_grad[0]/ jac[0,0]
+        phi_[0,0,ind_time] = res
+        
+        if ind_time == 0:
+            break
+        
+        if ind_time != phi_.shape[2]-1:
+            der = - phi_[0,0,ind_time+1]
+            phi_[0,1,ind_time-1] = phi_[0,1,ind_time] - dt * der
         
        # print("inverse = ", np.linalg.inv(jac))
                 
@@ -163,8 +173,8 @@ def jacobian(model, state_t_, control_t_):
     jacobian_[0,0] = 1.
     jacobian_[0,1] = - 1.
     
-    jacobian_[1,1] = 1.
-    jacobian_[1,2] = control_t_[0,0] / state_t_[0,2]**2
+    #jacobian_[1,1] = 1.
+    #jacobian_[1,2] = control_t_[0,0] / state_t_[0,2]**2
     
     #jacobian_[2,1] = - 1.
     jacobian_[2,2] = 1.
@@ -177,5 +187,5 @@ def D_xdot(model, state_t_):
 
 def D_u_h(model, state_t_):
     duh_ = np.zeros(( state_t_.shape[1], state_t_.shape[1] ))
-    duh_[1,1] = -1. / state_t_[0,2]
+    duh_[1,1] = -1. #/ state_t_[0,2]
     return duh_

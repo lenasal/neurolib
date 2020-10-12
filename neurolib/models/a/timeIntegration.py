@@ -63,11 +63,13 @@ def timeIntegration_njit_elementwise(
         for no in range(N):
             
             rates_exc[no,i] = mufe[no,i-1]
-            tau_exc[no,i] = mufe[no,i-1]
+            #tau_exc[no,i] = mufe[no,i-1]
             #tau_exc[no,i] = 1.
-            mufe[no,i] = control_ext[no,0,i] / tau_exc[no,i]
+            mufe_rhs = control_ext[no,0,i-1]
+            mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             #print("mufe =", mufe[no,i])
   
-    tau_exc[:,0] = tau_exc[:,1]
+    #tau_exc[:,0] = tau_exc[:,1]
+    #rates_exc[no,-1] = mufe[no,-1]
     
     return t, rates_exc, mufe, tau_exc

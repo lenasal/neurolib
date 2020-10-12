@@ -59,7 +59,7 @@ def timeIntegration_njit_elementwise(
         control_ext,
 ):
     
-    mufe[:,0] = control_ext[:,0,0]
+    #mufe[:,0] = control_ext[:,0,0]
     
     for i in range(1,len(t)+1):
         for no in range(N):
@@ -69,7 +69,8 @@ def timeIntegration_njit_elementwise(
             #sigmae_f[no,i-1] = np.sqrt(rates_exc[no,i-1] + 1.5**2 )
             #sigmae_f[no,i-1] = np.sqrt(seev + 1.5**2 )
             sigmae_f[no,i-1] = 1e-3 * rates_exc[no,i-1] #+ 1.5
-            mufe[no,i] = control_ext[no,0,i]
+            mufe_rhs = control_ext[no,0,i]
+            mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             rates_exc[no,i] = r_func(mufe[no,i-1], sigmae_f[no,i-1]) * 1e3
             
     seev = 0.     

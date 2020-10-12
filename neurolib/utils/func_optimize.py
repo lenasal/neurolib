@@ -15,6 +15,7 @@ def updateState(model, control_):
     model.run(control = control_)    
     for i in range(len(output_vars)):
         state_[:,i,:] = model[output_vars[i]][:,:]
+    #print("update state: ", state_[0,:,:3])
     return state_
 
 def updateFullState(model, control_, duration_):

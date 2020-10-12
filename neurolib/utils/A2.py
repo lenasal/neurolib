@@ -291,6 +291,7 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
                     
                     
                 #print("0: rates exc = ", model.rates_exc) 
+                #print("control = ", control0_)
                 state0 = fo.updateState(model, control0_)
                 #print("1: rates exc = ", model.rates_exc)
                 
@@ -331,13 +332,18 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
         # simulate two/ one time step for initial conditions
         model.params['duration'] = 2. * dt
         model.run(control=control0_[:, :, :3])
-        #print("rates exc: ", model.rates_exc)
+        #print("control = ", control0_[:, :, :3])
+        #print("3: rates exc: ", model.rates_exc)
+        #print("init vars = ", model.params[init_vars[0]], model.params[init_vars[1]])
         fo.update_delayed_state(model, delay_state_vars0_, state_vars, init_vars, startind_)
+        #print("4: rates exc: ", model.rates_exc)
+        #print("init vars = ", model.params[init_vars[0]], model.params[init_vars[1]])
         
         
         duration_sim -= dt
         model.params['duration'] = duration_sim
         change_dur_ = True
+        #print("change duration to ", duration_sim)
     
     model.params['duration'] = duration_init
         
