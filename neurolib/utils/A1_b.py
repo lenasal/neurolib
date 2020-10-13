@@ -144,12 +144,12 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         
         #res = np.dot( np.array( [phi_[0,0,ind_time], phi_[0,1,ind_time], phi_[0,2,ind_time]] ), np.linalg.inv(jac) )
 
-        res = - phi_[0,0,ind_time] *jac[0,:]
-        #phi_[0,1,ind_time-1] = res[1]
-        phi_[0,4,ind_time-1] = res[4]   
-        
         res = - phi_[0,1,ind_time-1] * jac[1,5]
         phi_[0,5,ind_time-1] = res
+
+        res = - phi_[0,0,ind_time] * jac[0,4] - phi_[0,5,ind_time-1] * jac[5,4]
+        #phi_[0,1,ind_time-1] = res[1]
+        phi_[0,4,ind_time-1] = res
                 
     return phi_
 
@@ -222,7 +222,8 @@ def jacobian(model, state_, control_, t_):
     jacobian_[4,3] = - 0.5 * ( (1 + z1ee) * taum + tau_se )**(-1) * ( 2. * Jee_max**2 * tau_se * taum ) * sigma_sqrt
     jacobian_[4,4] = 1.
     
-    jacobian_[5,1] = - d_tau_func_mu(state_[0,1,t_], 1.5)
+    jacobian_[5,1] = - d_tau_func_mu(state_[0,1,t_], state_[0,4,t_])
+    jacobian_[5,4] = - d_tau_func_sigma(state_[0,1,t_-1], state_[0,4,t_-1])
     jacobian_[5,5] = 1.
     
     return jacobian_
@@ -253,7 +254,7 @@ def d_tau_func_mu(mu, sigma):
     mu_scale = - 10.
     y_shift = 15.
     sigma_shift = 1.4
-    #return -1.
+    #return 1.
     return sigma + mu_scale + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * (mu_shift + mu) / (sigma + sigma_shift) )
 
 def d_tau_func_sigma(mu, sigma):
@@ -261,4 +262,5 @@ def d_tau_func_sigma(mu, sigma):
     mu_scale = - 10.
     y_shift = 15.
     sigma_shift = 1.4
+    #return 1.
     return (mu_shift + mu) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp( mu_scale * (mu_shift + mu) / (sigma + sigma_shift) )
