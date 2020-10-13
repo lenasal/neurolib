@@ -52,9 +52,7 @@ def timeIntegration(params, control):
     ds = params["ds"]
     sigmarange = params["sigmarange"]
     Irange = params["Irange"]
-    
-    sigmae_ext = params["sigmae_ext"]
-    
+        
     precalc_r = params["precalc_r"]
     precalc_tau_mu = params["precalc_tau_mu"]    
     

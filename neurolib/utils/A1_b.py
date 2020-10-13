@@ -123,13 +123,16 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         #phi_[0,1,ind_time-1] = res[1]
         #phi_[0,2,ind_time-1] = res[2]
         
+        if (ind_time == 0):
+            break
+        
         phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,1,ind_time], phi_[0,4,ind_time]] ), np.array( [jac[1,0], jac[4,0]] ) )
         
         if (ind_time == 0):
             break
         
         if (ind_time != phi_.shape[2]-1):
-            der = phi_[0,0,ind_time+1] *jac[0,1]
+            der = phi_[0,0,ind_time+1] * jac[0,1] + phi_[0,5,ind_time] * jac[5,1]
             phi_[0,1,ind_time-1] = phi_[0,1,ind_time] - dt * der
         
         #res = np.dot( np.array( [phi_[0,0,ind_time], phi_[0,1,ind_time], phi_[0,2,ind_time]] ), np.linalg.inv(jac) )
@@ -137,6 +140,9 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         res = - phi_[0,0,ind_time] *jac[0,:]
         #phi_[0,1,ind_time-1] = res[1]
         phi_[0,4,ind_time-1] = res[4]   
+        
+        res = - phi_[0,1,ind_time-1] * jac[1,5]
+        phi_[0,5,ind_time-1] = res
                 
     return phi_
 
@@ -153,8 +159,8 @@ def g(model, phi_, state_, control_):
     phi_shift[:,:,1:] = phi_[:,:,0:-1] 
     
     phi1_ = np.zeros(( grad_cost_e_.shape ))
-    for t in range(state_.shape[2]):
-        jac_u_ = D_u_h(model, state_[:,:,t])
+    for t in range(1,state_.shape[2]):
+        jac_u_ = D_u_h(model, state_[:,:,:], t)
         phi1_[0,0,t] = np.dot(phi_shift[0,:,t], jac_u_)[1]
         
     #print("phi = ", phi_[0,1,:])
@@ -166,6 +172,9 @@ def g(model, phi_, state_, control_):
     return g_
 
 def jacobian(model, state_, control_, t_):
+    
+    sigmae_ext = model.params.sigmae_ext
+    
     jacobian_ = np.zeros((state_.shape[1], state_.shape[1]))
     jacobian_[0,0] = 1.
     jacobian_[0,1] = - d_r_func_mu(state_[0,1,t_], state_[0,4,t_]) * 1e3
@@ -173,8 +182,15 @@ def jacobian(model, state_, control_, t_):
     jacobian_[0,4] = - d_r_func_sigma(state_[0,1,t_-1], state_[0,4,t_-1]) * 1e3
     
     #jacobian_[1,1] = 1.
+    jacobian_[1,5] = control_[0,0,t_] / state_[0,5,t_-1]**2
+    
+    
     jacobian_[4,0] = -1. *1e-3
+    jacobian_[4,0] = - (1e-3)**2 * state_[0,0,t_-1] * (  (1e-3 * state_[0,0,t_-1])**2 + sigmae_ext**2 )**(-1./2.)
     jacobian_[4,4] = 1.
+    
+    jacobian_[5,1] = -1.
+    jacobian_[5,5] = 1.
     
     return jacobian_
 
@@ -182,9 +198,9 @@ def D_xdot(model, state_t_):
     dxdot_ = np.zeros((state_t_.shape[1], state_t_.shape[1]))
     return dxdot_
 
-def D_u_h(model, state_t_):
-    duh_ = np.zeros(( state_t_.shape[1], state_t_.shape[1] ))
-    duh_[1,1] = -1.
+def D_u_h(model, state_, t_):
+    duh_ = np.zeros(( state_.shape[1], state_.shape[1] ))
+    duh_[1,1] = - 1. / state_[0,5,t_-1]
     return duh_
 
 def d_r_func_mu(mu, sigma):
@@ -198,3 +214,9 @@ def d_r_func_sigma(mu, sigma):
     x_scale_sigma = 0.6
     y_scale_sigma = 1./2500.
     return np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma
+
+def d_tau_func(mu):
+    x_shift = -1.
+    x_scale = 1.
+    y_scale = -10.
+    return y_scale * x_scale / np.cosh(x_scale * mu + x_shift)**2

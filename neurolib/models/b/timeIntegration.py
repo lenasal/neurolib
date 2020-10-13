@@ -46,6 +46,12 @@ def timeIntegration(params, control):
 
     rates_exc[:,0] = params["rates_exc_init"]
     mufe[:,0] = params["mufe_init"]
+    seem[:,:startind] = params["seem_init"]
+    seev[:,:startind] = params["seev_init"]
+    #tau_exc[:,:startind] = params["mufe_init"]
+    ext_exc_current[:,:] = params["ext_exc_current"]
+    
+    sigmae_ext = params["sigmae_ext"]
 
     control_ext = control.copy()
     
@@ -61,6 +67,8 @@ def timeIntegration(params, control):
         seev,
         sigmae_f,
         tau_exc,
+        ext_exc_current,
+        sigmae_ext,
         control_ext,
     )
 
@@ -76,6 +84,8 @@ def timeIntegration_njit_elementwise(
         seev,
         sigmae_f,
         tau_exc,
+        ext_exc_current,
+        sigmae_ext,
         control_ext,
 ):
     
@@ -88,15 +98,18 @@ def timeIntegration_njit_elementwise(
             
             #sigmae_f[no,i-1] = np.sqrt(rates_exc[no,i-1] + 1.5**2 )
             #sigmae_f[no,i-1] = np.sqrt(seev + 1.5**2 )
-            sigmae_f[no,i-1] = 1e-3 * rates_exc[no,i-1] #+ 1.5
-            mufe_rhs = control_ext[no,0,i]
+            sigmae_f[no,i-1] = np.sqrt( (1e-3 * rates_exc[no,i-1])**2 + sigmae_ext**2 )
+            tau_exc[no,i-1] = mufe[no,i-1]
+            
+            mufe_rhs = control_ext[no,0,i] / tau_exc[no,i-1]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             rates_exc[no,i] = r_func(mufe[no,i-1], sigmae_f[no,i-1]) * 1e3
             
    # seev = 0.     
     #sigmae_f[no,-1] = np.sqrt(rates_exc[no,-1] + 1.5**2 )
     #sigmae_f[no,-1] = np.sqrt(seev + 1.5**2 )
-    sigmae_f[no,-1] = 1e-3 * rates_exc[no,-1] #+ 1.5
+    sigmae_f[no,-1] = np.sqrt( (1e-3 * rates_exc[no,-1])**2 + sigmae_ext**2 )
+    tau_exc[no,-1] = mufe[no,-1]
   
     return t, rates_exc, mufe, seem, seev, sigmae_f, tau_exc
 
@@ -110,3 +123,10 @@ def r_func(mu, sigma):
     y_scale_mu = 0.1
     y_scale_sigma = 1./2500.
     return y_shift + np.tanh(x_scale_mu * mu + x_shift_mu) * y_scale_mu + np.cosh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma
+
+def tau_func(mu):
+    x_shift = -1.
+    x_scale = 1.
+    y_shift = 11.
+    y_scale = -10.
+    return y_shift + np.tanh(x_scale * mu + x_shift) * y_scale

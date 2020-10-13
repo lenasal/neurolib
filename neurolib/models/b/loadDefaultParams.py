@@ -40,17 +40,13 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     # if zero, no handle on rates
     params.rates_exc_init = np.array( [[0.]] )
     params.mufe_init = np.array( [[1.]] )  # (linear) filtered mean input
+    params.seem_init = np.array( [[0.1]] )
+    params.seev_init = np.array( [[0.0]] )
+    params.ext_exc_current = 0.0
     
-    if lookupTableFileName is None:
-        lookupTableFileName = os.path.join(os.path.dirname(__file__), "aln-precalc", "quantities_cascade.h5")
+    params.sigmae_ext = 1.5
+    
 
-    hf = h5py.File(lookupTableFileName, "r")
-    params.Irange = hf.get("mu_vals")[()]
-    params.sigmarange = hf.get("sigma_vals")[()]
-    params.dI = params.Irange[1] - params.Irange[0]
-    params.ds = params.sigmarange[1] - params.sigmarange[0]
-    
-    params.precalc_r = hf.get("r_ss")[()][()]
     
     params.C = 200.0  # pF
 
