@@ -126,8 +126,8 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         if (ind_time == 0):
             break
         
-        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,1,ind_time], phi_[0,2,ind_time], phi_[0,4,ind_time] ] )
-                                                          , np.array( [jac[1,0], jac[2,0], jac[4,0]] ) )
+        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,1,ind_time], phi_[0,2,ind_time], phi_[0,3,ind_time], phi_[0,4,ind_time] ] )
+                                                          , np.array( [jac[1,0], jac[2,0], jac[3,0], jac[4,0]] ) )
         
         if (ind_time == 0):
             break
@@ -206,15 +206,19 @@ def jacobian(model, state_, control_, t_):
     jacobian_[0,4] = - d_r_func_sigma(state_[0,1,t_-1], state_[0,4,t_-1]) * 1e3
     
     jacobian_[1,1] = 1. / state_[0,5,t_]
-    jacobian_[1,2] = - 1. / state_[0,5,t_]
-    jacobian_[1,5] = ( state_[0,2,t_-1] + control_[0,0,t_] + ext_exc_current - state_[0,1,t_-1] ) / state_[0,5,t_-1]**2
+    jacobian_[1,2] = - Jee_max / state_[0,5,t_]
+    jacobian_[1,5] = ( Jee_max * state_[0,2,t_-1] + control_[0,0,t_] + ext_exc_current - state_[0,1,t_-1] ) / state_[0,5,t_-1]**2
     
-    jacobian_[2,0] = - (1. - state_[0,2,t_]) * factor_ee1 * 1e-3
+    jacobian_[2,0] = - (1. - state_[0,2,t_]) * factor_ee1 * 1e-3 / tau_se
     #jacobian_[2,0] = - state_[0,2,t_]  * 1e0
-    jacobian_[2,2] = 1. / tau_se + z1ee
+    jacobian_[2,2] = ( 1. + z1ee ) / tau_se
     #jacobian_[2,2] = - z1ee
     
-    jacobian_[3,3] = - 1. / tau_se**2
+    #seev[no,i-1] * (z2ee - 2. * (z1ee * tau_se + 1.) / tau_se**2 )
+    #jacobian_[3,0] = - state_[0,3,t_] * ( factor_ee2 * 1e-3 - 2. * factor_ee1 * 1e-3)
+    #jacobian_[3,0] = - state_[0,3,t_] * ( factor_ee2 - 2. * factor_ee1 / tau_se) * 1e-3
+    jacobian_[3,3] = - (z2ee - 2. * (z1ee + 1.) / tau_se)
+    jacobian_[3,3] = - 1.
     
     sigma_sqrt = ( state_[0,3,t_] * ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1) + sigmae_ext**2 )**(-1./2.)
     

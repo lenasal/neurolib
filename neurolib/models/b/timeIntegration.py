@@ -134,12 +134,12 @@ def timeIntegration_njit_elementwise(
             sigmae_f[no,i-1] = np.sqrt( sig_ee + sigmae_ext**2 )
             tau_exc[no,i-1] = tau_func(mufe[no,i-1], sigmae_f[no,i-1])
             
-            seem_rhs = - seem[no,i-1] / tau_se + ( 1. - seem[no,i-1] ) * z1ee
+            seem_rhs = ( - seem[no,i-1]  + ( 1. - seem[no,i-1] ) * z1ee ) / tau_se
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
-            seev_rhs = seev[no,i-1] / tau_se**2
+            seev_rhs = seev[no,i-1] #* (z2ee - 2. * ( z1ee * tau_se + 1.) / tau_se) #(z2ee - 2. * (z1ee * tau_se + 1.) / tau_se )
             seev[no,i] = seev[no,i-1] + dt * seev_rhs
             
-            mufe_rhs = ( seem[no,i-1] + control_ext[no,0,i] + ext_exc_current[no,i] - mufe[no,i-1] ) / tau_exc[no,i-1]
+            mufe_rhs = ( Jee_max * seem[no,i-1] + control_ext[no,0,i] + ext_exc_current[no,i] - mufe[no,i-1] ) / tau_exc[no,i-1]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             rates_exc[no,i] = r_func(mufe[no,i-1], sigmae_f[no,i-1]) * 1e3
             
