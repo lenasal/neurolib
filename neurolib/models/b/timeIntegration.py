@@ -136,7 +136,7 @@ def timeIntegration_njit_elementwise(
             
             seem_rhs = ( - seem[no,i-1]  + ( 1. - seem[no,i-1] ) * z1ee ) / tau_se
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
-            seev_rhs = seev[no,i-1] #* (z2ee - 2. * ( z1ee * tau_se + 1.) / tau_se) #(z2ee - 2. * (z1ee * tau_se + 1.) / tau_se )
+            seev_rhs = ( (1. - seem[no,i-1])**2 * z2ee + seev[no,i-1] * (z2ee - 2. * tau_se * ( z1ee + 1.) ) ) / tau_se**2 
             seev[no,i] = seev[no,i-1] + dt * seev_rhs
             
             mufe_rhs = ( Jee_max * seem[no,i-1] + control_ext[no,0,i] + ext_exc_current[no,i] - mufe[no,i-1] ) / tau_exc[no,i-1]
