@@ -138,6 +138,9 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
             
             der = phi_[0,1,ind_time] * jac[1,2] + phi_[0,2,ind_time] * jac[2,2]
             phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
+            
+            der = phi_[0,1,ind_time] * jac[1,3] + phi_[0,3,ind_time] * jac[3,3] + phi_[0,4,ind_time] * jac[4,3]
+            phi_[0,3,ind_time-1] = phi_[0,3,ind_time] - dt * der
         
         #res = np.dot( np.array( [phi_[0,0,ind_time], phi_[0,1,ind_time], phi_[0,2,ind_time]] ), np.linalg.inv(jac) )
 
@@ -211,10 +214,12 @@ def jacobian(model, state_, control_, t_):
     jacobian_[2,2] = 1. / tau_se + z1ee
     #jacobian_[2,2] = - z1ee
     
-    sigma_sqrt = ( ( (1 + z1ee) * taum + tau_se )**(-1) + sigmae_ext**2 )**(-1./2.)
+    jacobian_[3,3] = - 1. / tau_se**2
     
-    jacobian_[4,0] = -1. *1e-3
-    jacobian_[4,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * sigma_sqrt
+    sigma_sqrt = ( state_[0,3,t_] * ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1) + sigmae_ext**2 )**(-1./2.)
+    
+    jacobian_[4,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,3,t_] * ( 2. * Jee_max**2 * tau_se * taum ) * sigma_sqrt
+    jacobian_[4,3] = - 0.5 * ( (1 + z1ee) * taum + tau_se )**(-1) * ( 2. * Jee_max**2 * tau_se * taum ) * sigma_sqrt
     jacobian_[4,4] = 1.
     
     jacobian_[5,1] = -1.
