@@ -132,7 +132,7 @@ def timeIntegration_njit_elementwise(
             sig_ee = seev[no,i-1] * ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
             
             sigmae_f[no,i-1] = np.sqrt( sig_ee + sigmae_ext**2 )
-            tau_exc[no,i-1] = mufe[no,i-1]
+            tau_exc[no,i-1] = tau_func(mufe[no,i-1], 1.5)
             
             seem_rhs = - seem[no,i-1] / tau_se + ( 1. - seem[no,i-1] ) * z1ee
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
@@ -148,10 +148,10 @@ def timeIntegration_njit_elementwise(
     z1ee = factor_ee1 * rd_exc[no, no]
     z2ee = factor_ee2 * rd_exc[no, no]  
     
-    sig_ee = ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
+    sig_ee = seev[no,i-1] * ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
 
     sigmae_f[no,-1] = np.sqrt( sig_ee + sigmae_ext**2 )
-    tau_exc[no,-1] = mufe[no,-1]
+    tau_exc[no,-1] = tau_func(mufe[no,i-1], 1.5)
   
     return t, rates_exc, mufe, seem, seev, sigmae_f, tau_exc
 
@@ -166,9 +166,10 @@ def r_func(mu, sigma):
     y_scale_sigma = 1./2500.
     return y_shift + np.tanh(x_scale_mu * mu + x_shift_mu) * y_scale_mu + np.cosh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma
 
-def tau_func(mu):
-    x_shift = -1.
-    x_scale = 1.
-    y_shift = 11.
-    y_scale = -10.
-    return y_shift + np.tanh(x_scale * mu + x_shift) * y_scale
+def tau_func(mu, sigma):
+    mu_shift = - 1.1
+    mu_scale = - 10.
+    y_shift = 15.
+    sigma_shift = 1.4
+    #return mu
+    return (mu_shift + mu) * sigma + mu_scale * mu + y_shift + np.exp( mu_scale * (mu_shift + mu) / (sigma + sigma_shift) )
