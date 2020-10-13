@@ -185,12 +185,13 @@ def jacobian(model, state_, control_, t_):
     tau_se = model.params["tau_se"] 
     cee = model.params["cee"]
     Jee_max = model.params["Jee_max"]
+    taum = model.params.C / model.params.gL
     
     rd_exc = np.zeros(( model.params.N,model.params.N ))
-    rd_exc[0,0] = state_[0,0,t_] * 1e0
+    rd_exc[0,0] = state_[0,0,t_] * 1e-3
     
-    factor_ee1 = 1.#( cee * Ke * tau_se / Jee_max )
-    factor_ee2 = 1.#( cee**2 * Ke * tau_se**2 / Jee_max**2 )
+    factor_ee1 = ( cee * Ke * tau_se / Jee_max )
+    factor_ee2 = ( cee**2 * Ke * tau_se**2 / Jee_max**2 )
             
     z1ee = factor_ee1 * rd_exc[0,0]
     z2ee = factor_ee2 * rd_exc[0,0]
@@ -205,13 +206,15 @@ def jacobian(model, state_, control_, t_):
     jacobian_[1,2] = - 1. / state_[0,5,t_]
     jacobian_[1,5] = ( state_[0,2,t_-1] + control_[0,0,t_] + ext_exc_current - state_[0,1,t_-1] ) / state_[0,5,t_-1]**2
     
-    jacobian_[2,0] = - (1. - state_[0,2,t_]) * factor_ee1 * 1e0
+    jacobian_[2,0] = - (1. - state_[0,2,t_]) * factor_ee1 * 1e-3
     #jacobian_[2,0] = - state_[0,2,t_]  * 1e0
     jacobian_[2,2] = 1. / tau_se + z1ee
     #jacobian_[2,2] = - z1ee
     
+    sigma_sqrt = ( ( (1 + z1ee) * taum + tau_se )**(-1) + sigmae_ext**2 )**(-1./2.)
+    
     jacobian_[4,0] = -1. *1e-3
-    jacobian_[4,0] = - (1e-3)**2 * state_[0,0,t_-1] * (  (1e-3 * state_[0,0,t_-1])**2 + sigmae_ext**2 )**(-1./2.)
+    jacobian_[4,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * sigma_sqrt
     jacobian_[4,4] = 1.
     
     jacobian_[5,1] = -1.

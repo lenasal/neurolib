@@ -38,7 +38,7 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     params.duration = 2000  # Simulation duration (ms)
 
     # if zero, no handle on rates
-    params.rates_exc_init = np.array( [[0.]] )
+    params.rates_exc_init = np.array( [[1.]] )
     params.mufe_init = np.array( [[1.]] )  # (linear) filtered mean input
     params.seem_init = np.array( [[0.1]] )
     params.seev_init = np.array( [[0.0]] )

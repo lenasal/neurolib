@@ -16,6 +16,8 @@ class Model_b(Model):
     init_vars = [
         "rates_exc_init",
         "mufe_init",
+        "seem_init",
+        "seev_init",
     ]
 
     state_vars = [

@@ -84,9 +84,6 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
             #print("1 cost int up to index ", j+1, " : ", costsum_reverse)
         total_cost_[i] = cost.f_int(dt, cost_)
         print('RUN ', i, ', total integrated cost: ', total_cost_[i])
-        #print("state = ", state_)
-        #print("cost = ", len(cost_), cost_)
-        #print("control : ", best_control_)
 
         delta_ = gf_dc1(model, best_control_, target_, include_timestep_, start_step_, test_step_, max_control_,
                        startind_, delay_state_vars_)
