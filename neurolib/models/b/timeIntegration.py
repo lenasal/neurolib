@@ -21,6 +21,20 @@ def timeIntegration(params, control):
     N = params["N"]
     dt = params["dt"]  # Time step for the Euler intergration (ms)
     duration = params["duration"]  # imulation duration (ms)
+    
+    t = np.arange(1, round(duration, 6) / dt + 1) * dt  # Time variable (ms)
+    
+    startind = 1
+
+    rates_exc = np.zeros((N, len(t)+startind))
+    mufe = np.zeros((N, len(t)+startind))
+    seem = np.zeros((N, len(t)+startind))
+    seev = np.zeros((N, len(t)+startind))
+    sigmae_f = np.zeros((N, len(t)+startind))
+    tau_exc = np.zeros((N, len(t)+startind))
+    ext_exc_current = np.zeros((N, len(t)+startind))
+    
+    rd_exc = np.zeros((N, N))
 
     # Initialization
     # Floating point issue in np.arange() workaraound: use integers in np.arange()
@@ -43,7 +57,10 @@ def timeIntegration(params, control):
         t,
         rates_exc,
         mufe,
+        seem,
+        seev,
         sigmae_f,
+        tau_exc,
         control_ext,
     )
 
@@ -55,7 +72,10 @@ def timeIntegration_njit_elementwise(
         t,
         rates_exc,
         mufe,
+        seem,
+        seev,
         sigmae_f,
+        tau_exc,
         control_ext,
 ):
     
@@ -64,7 +84,7 @@ def timeIntegration_njit_elementwise(
     for i in range(1,len(t)+1):
         for no in range(N):
             
-            seev = 0.
+            #seev = 0.
             
             #sigmae_f[no,i-1] = np.sqrt(rates_exc[no,i-1] + 1.5**2 )
             #sigmae_f[no,i-1] = np.sqrt(seev + 1.5**2 )
@@ -73,12 +93,12 @@ def timeIntegration_njit_elementwise(
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             rates_exc[no,i] = r_func(mufe[no,i-1], sigmae_f[no,i-1]) * 1e3
             
-    seev = 0.     
+   # seev = 0.     
     #sigmae_f[no,-1] = np.sqrt(rates_exc[no,-1] + 1.5**2 )
     #sigmae_f[no,-1] = np.sqrt(seev + 1.5**2 )
     sigmae_f[no,-1] = 1e-3 * rates_exc[no,-1] #+ 1.5
   
-    return t, rates_exc, mufe, sigmae_f
+    return t, rates_exc, mufe, seem, seev, sigmae_f, tau_exc
 
 
 def r_func(mu, sigma):
