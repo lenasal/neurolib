@@ -41,7 +41,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         i += 1   
         
         phi1_ = phi(model, state0_, target_state_, best_control_, phi0_)
-        print("phi = ", phi1_)
+        #print("phi = ", phi1_)
         
         outstate_ = model.getZeroState()
         outstate_[:,:,:] = state1_[:,0,:]
@@ -149,7 +149,7 @@ def g(model, phi_, state_, control_):
     phi1_ = np.zeros(( grad_cost_e_.shape ))
     for t in range(state_.shape[2]):
         jac_u_ = D_u_h(model, state_[:,:,t])
-        phi1_[0,0,t] = np.dot(phi_[0,:,t], jac_u_)[1]
+        phi1_[0,0,t] = np.dot(phi_shift[0,:,t], jac_u_)[1]
         
     #print("phi = ", phi_[0,1,:])
     #print("phi shift = ", phi_shift[0,1,:])
