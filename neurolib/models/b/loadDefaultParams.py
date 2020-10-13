@@ -46,9 +46,20 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     
     params.sigmae_ext = 1.5
     
-
+    # recurrent coupling parameters
+    params.Ke = 800.0  # Number of excitatory inputs per neuron
+    
+    # synaptic time constants
+    params.tau_se = 2.0  # ms  "EE = IE", for fixed delays
+    
+    # PSC amplitudes
+    params.cee = 0.3  # mV/ms
+    
+    # Coupling strengths used in Cakan2020
+    params.Jee_max = 2.43  # mV/ms
     
     params.C = 200.0  # pF
+    params.gL = 10.0  # nS
 
     return params
 

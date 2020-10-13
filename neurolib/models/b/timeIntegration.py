@@ -52,6 +52,21 @@ def timeIntegration(params, control):
     ext_exc_current[:,:] = params["ext_exc_current"]
     
     sigmae_ext = params["sigmae_ext"]
+    
+    # recurrent coupling parameters
+    Ke = params["Ke"]  # Recurrent Exc coupling. "EE = IE" assumed for act_dep_coupling in current implementation
+    
+    tau_se = params["tau_se"]  # Synaptic decay time constant for exc. connections "EE = IE" (ms)
+    
+    cee = params["cee"]  # strength of exc. connection
+    
+    # Recurrent connections coupling strength
+    Jee_max = params["Jee_max"]  # ( mV/ms )
+    
+    # if params below are changed, preprocessing required
+    C = params["C"]  # membrane capacitance ( pF )
+    gL = params["gL"]  # Membrane conductance ( nS )    
+    taum = C / gL  # membrane time constant
 
     control_ext = control.copy()
     
@@ -69,6 +84,12 @@ def timeIntegration(params, control):
         tau_exc,
         ext_exc_current,
         sigmae_ext,
+        rd_exc,
+        Ke,
+        tau_se,
+        cee,
+        Jee_max,
+        taum,
         control_ext,
     )
 
@@ -86,6 +107,12 @@ def timeIntegration_njit_elementwise(
         tau_exc,
         ext_exc_current,
         sigmae_ext,
+        rd_exc,
+        Ke,
+        tau_se,
+        cee,
+        Jee_max,
+        taum,
         control_ext,
 ):
     
@@ -101,7 +128,20 @@ def timeIntegration_njit_elementwise(
             sigmae_f[no,i-1] = np.sqrt( (1e-3 * rates_exc[no,i-1])**2 + sigmae_ext**2 )
             tau_exc[no,i-1] = mufe[no,i-1]
             
-            mufe_rhs = control_ext[no,0,i] / tau_exc[no,i-1]
+            rd_exc[no,no] = rates_exc[no,i-1] * 1e0
+            
+            factor_ee1 = 1.#( cee * Ke * tau_se / Jee_max )
+            factor_ee2 = 1.#( cee**2 * Ke * tau_se**2 / Jee_max**2 )
+            z1ee = factor_ee1 * rd_exc[no, no]
+            z2ee = factor_ee2 * rd_exc[no, no]
+            
+            seem_rhs = - seem[no,i-1] / tau_se + ( 1. - seem[no,i-1] ) * z1ee
+            #seem_rhs = z1ee * seem[no,i-1]
+            seem[no,i] = seem[no,i-1] + dt * seem_rhs
+            seev_rhs = 0.
+            seev[no,i] = seev[no,i-1] + dt * seev_rhs
+            
+            mufe_rhs = ( seem[no,i-1] + control_ext[no,0,i] + ext_exc_current[no,i] - mufe[no,i-1] ) / tau_exc[no,i-1]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             rates_exc[no,i] = r_func(mufe[no,i-1], sigmae_f[no,i-1]) * 1e3
             

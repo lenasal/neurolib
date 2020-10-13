@@ -126,14 +126,18 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         if (ind_time == 0):
             break
         
-        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,1,ind_time], phi_[0,4,ind_time]] ), np.array( [jac[1,0], jac[4,0]] ) )
+        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,1,ind_time], phi_[0,2,ind_time], phi_[0,4,ind_time] ] )
+                                                          , np.array( [jac[1,0], jac[2,0], jac[4,0]] ) )
         
         if (ind_time == 0):
             break
         
         if (ind_time != phi_.shape[2]-1):
-            der = phi_[0,0,ind_time+1] * jac[0,1] + phi_[0,5,ind_time] * jac[5,1]
+            der = phi_[0,0,ind_time+1] * jac[0,1] + phi_[0,1,ind_time] * jac[1,1] + phi_[0,5,ind_time] * jac[5,1]
             phi_[0,1,ind_time-1] = phi_[0,1,ind_time] - dt * der
+            
+            der = phi_[0,1,ind_time] * jac[1,2] + phi_[0,2,ind_time] * jac[2,2]
+            phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
         
         #res = np.dot( np.array( [phi_[0,0,ind_time], phi_[0,1,ind_time], phi_[0,2,ind_time]] ), np.linalg.inv(jac) )
 
@@ -173,7 +177,23 @@ def g(model, phi_, state_, control_):
 
 def jacobian(model, state_, control_, t_):
     
+    # TODO: time dependent exc current
+    ext_exc_current = model.params.ext_exc_current
     sigmae_ext = model.params.sigmae_ext
+    
+    Ke = model.params["Ke"]
+    tau_se = model.params["tau_se"] 
+    cee = model.params["cee"]
+    Jee_max = model.params["Jee_max"]
+    
+    rd_exc = np.zeros(( model.params.N,model.params.N ))
+    rd_exc[0,0] = state_[0,0,t_] * 1e0
+    
+    factor_ee1 = 1.#( cee * Ke * tau_se / Jee_max )
+    factor_ee2 = 1.#( cee**2 * Ke * tau_se**2 / Jee_max**2 )
+            
+    z1ee = factor_ee1 * rd_exc[0,0]
+    z2ee = factor_ee2 * rd_exc[0,0]
     
     jacobian_ = np.zeros((state_.shape[1], state_.shape[1]))
     jacobian_[0,0] = 1.
@@ -181,9 +201,14 @@ def jacobian(model, state_, control_, t_):
     #jacobian_[0,1] = - 1.
     jacobian_[0,4] = - d_r_func_sigma(state_[0,1,t_-1], state_[0,4,t_-1]) * 1e3
     
-    #jacobian_[1,1] = 1.
-    jacobian_[1,5] = control_[0,0,t_] / state_[0,5,t_-1]**2
+    jacobian_[1,1] = 1. / state_[0,5,t_]
+    jacobian_[1,2] = - 1. / state_[0,5,t_]
+    jacobian_[1,5] = ( state_[0,2,t_-1] + control_[0,0,t_] + ext_exc_current - state_[0,1,t_-1] ) / state_[0,5,t_-1]**2
     
+    jacobian_[2,0] = - (1. - state_[0,2,t_]) * factor_ee1 * 1e0
+    #jacobian_[2,0] = - state_[0,2,t_]  * 1e0
+    jacobian_[2,2] = 1. / tau_se + z1ee
+    #jacobian_[2,2] = - z1ee
     
     jacobian_[4,0] = -1. *1e-3
     jacobian_[4,0] = - (1e-3)**2 * state_[0,0,t_-1] * (  (1e-3 * state_[0,0,t_-1])**2 + sigmae_ext**2 )**(-1./2.)
