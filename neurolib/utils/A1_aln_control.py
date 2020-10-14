@@ -22,6 +22,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     rate_ = fo.updateState(model, control_)
     state0_ = model.getZeroFullState()
     state0_[:,0,:] = rate_[:,0,:]
+    state0_[:,1,:] = model.state["rates_inh"][:,:]
     state0_[:,2,:] = model.state["mufe"][:,:]
     state0_[:,4,:] = model.state["IA"][:,:]
     state0_[:,5,:] = model.state["seem"][:,:]
@@ -49,7 +50,8 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         #print("phi = ", phi1_)
         
         outstate_ = model.getZeroState()
-        outstate_[:,:,:] = state1_[:,0,:]
+        outstate_[:,0,:] = state1_[:,0,:]
+        outstate_[:,1,:] = state1_[:,1,:]
     
         g0_min_ = g(model, phi1_, state1_, best_control_)
         g1_min_ = g0_min_.copy()
@@ -73,6 +75,7 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         
         rate_ = fo.updateState(model, best_control_)
         state1_[:,0,:] = rate_[:,0,:]
+        state1_[:,1,:] = model.state["rates_inh"][:,:]
         state1_[:,2,:] = model.state["mufe"][:,:]
         state1_[:,4,:] = model.state["IA"][:,:]
         state1_[:,5,:] = model.state["seem"][:,:]
@@ -113,7 +116,8 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
     dt = model.params.dt
     phi_ = model.getZeroFullState()
     out_state = model.getZeroState()
-    out_state[:,:,:] = state_[:,0,:]
+    out_state[:,0,:] = state_[:,0,:]
+    out_state[:,1,:] = state_[:,1,:]
             
     for ind_time in range(phi_.shape[2]-1, start_ind_-1, -1):
         jac = jacobian(model, state_[:,:,:], control_[:,:,:], ind_time)
@@ -178,8 +182,13 @@ def g(model, phi_, state_, control_):
     for t in range(1,state_.shape[2]):
         jac_u_ = D_u_h(model, state_[:,:,:], t)
         phi1_[0,0,t] = np.dot(phi_shift[0,:,t], jac_u_)[2]
+        phi1_[0,1,t] = np.dot(phi_shift[0,:,t], jac_u_)[3]
     
-    g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_
+    g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_[0,0,:]
+    #g_[:,1,:] = grad_cost_e_[0,1,:] + grad_cost_s_[0,1,:] + phi1_[0,1,:]
+    
+    #print("phi1 = ", phi1_)
+    #print("g = ", g_)
 
     return g_
 

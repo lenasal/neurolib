@@ -55,10 +55,10 @@ class Model_ALN_control(Model):
     ]
     output_vars = ["rates_exc", "rates_inh", "IA"]
     default_output = "rates_exc"
-    target_output_vars = ["rates_exc"]
+    target_output_vars = ["rates_exc", "rates_inh"]
     input_vars = ["ext_exc_current", "ext_exc_rate", "ext_inh_current", "ext_inh_rate"]
     default_input = "ext_exc_rate"
-    control_input_vars = ["ext_exc_current"]
+    control_input_vars = ["ext_exc_current", "ext_inh_current"]
     
 
     def __init__(self, params=None, Cmat=None, Dmat=None, lookupTableFileName=None):

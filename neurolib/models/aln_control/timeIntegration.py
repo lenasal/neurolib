@@ -226,6 +226,9 @@ def timeIntegration_njit_elementwise(
     factor_ee1 = ( cee * Ke * tau_se / Jee_max )
     factor_ee2 = ( cee**2 * Ke * tau_se**2 / Jee_max**2 )
     
+    factor_ii1 = ( cii * Ki * tau_si / Jii_max )
+    factor_ii2 = ( cii**2 * Ki * tau_si**2 / Jii_max**2 )
+    
     sigmae_f = np.zeros((N, startind + len(t)))
     sigmai_f = np.zeros((N, startind + len(t)))
     Vmean_exc = np.zeros((N, startind + len(t)))
@@ -236,24 +239,42 @@ def timeIntegration_njit_elementwise(
         for no in range(N):
             
             rd_exc[no,no] = rates_exc[no,i-1] * 1e-3
+            rd_inh[no] = rates_inh[no,i-1] * 1e-3
         
-            z1ee = factor_ee1 * rd_exc[no, no]
-            z2ee = factor_ee2 * rd_exc[no, no]
+            z1ee = factor_ee1 * rd_exc[no,no]
+            z2ee = factor_ee2 * rd_exc[no,no]
+            
+            z1ii = factor_ii1 * rd_inh[no]
+            z2ii = factor_ii2 * rd_inh[no]
             
             sig_ee = seev[no,i-1] * ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
             
             sigmae_f[no,i-1] = np.sqrt( sig_ee + sigmae_ext**2 )
             tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
             
+            sig_ii = siiv[no,i-1] * ( 2. * Jii_max**2 * tau_si * taum ) * ( (1 + z1ii) * taum + tau_si )**(-1)
+            
+            sigmai_f[no,i-1] = np.sqrt( sig_ii + sigmai_ext**2 )
+            tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
+            
             seem_rhs = ( - seem[no,i-1]  + ( 1. - seem[no,i-1] ) * z1ee ) / tau_se
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
             seev_rhs = ( (1. - seem[no,i-1])**2 * z2ee + seev[no,i-1] * (z2ee - 2. * tau_se * ( z1ee + 1.) ) ) / tau_se**2 
             seev[no,i] = seev[no,i-1] + dt * seev_rhs
             
+            siim_rhs = ( - siim[no,i-1]  + ( 1. - siim[no,i-1] ) * z1ii ) / tau_si
+            siim[no,i] = siim[no,i-1] + dt * siim_rhs
+            siiv_rhs = ( (1. - siim[no,i-1])**2 * z2ii + siiv[no,i-1] * (z2ii - 2. * tau_si * ( z1ii + 1.) ) ) / tau_si**2 
+            siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
+            
             mufe_rhs = ( Jee_max * seem[no,i-1] + control_ext[no,0,i] + ext_exc_current[no,i] - mufe[no,i-1] ) / tau_exc[no,i-1]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
             Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+            
+            mufi_rhs = ( Jii_max * siim[no,i-1] + control_ext[no,1,i] + ext_inh_current[no,i] - mufi[no,i-1] ) / tau_inh[no,i-1]
+            mufi[no,i] = mufi[no,i-1] + dt * mufi_rhs
+            rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
             
             IA_rhs =  - b * rates_exc[no,i] * 1e-3 + ( a * ( Vmean_exc[no,i] - EA ) - IA[no,i-1] ) / tauA
             IA[no,i] = IA[no,i-1] + dt * IA_rhs
