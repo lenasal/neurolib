@@ -24,12 +24,22 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     state0_[:,0,:] = rate_[:,0,:]
     state0_[:,1,:] = model.state["rates_inh"][:,:]
     state0_[:,2,:] = model.state["mufe"][:,:]
+    state0_[:,3,:] = model.state["mufi"][:,:]
     state0_[:,4,:] = model.state["IA"][:,:]
     state0_[:,5,:] = model.state["seem"][:,:]
+    state0_[:,6,:] = model.state["seim"][:,:]
+    state0_[:,7,:] = model.state["siem"][:,:]
+    state0_[:,8,:] = model.state["siim"][:,:]
     state0_[:,9,:] = model.state["seev"][:,:]
+    state0_[:,10,:] = model.state["seiv"][:,:]
+    state0_[:,11,:] = model.state["siev"][:,:]
+    state0_[:,12,:] = model.state["siiv"][:,:]
+    
     state0_[:,15,:] = model.state["sigmae_f"][:,:]
+    state0_[:,16,:] = model.state["sigmai_f"][:,:]
     state0_[:,17,:] = model.state["Vmean_exc"][:,:]
     state0_[:,18,:] = model.state["tau_exc"][:,:]
+    state0_[:,19,:] = model.state["tau_inh"][:,:]
     
 
     total_cost_ = np.zeros((max_iteration_+1))
@@ -77,12 +87,22 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         state1_[:,0,:] = rate_[:,0,:]
         state1_[:,1,:] = model.state["rates_inh"][:,:]
         state1_[:,2,:] = model.state["mufe"][:,:]
+        state1_[:,3,:] = model.state["mufi"][:,:]
         state1_[:,4,:] = model.state["IA"][:,:]
         state1_[:,5,:] = model.state["seem"][:,:]
+        state1_[:,6,:] = model.state["seim"][:,:]
+        state1_[:,7,:] = model.state["siem"][:,:]
+        state1_[:,8,:] = model.state["siim"][:,:]
         state1_[:,9,:] = model.state["seev"][:,:]
+        state1_[:,10,:] = model.state["seiv"][:,:]
+        state1_[:,11,:] = model.state["siev"][:,:]
+        state1_[:,12,:] = model.state["siiv"][:,:]
+        
         state1_[:,15,:] = model.state["sigmae_f"][:,:]
+        state1_[:,16,:] = model.state["sigmai_f"][:,:]
         state1_[:,17,:] = model.state["Vmean_exc"][:,:]
         state1_[:,18,:] = model.state["tau_exc"][:,:]
+        state1_[:,19,:] = model.state["tau_inh"][:,:]
         
         
         s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_)
@@ -185,7 +205,7 @@ def g(model, phi_, state_, control_):
         phi1_[0,1,t] = np.dot(phi_shift[0,:,t], jac_u_)[3]
     
     g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_[0,0,:]
-    #g_[:,1,:] = grad_cost_e_[0,1,:] + grad_cost_s_[0,1,:] + phi1_[0,1,:]
+    g_[:,1,:] = grad_cost_e_[0,1,:] + grad_cost_s_[0,1,:] + phi1_[0,1,:]
     
     #print("phi1 = ", phi1_)
     #print("g = ", g_)
@@ -264,6 +284,7 @@ def D_xdot(model, state_t_):
 def D_u_h(model, state_, t_):
     duh_ = np.zeros(( state_.shape[1], state_.shape[1] ))
     duh_[2,2] = - 1. / state_[0,18,t_-1]
+    duh_[3,3] = - 1. / state_[0,19,t_-1]
     return duh_
 
 def d_r_func_mu(mu, sigma):
