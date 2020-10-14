@@ -171,8 +171,6 @@ def timeIntegration(params, control):
     max_global_delay = max(np.max(Dmat_ndt), ndt_de, ndt_di)
     startind = int(max_global_delay + 1)
     
-    print(startind)
-
     # state variable arrays, have length of t + startind
     # they store initial conditions AND simulated data
     rates_exc = np.zeros((N, startind + len(t)))
@@ -258,11 +256,8 @@ def timeIntegration(params, control):
     ext_exc_rate = adjust_shape(params["ext_exc_rate"], rates_exc)
     ext_inh_rate = adjust_shape(params["ext_inh_rate"], rates_exc)
     
-    #print("after adjustment = ", ext_exc_current)
     
     control_ext = control.copy()
-    #print("control = ", control_ext[0,0,0])
-    #print("control = ", control_ext[0,0,startind])
 
     # ------------------------------------------------------------------------
 

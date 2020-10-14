@@ -24,9 +24,9 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
 
     # Todo: Model metadata
     # recently added for easier simulation of aln and brian in pypet
-    params.model = "a"
-    params.name = "a"
-    params.description = "Simplified version of simplified aln for testing purposes"
+    params.model = "aln-exc"
+    params.name = "aln-exc"
+    params.description = "mean field model of excitatory node"
     
     params.N = 1
     params.Cmat = np.zeros((1, 1))

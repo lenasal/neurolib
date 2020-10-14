@@ -11,7 +11,8 @@ from ..utils import A1_aln as opti1_aln
 from ..utils import A1_alnSimp as opti1_alnSimp
 from ..utils import A1_simp as opti1_simp
 from ..utils import A1_a as opti1_a
-from ..utils import A1_b as opti1_b
+from ..utils import A1_aln_exc as opti1_aln_exc
+from ..utils import A1_aln_control as opti1_aln_control
 from ..utils import A1_c as opti1_c
 from ..utils import A1_d as opti1_d
 from ..utils import A1_e as opti1_e
@@ -662,8 +663,10 @@ class Model:
             return opti1_simp.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
         elif self.name == "a":
             return opti1_a.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
-        elif self.name == "b":
-            return opti1_b.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
+        elif self.name == "aln-exc":
+            return opti1_aln_exc.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
+        elif self.name == "aln-control":
+            return opti1_aln_control.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
         elif self.name == "c":
             return opti1_c.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
         elif self.name == "d":

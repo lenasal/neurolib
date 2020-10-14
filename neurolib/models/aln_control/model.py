@@ -5,16 +5,16 @@ from . import timeIntegration as ti
 from ..model import Model
 
 
-class ALNModel(Model):
+class Model_ALN_control(Model):
     """
     Multi-population mean-field model with exciatory and inhibitory neurons per population.
     """
 
-    name = "aln"
-    description = "Adaptive linear-nonlinear model of exponential integrate-and-fire neurons"
+    name = "aln-control"
+    description = "build up aln for control from mean field model of excitatory node"
 
     init_vars = [
-        "rates_exc_init",
+       "rates_exc_init",
         "rates_inh_init",
         "mufe_init",
         "mufi_init",
@@ -55,13 +55,13 @@ class ALNModel(Model):
     ]
     output_vars = ["rates_exc", "rates_inh", "IA"]
     default_output = "rates_exc"
-    target_output_vars = ["rates_exc", "rates_inh"]
+    target_output_vars = ["rates_exc"]
     input_vars = ["ext_exc_current", "ext_exc_rate", "ext_inh_current", "ext_inh_rate"]
     default_input = "ext_exc_rate"
-    control_input_vars = ["ext_exc_current", "ext_inh_current"]
+    control_input_vars = ["ext_exc_current"]
     
 
-    def __init__(self, params=None, Cmat=None, Dmat=None, lookupTableFileName=None, seed=None):
+    def __init__(self, params=None, Cmat=None, Dmat=None, lookupTableFileName=None):
         """
         :param params: parameter dictionary of the model
         :param Cmat: Global connectivity matrix (connects E to E)
@@ -71,26 +71,17 @@ class ALNModel(Model):
         :param simulateChunkwise: Chunkwise time integration (for lower memory use)
         """
 
-        # Global attributes
         self.Cmat = Cmat  # Connectivity matrix
         self.Dmat = Dmat  # Delay matrix
         self.lookupTableFileName = lookupTableFileName  # Filename for aLN lookup functions
-        self.seed = seed  # Random seed
 
         integration = ti.timeIntegration
 
         # load default parameters if none were given
         if params is None:
             params = dp.loadDefaultParams(
-                Cmat=self.Cmat, Dmat=self.Dmat, lookupTableFileName=self.lookupTableFileName, seed=self.seed
+                Cmat=self.Cmat, Dmat=self.Dmat, lookupTableFileName=self.lookupTableFileName
             )
 
         # Initialize base class Model
         super().__init__(integration=integration, params=params)
-
-    def getMaxDelay(self):
-        # compute maximum delay of model
-        ndt_de = round(self.params["de"] / self.params["dt"])
-        ndt_di = round(self.params["di"] / self.params["dt"])
-        max_dmat_delay = super().getMaxDelay()
-        return int(max(max_dmat_delay, ndt_de, ndt_di))
