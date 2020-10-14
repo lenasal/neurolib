@@ -23,10 +23,12 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     state0_ = model.getZeroFullState()
     state0_[:,0,:] = rate_[:,0,:]
     state0_[:,1,:] = model.state["mufe"][:,:]
-    state0_[:,2,:] = model.state["seem"][:,:]
-    state0_[:,3,:] = model.state["seev"][:,:]
-    state0_[:,4,:] = model.state["sigmae_f"][:,:]
-    state0_[:,5,:] = model.state["tau_exc"][:,:]
+    state0_[:,2,:] = model.state["IA"][:,:]
+    state0_[:,3,:] = model.state["seem"][:,:]
+    state0_[:,4,:] = model.state["seev"][:,:]
+    state0_[:,5,:] = model.state["sigmae_f"][:,:]
+    state0_[:,6,:] = model.state["Vmean_exc"][:,:]
+    state0_[:,7,:] = model.state["tau_exc"][:,:]
     
 
     total_cost_ = np.zeros((max_iteration_+1))
@@ -72,17 +74,19 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         rate_ = fo.updateState(model, best_control_)
         state1_[:,0,:] = rate_[:,0,:]
         state1_[:,1,:] = model.state["mufe"][:,:]
-        state1_[:,2,:] = model.state["seem"][:,:]
-        state1_[:,3,:] = model.state["seev"][:,:]
-        state1_[:,4,:] = model.state["sigmae_f"][:,:]
-        state1_[:,5,:] = model.state["tau_exc"][:,:]
+        state1_[:,2,:] = model.state["IA"][:,:]
+        state1_[:,3,:] = model.state["seem"][:,:]
+        state1_[:,4,:] = model.state["seev"][:,:]
+        state1_[:,5,:] = model.state["sigmae_f"][:,:]
+        state1_[:,6,:] = model.state["Vmean_exc"][:,:]
+        state1_[:,7,:] = model.state["tau_exc"][:,:]
         
         
-        s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_ )
+        s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_)
         if ( s_diff_.all() ):
             print("State only changes marginally.")
-            max_iteration_ = i
-            break
+        #    max_iteration_ = i
+        #    break
         
         g0_min_ = g1_min_.copy()
         if ( np.amax(np.absolute(g0_min_[:,:,1:])) < tolerance_ ):
@@ -126,30 +130,37 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
         if (ind_time == 0):
             break
         
-        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,1,ind_time], phi_[0,2,ind_time], phi_[0,3,ind_time], phi_[0,4,ind_time] ] )
-                                                          , np.array( [jac[1,0], jac[2,0], jac[3,0], jac[4,0]] ) )
+        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,1,ind_time], phi_[0,2,ind_time], phi_[0,3,ind_time],
+                            phi_[0,4,ind_time], phi_[0,5,ind_time] ] ), np.array( [jac[1,0], jac[2,0], jac[3,0], jac[4,0], jac[5,0]] ) )
         
         if (ind_time == 0):
             break
         
         if (ind_time != phi_.shape[2]-1):
-            der = phi_[0,0,ind_time+1] * jac[0,1] + phi_[0,1,ind_time] * jac[1,1] + phi_[0,5,ind_time] * jac[5,1]
+            der = phi_[0,0,ind_time+1] * jac[0,1] + phi_[0,1,ind_time] * jac[1,1] + phi_[0,6,ind_time] * jac[6,1] + phi_[0,7,ind_time] * jac[7,1]
             phi_[0,1,ind_time-1] = phi_[0,1,ind_time] - dt * der
-            
-            der = phi_[0,1,ind_time] * jac[1,2] + phi_[0,2,ind_time] * jac[2,2] + phi_[0,3,ind_time] * jac[3,2]
-            phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
             
             der = phi_[0,1,ind_time] * jac[1,3] + phi_[0,3,ind_time] * jac[3,3] + phi_[0,4,ind_time] * jac[4,3]
             phi_[0,3,ind_time-1] = phi_[0,3,ind_time] - dt * der
+            
+            der = phi_[0,1,ind_time] * jac[1,4] + phi_[0,4,ind_time] * jac[4,4] + phi_[0,5,ind_time] * jac[5,4]
+            phi_[0,4,ind_time-1] = phi_[0,4,ind_time] - dt * der
+            
+                
+        res = - phi_[0,1,ind_time-1] * jac[1,7]
+        phi_[0,7,ind_time-1] = res
         
-        #res = np.dot( np.array( [phi_[0,0,ind_time], phi_[0,1,ind_time], phi_[0,2,ind_time]] ), np.linalg.inv(jac) )
+        res = - phi_[0,2,ind_time] * jac[2,6]
+        phi_[0,6,ind_time-1] = res
+        
+        if (ind_time <= phi_.shape[2]-1):
+            der = phi_[0,0,ind_time] * jac[0,2] + phi_[0,2,ind_time] * jac[2,2] + phi_[0,6,ind_time-1] * jac[6,2] + phi_[0,7,ind_time-1] * jac[7,2] 
+            phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
+        
+        
 
-        res = - phi_[0,1,ind_time-1] * jac[1,5]
+        res = - phi_[0,0,ind_time] * jac[0,5] - phi_[0,7,ind_time-1] * jac[7,5] - phi_[0,6,ind_time-1] * jac[6,5] 
         phi_[0,5,ind_time-1] = res
-
-        res = - phi_[0,0,ind_time] * jac[0,4] - phi_[0,5,ind_time-1] * jac[5,4]
-        #phi_[0,1,ind_time-1] = res[1]
-        phi_[0,4,ind_time-1] = res
                 
     return phi_
 
@@ -184,6 +195,13 @@ def jacobian(model, state_, control_, t_):
     ext_exc_current = model.params.ext_exc_current
     sigmae_ext = model.params.sigmae_ext
     
+    a = model.params["a"]
+    b = model.params["b"]
+    EA = model.params["EA"]
+    tauA = model.params["tauA"]
+    
+    C = model.params["C"]
+    
     Ke = model.params["Ke"]
     tau_se = model.params["tau_se"] 
     cee = model.params["cee"]
@@ -201,33 +219,40 @@ def jacobian(model, state_, control_, t_):
     
     jacobian_ = np.zeros((state_.shape[1], state_.shape[1]))
     jacobian_[0,0] = 1.
-    jacobian_[0,1] = - d_r_func_mu(state_[0,1,t_], state_[0,4,t_]) * 1e3
-    #jacobian_[0,1] = - 1.
-    jacobian_[0,4] = - d_r_func_sigma(state_[0,1,t_-1], state_[0,4,t_-1]) * 1e3
+    jacobian_[0,1] = - d_r_func_mu(state_[0,1,t_] - state_[0,2,t_] / C, state_[0,5,t_]) * 1e3 # - state_[0,2,t_] / C
+    jacobian_[0,2] = - d_r_func_mu(state_[0,1,t_-1] - state_[0,2,t_-1] / C, state_[0,5,t_-1]) * 1e3 * ( - 1. / C ) #  - state_[0,2,t_] / C
+    jacobian_[0,5] = - d_r_func_sigma(state_[0,1,t_-1] - state_[0,2,t_] / C, state_[0,5,t_-1]) * 1e3 #  - state_[0,2,t_-1] / C
     
-    jacobian_[1,1] = 1. / state_[0,5,t_]
-    jacobian_[1,2] = - Jee_max / state_[0,5,t_]
-    jacobian_[1,5] = ( Jee_max * state_[0,2,t_-1] + control_[0,0,t_] + ext_exc_current - state_[0,1,t_-1] ) / state_[0,5,t_-1]**2
+    jacobian_[1,1] = 1. / state_[0,7,t_]
+    jacobian_[1,3] = - Jee_max / state_[0,7,t_]
+    jacobian_[1,7] = ( Jee_max * state_[0,3,t_-1] + control_[0,0,t_] + ext_exc_current - state_[0,1,t_-1] ) / state_[0,7,t_-1]**2
     
-    jacobian_[2,0] = - (1. - state_[0,2,t_]) * factor_ee1 * 1e-3 / tau_se
-    #jacobian_[2,0] = - state_[0,2,t_]  * 1e0
-    jacobian_[2,2] = ( 1. + z1ee ) / tau_se
-    #jacobian_[2,2] = - z1ee
+    jacobian_[2,0] = b * 1e-3
+    jacobian_[2,2] = 1. / tauA
+    jacobian_[2,6] = - a / tauA
     
-    #( ( 1 - seem[no,i-1] )**2 * z2ee ) / tau_se**2
-    jacobian_[3,0] = - ( (1. - state_[0,2,t_])**2 * factor_ee2 + state_[0,3,t_] * ( factor_ee2 - 2. * tau_se *  factor_ee1 ) ) * 1e-3 / tau_se**2
-    jacobian_[3,2] = 2. * (1. - state_[0,2,t_]) * z2ee / tau_se**2
-    jacobian_[3,3] = - (z2ee - 2. * tau_se * ( z1ee + 1.) ) / tau_se**2
+    jacobian_[3,0] = - (1. - state_[0,3,t_]) * factor_ee1 * 1e-3 / tau_se
+    jacobian_[3,3] = ( 1. + z1ee ) / tau_se
     
-    sigma_sqrt = ( state_[0,3,t_] * ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1) + sigmae_ext**2 )**(-1./2.)
+    jacobian_[4,0] = - ( (1. - state_[0,3,t_])**2 * factor_ee2 + state_[0,4,t_] * ( factor_ee2 - 2. * tau_se *  factor_ee1 ) ) * 1e-3 / tau_se**2
+    jacobian_[4,3] = 2. * (1. - state_[0,3,t_]) * z2ee / tau_se**2
+    jacobian_[4,4] = - (z2ee - 2. * tau_se * ( z1ee + 1.) ) / tau_se**2
     
-    jacobian_[4,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,3,t_] * ( 2. * Jee_max**2 * tau_se * taum ) * sigma_sqrt
-    jacobian_[4,3] = - 0.5 * ( (1 + z1ee) * taum + tau_se )**(-1) * ( 2. * Jee_max**2 * tau_se * taum ) * sigma_sqrt
-    jacobian_[4,4] = 1.
+    sigma_sqrt = ( state_[0,4,t_] * ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1) + sigmae_ext**2 )**(-1./2.)
     
-    jacobian_[5,1] = - d_tau_func_mu(state_[0,1,t_], state_[0,4,t_])
-    jacobian_[5,4] = - d_tau_func_sigma(state_[0,1,t_-1], state_[0,4,t_-1])
+    jacobian_[5,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,4,t_] * ( 2. * Jee_max**2 * tau_se * taum ) * sigma_sqrt
+    jacobian_[5,4] = - 0.5 * ( (1 + z1ee) * taum + tau_se )**(-1) * ( 2. * Jee_max**2 * tau_se * taum ) * sigma_sqrt
     jacobian_[5,5] = 1.
+    
+    jacobian_[6,1] = - d_V_func_mu(state_[0,1,t_] - state_[0,2,t_] / C, state_[0,5,t_])
+    jacobian_[6,2] = - d_tau_func_mu(state_[0,1,t_-1] - state_[0,2,t_-1] / C, state_[0,5,t_-1]) * ( - 1. / C )
+    jacobian_[6,5] = - d_V_func_sigma(state_[0,1,t_-1] - state_[0,2,t_-1] / C, state_[0,5,t_-1])
+    
+    jacobian_[7,1] = - d_tau_func_mu(state_[0,1,t_] - state_[0,2,t_] / C, state_[0,5,t_])
+    jacobian_[7,2] = - d_tau_func_mu(state_[0,1,t_-1] - state_[0,2,t_-1] / C, state_[0,5,t_-1]) * ( - 1. / C )
+    #jacobian_[7,2] = - 2. * state_[0,2,t_-1] / C
+    jacobian_[7,5] = - d_tau_func_sigma(state_[0,1,t_-1] - state_[0,2,t_-1] / C, state_[0,5,t_-1])
+    jacobian_[7,7] = 1.
     
     return jacobian_
 
@@ -237,7 +262,7 @@ def D_xdot(model, state_t_):
 
 def D_u_h(model, state_, t_):
     duh_ = np.zeros(( state_.shape[1], state_.shape[1] ))
-    duh_[1,1] = - 1. / state_[0,5,t_-1]
+    duh_[1,1] = - 1. / state_[0,7,t_-1]
     return duh_
 
 def d_r_func_mu(mu, sigma):
@@ -255,7 +280,6 @@ def d_r_func_sigma(mu, sigma):
 def d_tau_func_mu(mu, sigma):
     mu_shift = - 1.1
     mu_scale = - 10.
-    y_shift = 15.
     sigma_shift = 1.4
     #return 1.
     return sigma + mu_scale + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * (mu_shift + mu) / (sigma + sigma_shift) )
@@ -263,7 +287,20 @@ def d_tau_func_mu(mu, sigma):
 def d_tau_func_sigma(mu, sigma):
     mu_shift = - 1.1
     mu_scale = - 10.
-    y_shift = 15.
     sigma_shift = 1.4
     #return 1.
     return (mu_shift + mu) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp( mu_scale * (mu_shift + mu) / (sigma + sigma_shift) )
+
+def d_V_func_mu(mu, sigma):
+    y_scale1 = 30.
+    mu_shift1 = 1.
+    y_scale2 = 2.
+    mu_shift2 = 0.5
+    return 1.
+    return y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
+
+def d_V_func_sigma(mu, sigma):
+    y_scale2 = 2.
+    mu_shift2 = 0.5
+    return 1.
+    return - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2

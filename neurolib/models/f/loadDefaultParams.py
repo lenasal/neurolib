@@ -58,6 +58,7 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     params.ds = params.sigmarange[1] - params.sigmarange[0]
     
     params.precalc_r = hf.get("r_ss")[()][()]
+    params.precalc_V = hf.get("V_mean_ss")[()]
     params.precalc_tau_mu = hf.get("tau_mu_exp")[()]
     
     #params.precalc_r = np.ones(( params.precalc_r.shape ))

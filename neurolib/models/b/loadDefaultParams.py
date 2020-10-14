@@ -40,11 +40,18 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     # if zero, no handle on rates
     params.rates_exc_init = np.array( [[1.]] )
     params.mufe_init = np.array( [[1.]] )  # (linear) filtered mean input
+    params.IA_init = np.array( [[100.]] )
     params.seem_init = np.array( [[0.1]] )
     params.seev_init = np.array( [[1.0]] )
     params.ext_exc_current = 0.0
     
     params.sigmae_ext = 1.5
+    
+    # neuron model parameters
+    params.a = 15.0  # nS, can be 15.0
+    params.b = 40.0  # pA, can be 40.0
+    params.EA = -80.0  # mV, -80.
+    params.tauA = 200.  # ms, 200.0
     
     # recurrent coupling parameters
     params.Ke = 800.0  # Number of excitatory inputs per neuron
@@ -58,7 +65,7 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     # Coupling strengths used in Cakan2020
     params.Jee_max = 2.43  # mV/ms
     
-    params.C = 200.0  # pF
+    params.C = 200.0  # pF, 200.
     params.gL = 10.0  # nS
 
     return params

@@ -16,6 +16,7 @@ class Model_b(Model):
     init_vars = [
         "rates_exc_init",
         "mufe_init",
+        "IA_init",
         "seem_init",
         "seev_init",
     ]
@@ -23,12 +24,14 @@ class Model_b(Model):
     state_vars = [
         "rates_exc",
         "mufe",
+        "IA",
         "seem",
         "seev",
         "sigmae_f",
+        "Vmean_exc",
         "tau_exc",
     ]
-    output_vars = ["rates_exc", "mufe", "seem", "seev", "sigmae_f", "tau_exc"]
+    output_vars = ["rates_exc", "mufe", "IA", "seem", "seev", "sigmae_f", "Vmean_exc", "tau_exc"]
     default_output = "rates_exc"
     target_output_vars = ["rates_exc"]
     input_vars = ["ext_exc_current"]
