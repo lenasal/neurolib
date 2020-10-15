@@ -146,7 +146,7 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         # include maximum control value to assure no divergence
         if ( np.amax(np.absolute(test_control_)) > max_control_):
             if (i < max_it_-1):
-                #print("too big control")
+                print("too big control")
                 step_ /= bisec_factor_
                 continue
             else:

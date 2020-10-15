@@ -62,11 +62,11 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     
     # recurrent coupling parameters
     params.Ke = 800.0  # Number of excitatory inputs per neuron
-    params.Ki = 200.0  # Number of inhibitory inputs per neuron
+    params.Ki = 800. #200.0  # Number of inhibitory inputs per neuron
     
     # synaptic time constants
     params.tau_se = 2.0  # ms  "EE = IE", for fixed delays
-    params.tau_si = 5.0  # ms  "EI = II"
+    params.tau_si = 2. #5.0  # ms  "EI = II"
     
     # neuron model parameters
     params.a = 15.0  # nS, can be 15.0
@@ -78,19 +78,13 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     params.cee = 0.3  # mV/ms
     params.cie = 0.3  # AMPA
     params.cei = 0.5  # GABA BrunelWang2003
-    params.cii = 0.5
+    params.cii = 0.5 #0.5
 
     # Coupling strengths used in Cakan2020
     params.Jee_max = 2.43  # mV/ms
     params.Jie_max = 2.60  # mV/ms
     params.Jei_max = -3.3  # mV/ms [0-(-10)]
-    params.Jii_max = -1.64  # mV/ms
-
-    # neuron model parameters
-    params.a = 0.0  # nS, can be 15.0
-    params.b = 0.0  # pA, can be 40.0
-    params.EA = -80.0  # mV
-    params.tauA = 200.0  # ms
+    params.Jii_max = 2.43#-1.64  # mV/ms
 
     # single neuron paramters - if these are changed, new transfer functions must be precomputed!
     params.C = 200.0  # pF
@@ -108,7 +102,7 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     params.mufi_init = np.array( [[3. * 0.5 ]] )  # mV/ms
     params.IA_init = np.array( [[200. * 0.5 ]] )  # pA
     params.seem_init = np.array( [[0.5 * 0.5 ]] )
-    params.seim_init = np.array( [[0.5 * 0.5 ]] )
+    params.seim_init = np.array( [[0.5 * 0.5 ]] )   
     params.seev_init = np.array( [[0.01 * 0.5 ]] )
     params.seiv_init = np.array( [[0.01 * 0.5 ]] )
     params.siim_init = np.array( [[0.5 * 0.5 ]] )

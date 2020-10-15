@@ -229,10 +229,6 @@ def timeIntegration(params, control):
         rates_exc_init = params["rates_exc_init"][:, -startind:]
         rates_inh_init = params["rates_inh_init"][:, -startind:]
         IA_init = params["IA_init"][:, -startind:]
-        
-    #params["rates_exc_init"] = rates_exc_init.copy()
-    #params["rates_inh_init"] = rates_inh_init.copy()
-    #params["IA_init"] = IA_init.copy()
     
 
     if RNGseed:
@@ -536,18 +532,12 @@ def timeIntegration_njit_elementwise(
                 + 2 * sq_Jei_max * seiv[no,i-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
                 + sigmae_ext ** 2
             )  # mV/sqrt(ms)
-            
-            #print("sigma e = ", sigmae)
-            #print("seev = ", seev[no,i-1])
-            #print("r, rho =", rd_exc[no, no], z1ee, z2ee)
 
             sigmai = np.sqrt(
                 2 * sq_Jie_max * siev[no,i-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
                 + 2 * sq_Jii_max * siiv[no,i-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
                 + sigmai_ext ** 2
             )  # mV/sqrt(ms)
-            #print("integration, sigmai ", sigmai)
-            #print("calculated from z1ie,  z1ii ", z1ie,  z1ii)
 
             if not filter_sigma:
                 sigmae_f[no,i-1] = sigmae
@@ -555,9 +545,6 @@ def timeIntegration_njit_elementwise(
 
             # Read the transfer function from the lookup table
             # -------------------------------------------------------------
-            
-            #print("integration, inital parameters:: mufe,mufi,seem,seim,siem,siim,seev,seiv,siev,siiv,mue_ou,mui_ou",
-            #      mufe, mufi, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou)
 
             # ------- excitatory population
             # mufe[no] - IA[no] / C is the total current of the excitatory population
@@ -611,19 +598,14 @@ def timeIntegration_njit_elementwise(
                 sigmai_f_rhs = (sigmai - sigmai_f[no,i-1]) / tau_sigmai_eff
 
             # integration of synaptic input (eq. 4.36)
-            ### Lena: only divide seem by tau?
             seem_rhs = ((1 - seem[no,i-1]) * z1ee - seem[no,i-1]) / tau_se
             seim_rhs = ((1 - seim[no,i-1]) * z1ei - seim[no,i-1]) / tau_si
             siem_rhs = ((1 - siem[no,i-1]) * z1ie - siem[no,i-1]) / tau_se
             siim_rhs = ((1 - siim[no,i-1]) * z1ii - siim[no,i-1]) / tau_si
-            # Lena: according to eq. 12, z2 corresponds to rho? not in last term (z1 + 1)? z2 calculation above does not agree
             seev_rhs = ((1 - seem[no,i-1]) ** 2 * z2ee + (z2ee - 2 * tau_se * (z1ee + 1)) * seev[no,i-1]) / tau_se ** 2
             seiv_rhs = ((1 - seim[no,i-1]) ** 2 * z2ei + (z2ei - 2 * tau_si * (z1ei + 1)) * seiv[no,i-1]) / tau_si ** 2
             siev_rhs = ((1 - siem[no,i-1]) ** 2 * z2ie + (z2ie - 2 * tau_se * (z1ie + 1)) * siev[no,i-1]) / tau_se ** 2
             siiv_rhs = ((1 - siim[no,i-1]) ** 2 * z2ii + (z2ii - 2 * tau_si * (z1ii + 1)) * siiv[no,i-1]) / tau_si ** 2
-            
-            #seev_rhs = ( (z2ee - 2 * tau_se * (z1ee + 1)) * seev[no,i-1]) / tau_se ** 2
-            #seem_rhs = 0.
 
             # -------------- integration --------------
 
@@ -679,16 +661,12 @@ def timeIntegration_njit_elementwise(
             mui_ou[no,i] = (
                 mui_ou[no,i-1] + (mui_ext_mean - mui_ou[no,i-1]) * dt / tau_ou + sigma_ou * sqrt_dt * noise_inh[no]
             )  # mV/ms
-            
-            #print("integration, final parameters::  mufe,mufi,seem,seim,siem,siim,seev,seiv,siev,siiv,mue_ou,mui_ou, mufi)
-            
+                        
     sigmae_f[:,:startind] = sigmae_f[:,startind]
     sigmai_f[:,:startind] = sigmai_f[:,startind]
     Vmean_exc[:,:startind] = Vmean_exc[:,startind]
     tau_exc[:,:startind] = tau_exc[:,startind]
     tau_inh[:,:startind] = tau_inh[:,startind]
-    
-    print(rates_exc.shape)
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou, sigmae_f, sigmai_f, Vmean_exc, tau_exc, tau_inh
 
