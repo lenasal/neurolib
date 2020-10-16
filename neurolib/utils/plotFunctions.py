@@ -42,10 +42,11 @@ def plot_convergence(cost_, path_, filename_ = "cost_convergence.png", ratio_ = 
 def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_params_, target_, path_, filename_ = 'control_aln.png'):
     
     dt = model.params.dt
-    if model.name == "aln":
+    if model.name == "aln" or model.name == "aln-control":
         control_factor = model.params.C/1000.
     else:
         control_factor = 1.
+        
     model.params.duration = (control_.shape[2] - 1.) * dt
     i1 = int(round(t_sim_pre_/dt, 1))
     i2 = int(round(t_sim_post_/dt, 1))
@@ -72,7 +73,7 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     for t in range(len(model.t)):
         if (np.abs(control_[0,0,t]) > cntrl_limit):
             control_time_exc.append(dt * t)
-        if model.name == "aln":
+        if model.name == "aln" or model.name == "aln-control":
             if (np.abs(control_[0,1,t]) > cntrl_limit):
                 control_time_inh.append(dt * t)
         
@@ -119,7 +120,6 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
 
     if len(model.output_vars) > 1:
         
-        """
         for i in range(3):
             for j in range(len(model.target_output_vars)):
                 ax[i,j].axvspan(t_sim_pre_, t_sim_pre_ + t_sim_, facecolor='0.4', alpha=0.1, zorder=-2,
@@ -134,7 +134,6 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
                     ax[i,1].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1, label=cntrl_time_legend[0])
                 else:
                     ax[i,1].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1)
-        """
     
     
         if (i2 == 0):
@@ -173,7 +172,6 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
         #ax[2,2].plot([-0.2, -0.2], [3.45, -0.15], transform=ax[2,2].transAxes, clip_on=False, c='grey', linewidth = 3)
     
 
-    """
     for i in range(2):
         for j in range(len(model.output_vars)):
             ax[i,j].legend(loc='upper right')
@@ -189,7 +187,6 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     for a, col in zip(ax[0,:], cols):
         a.annotate(col, xy=(0.5, 1.05), xytext=(0,5), xycoords='axes fraction', textcoords='offset points',
                    size=20, ha='center', va='baseline', weight='bold')
-    """
     
     plt.tight_layout()
     plt.savefig(os.path.join(path_, filename_))

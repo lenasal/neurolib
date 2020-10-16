@@ -10,7 +10,8 @@ from ..models import jacobian_aln as jac_aln
 
 VALID_VAR = {None, "FR", "HS"}
 
-def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, cntrl_max_, t_sim_):
+def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
+       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar):
         
     dt = model.params['dt']
     state_vars = model.state_vars

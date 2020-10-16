@@ -29,8 +29,9 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     else:
         max_global_delay = np.max(Dmat_ndt)
         
+    print(max_global_delay == model.getMaxDelay() )
+        
     startind_ = int(max_global_delay + 1)
-    print("start ind = ", startind_)  
     
     state_vars = model.state_vars
     init_vars = model.init_vars
@@ -62,7 +63,6 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     
     output_vars = model.output_vars
     
-    #print(fhn.params['duration']/fhn.params['dt'], state_.shape)
     best_control_ = cntrl_.copy()
     total_cost_ = np.zeros(( int(max_iteration_+1) ))
     runtime_ = np.zeros(( int(max_iteration_+1) ))
@@ -76,12 +76,6 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     for i in range( int(max_iteration_) ):
             
         cost_ = cost.f_cost(state_, target_, best_control_)
-        #print("1  cost = ", cost_)
-        for j in range(len(cost_)):
-            costsum = 0.1 * sum(cost_[j:])
-            #print("1 cost int starting from index ", j, " : ", costsum)
-            costsum_reverse = 0.1 * sum(cost_[:j+1])
-            #print("1 cost int up to index ", j+1, " : ", costsum_reverse)
         total_cost_[i] = cost.f_int(dt, cost_)
         print('RUN ', i, ', total integrated cost: ', total_cost_[i])
 

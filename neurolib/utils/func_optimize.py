@@ -18,11 +18,10 @@ def updateState(model, control_):
     #print("update state: ", state_[0,:,:3])
     return state_
 
-def updateFullState(model, control_, duration_):
+def updateFullState(model, control_):
     state_vars = model.state_vars
     state_ = model.getZeroFullState()
     
-    model.params.duration = duration_
     model.run(control=control_)
     for sv in range(len(state_vars)):
         state_[:,sv,:] = model.state[state_vars[sv]][:,:]
@@ -92,10 +91,12 @@ def set_init(model, IC_, init_vars_, state_vars_):
 def update_init(model, init_vars_, state_vars_):
     for iv, sv in zip( range(len(init_vars_)), range(len(state_vars_)) ):
         if state_vars_[sv] in init_vars_[iv]:
-            if model.params[init_vars_[iv]].ndim == 2:
+            if ( type(model.params[init_vars_[iv]]) == np.float64 or type(model.params[init_vars_[iv]]) == float ):
+                model.params[init_vars_[iv]] = model.state[state_vars_[sv]][:,-1]
+            elif model.params[init_vars_[iv]].ndim == 2:
                 model.params[init_vars_[iv]][:,0] = model.state[state_vars_[sv]][:,-1]
             else:
-                model.params[init_vars_[iv]] = model.state[state_vars_[sv]]
+                model.params[init_vars_[iv]] = model.state[state_vars_[sv]][:,-1]
                     
 def update_init_delayed(model, delay_state_vars_, init_vars_, state_vars_, t_pre_ndt_, startind_):
     for iv, sv in zip( range(len(init_vars_)), range(len(state_vars_)) ):
@@ -146,7 +147,7 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         # include maximum control value to assure no divergence
         if ( np.amax(np.absolute(test_control_)) > max_control_):
             if (i < max_it_-1):
-                print("too big control")
+                #print("too big control")
                 step_ /= bisec_factor_
                 continue
             else:

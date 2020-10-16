@@ -11,10 +11,10 @@ class Model_ALN_control(Model):
     """
 
     name = "aln-control"
-    description = "build up aln for control from mean field model of excitatory node"
+    description = "Adaptive linear-nonlinear model of exponential integrate-and-fire neurons"
 
     init_vars = [
-       "rates_exc_init",
+        "rates_exc_init",
         "rates_inh_init",
         "mufe_init",
         "mufi_init",

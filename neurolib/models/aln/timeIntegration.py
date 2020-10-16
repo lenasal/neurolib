@@ -465,7 +465,7 @@ def timeIntegration_njit_elementwise(
         
     ### integrate ODE system:
     for i in range(startind, startind + len(t)):
-
+        
         if not distr_delay:
             # Get the input from one node into another from the rates at time t - connection_delay - 1
             # remark: assume Kie == Kee and Kei == Kii
@@ -506,7 +506,6 @@ def timeIntegration_njit_elementwise(
             #print("input via coupling: time, node, rowsum = ", i, no, rowsum)
 
             # z1: weighted sum of delayed rates, weights=c*K
-            # Lena: where is the delay?
             z1ee = (
                 cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum + c_gl * Ke_gl * ext_exc_rate[no, i]
             )  # rate from other regions + exc_ext_rate
@@ -532,7 +531,7 @@ def timeIntegration_njit_elementwise(
                 + 2 * sq_Jei_max * seiv[no,i-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
                 + sigmae_ext ** 2
             )  # mV/sqrt(ms)
-
+            
             sigmai = np.sqrt(
                 2 * sq_Jie_max * siev[no,i-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
                 + 2 * sq_Jii_max * siiv[no,i-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
@@ -557,8 +556,13 @@ def timeIntegration_njit_elementwise(
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
             
+            #rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
+            #Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+            
             # shift tau by one???
-            tau_exc[no,i] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+            tau_exc[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+            #tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+                                    
             if filter_sigma:
                 tau_sigmae_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
 
@@ -569,8 +573,13 @@ def timeIntegration_njit_elementwise(
             xid1, yid1 = int(xid1), int(yid1)
 
             rates_inh[no, i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
+            #rates_inh[no, i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
+            
+            
             # Vmean_inh = interpolate_values(precalc_V, xid1, yid1, dxid, dyid) # not used
-            tau_inh[no,i] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+            tau_inh[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+            #tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
+            
             if filter_sigma:
                 tau_sigmai_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
 
@@ -580,14 +589,15 @@ def timeIntegration_njit_elementwise(
 
             mufe_rhs = (mue - mufe[no,i-1] 
                         #+ control_ext[no, 0, i-startind+1]
-                        ) / tau_exc[no,i]
+                        ) / tau_exc[no,i-1]
+            
             mufi_rhs = (mui - mufi[no,i-1] 
                         #+ control_ext[no, 1, i-startind+1]
-                        ) / tau_inh[no,i]
+                        ) / tau_inh[no,i-1]
 
             # rate has to be kHz
             IA_rhs = (a * (Vmean_exc[no,i] - EA) - IA[no, i - 1] + tauA * b * rates_exc[no, i] * 1e-3) / tauA
-
+            
             # EQ. 4.43
             if distr_delay:
                 rd_exc_rhs = (rates_exc[no, i] * 1e-3 - rd_exc[no, no]) / tau_de
@@ -598,6 +608,7 @@ def timeIntegration_njit_elementwise(
                 sigmai_f_rhs = (sigmai - sigmai_f[no,i-1]) / tau_sigmai_eff
 
             # integration of synaptic input (eq. 4.36)
+            
             seem_rhs = ((1 - seem[no,i-1]) * z1ee - seem[no,i-1]) / tau_se
             seim_rhs = ((1 - seim[no,i-1]) * z1ei - seim[no,i-1]) / tau_si
             siem_rhs = ((1 - siem[no,i-1]) * z1ie - siem[no,i-1]) / tau_se
@@ -662,11 +673,13 @@ def timeIntegration_njit_elementwise(
                 mui_ou[no,i-1] + (mui_ext_mean - mui_ou[no,i-1]) * dt / tau_ou + sigma_ou * sqrt_dt * noise_inh[no]
             )  # mV/ms
                         
-    sigmae_f[:,:startind] = sigmae_f[:,startind]
-    sigmai_f[:,:startind] = sigmai_f[:,startind]
+    #sigmae_f[:,:startind] = sigmae_f[:,startind]
+    #sigmai_f[:,:startind] = sigmai_f[:,startind]
     Vmean_exc[:,:startind] = Vmean_exc[:,startind]
-    tau_exc[:,:startind] = tau_exc[:,startind]
-    tau_inh[:,:startind] = tau_inh[:,startind]
+    tau_exc[:,:startind-1] = tau_exc[:,startind-1]
+    tau_inh[:,:startind-1] = tau_inh[:,startind-1]
+    tau_exc[:,-1] = tau_exc[:,-2]
+    tau_inh[:,-1] = tau_inh[:,-2]
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou, sigmae_f, sigmai_f, Vmean_exc, tau_exc, tau_inh
 
@@ -849,3 +862,32 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
         dyid = yid - yid1
 
     return xid1, yid1, dxid, dyid
+
+def r_func(mu, sigma):
+    x_shift_mu = - 2.
+    x_shift_sigma = -1.
+    x_scale_mu = 0.6
+    x_scale_sigma = 0.6
+    y_shift = 0.1
+    y_scale_mu = 0.1
+    y_scale_sigma = 1./2500.
+    return y_shift + np.tanh(x_scale_mu * mu + x_shift_mu) * y_scale_mu + np.cosh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma
+
+def tau_func(mu, sigma):
+    mu_shift = - 1.1
+    sigma_scale = 0.5
+    mu_scale = - 10
+    mu_scale1 = - 3
+    y_shift = 15.
+    sigma_shift = 1.4
+    return sigma_scale * ( mu_shift + mu ) * sigma + mu_scale1 * mu + y_shift + np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )    
+   
+
+def V_func(mu, sigma):
+    y_scale1 = 30.
+    mu_shift1 = 1.
+    y_shift = - 85.
+    y_scale2 = 2.
+    mu_shift2 = 0.5
+    return mu + sigma
+    return y_shift + y_scale1 * np.tanh( mu + mu_shift1 ) + y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma

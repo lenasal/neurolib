@@ -2,53 +2,47 @@ import numpy as np
 import numba
 import logging
 
-def interpolate(model, sigma_f, muf, IAmin1, precalc_table):
+def interpolate(model, sigma_f, muf, precalc_table):
     sigmarange = model.params.sigmarange
     ds = model.params.ds
     Irange = model.params.Irange
     dI = model.params.dI
     C = model.params.C
-    if model.name == "alnSimp":
-        C = 1.
             
-    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigma_f, Irange, dI, muf - IAmin1 / C)
+    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigma_f, Irange, dI, muf)
     xid1, yid1 = int(xid1), int(yid1)
     result = interpolate_values(precalc_table, xid1, yid1, dxid, dyid)
     return result
 
 # gradient of transfer function wrt changes in sigma
-def der_sigma(model, sigma_f, muf, IAmin1, precalc_table):
+def der_sigma(model, sigma_f, muf, precalc_table):
     ds = model.params.ds
-    result0 = interpolate(model, sigma_f, muf, IAmin1, precalc_table)
-    result1 = interpolate(model, sigma_f + ds, muf, IAmin1, precalc_table)
+    result0 = interpolate(model, sigma_f, muf, precalc_table)
+    result1 = interpolate(model, sigma_f + ds, muf, precalc_table)
     
     der = ( result1 - result0) / ds
             
     return der
 
 # gradient of transfer function wrt changes in mu
-def der_mu_up(model, sigma_f, muf, IAmin1, precalc_table):
+def der_mu_up(model, sigma_f, muf, precalc_table):
     dI = model.params.dI
     
-    result0 = interpolate(model, sigma_f, muf, IAmin1, precalc_table)
-    result1 = interpolate(model, sigma_f, muf + dI, IAmin1, precalc_table)
-    result2 = interpolate(model, sigma_f, muf - dI, IAmin1, precalc_table)
-        
+    result0 = interpolate(model, sigma_f, muf, precalc_table)
+    result1 = interpolate(model, sigma_f, muf + dI, precalc_table)
+    result2 = interpolate(model, sigma_f, muf - dI, precalc_table)
+    
     der1 = ( result1 - result0) / dI
-    der2 = -( result2 - result0) / dI
-    
-    der_analytical = 0.001 * (1./np.cosh(muf)**2)
-    
-    #("difference in der : ", der1 - der_analytical)
+    der2 = ( result0 - result2) / dI
             
-    return der_analytical
+    return der1
 
-def der_mu_down(model, sigma_f, muf, IAmin1, precalc_table):
+def der_mu_down(model, sigma_f, muf, precalc_table):
     dI = model.params.dI
     
-    result0 = interpolate(model, sigma_f, muf, IAmin1, precalc_table)
-    result1 = interpolate(model, sigma_f, muf + dI, IAmin1, precalc_table)
-    result2 = interpolate(model, sigma_f, muf - dI, IAmin1, precalc_table)
+    result0 = interpolate(model, sigma_f, muf, precalc_table)
+    result1 = interpolate(model, sigma_f, muf + dI, precalc_table)
+    result2 = interpolate(model, sigma_f, muf - dI, precalc_table)
         
     der1 = ( result1 - result0) / dI
     der2 = -( result2 - result0) / dI
@@ -104,7 +98,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
 
     # outside one boundary
     if yi < y[0]:
-        #print("case 2")
+        print("case 2")
         yid1 = 0
         dyid = 0.0
         if xi >= x[0] and xi < x[-1]:
@@ -121,7 +115,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
         return xid1, yid1, dxid, dyid
 
     if yi >= y[-1]:
-        #print("case 3")
+        print("case 3")
         yid1 = -1
         dyid = 0.0
         if xi >= x[0] and xi < x[-1]:
@@ -139,7 +133,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
         return xid1, yid1, dxid, dyid
 
     if xi < x[0]:
-        #print("case 4")
+        print("case 4")
         xid1 = 0
         dxid = 0.0
         # We know that yi is within the boundaries
@@ -149,7 +143,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
         return xid1, yid1, dxid, dyid
 
     if xi >= x[-1]:
-        #print("case 5")
+        print("case 5")
         xid1 = -1
         dxid = 0.0
         # We know that yi is within the boundaries

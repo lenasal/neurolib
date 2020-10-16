@@ -12,17 +12,64 @@ np.set_printoptions(precision=8)
 
 VALID_VAR = {None, "FR", "HS"}
 
-def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, cntrl_max_, t_sim_):
+def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
+       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar):
         
     dt = model.params['dt']
+
+    
+    """    
+    # run model with dt duration once to set delay matrix
+    model.params['duration'] = dt
+    model.run(control=model.getZeroControl())
+    
+    Dmat = model.params.Dmat
+    Dmat_ndt = np.around(Dmat / dt).astype(int)
+        
+    Dmat_ndt = np.around(Dmat / dt).astype(int)
+        
+    if model.name == "aln":
+        ndt_de = np.around(model.params.de / dt).astype(int)
+        ndt_di = np.around(model.params.di / dt).astype(int)
+        max_global_delay = max(np.max(Dmat_ndt), ndt_de, ndt_di)
+    else:
+        max_global_delay = np.max(Dmat_ndt)
+        
+    print(max_global_delay == model.getMaxDelay() )
+        
+    startind_ = int(max_global_delay + 1)
+    """
+    startind_ = 1
+    
     state_vars = model.state_vars
     init_vars = model.init_vars
+    output_vars = model.output_vars
+    
+    if (startind_ > 1):
+        fo.adjust_shape_init_params(model, init_vars, startind_)    
+    
+    t_pre_ndt = np.around(t_sim_pre_ / dt).astype(int)
+    delay_state_vars_ = np.zeros(( model.params.N, len(state_vars), startind_ ))
+    
+    # simulate with duration t_sim_pre before start
+    if (t_sim_pre_ >= dt):
+        model.params['duration'] = t_sim_pre_
+        control_pre_ = model.getZeroControl()
+        state_pre_ = fo.updateFullState(model, control_pre_)
+        
+        if startind_ == 1:
+            fo.update_init(model, init_vars, state_vars)
+        else:
+            fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_pre_ndt, startind_)
     
     model.params['duration'] = t_sim_
     i=0
         
-    rate_ = fo.updateState(model, control_)
-    state0_ = model.getZeroFullState()
+    #rate_ = fo.updateState(model, control_)
+    #state0_ = model.getZeroFullState()
+    state0_ = fo.updateFullState(model, control_)
+    
+    """
     state0_[:,0,:] = rate_[:,0,:]
     state0_[:,1,:] = model.state["rates_inh"][:,:]
     state0_[:,2,:] = model.state["mufe"][:,:]
@@ -46,13 +93,15 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
     state0_[:,17,:] = model.state["Vmean_exc"][:,:]
     state0_[:,18,:] = model.state["tau_exc"][:,:]
     state0_[:,19,:] = model.state["tau_inh"][:,:]
-    
+    """    
 
     total_cost_ = np.zeros((max_iteration_+1))
     total_cost_[i] = cost.f_int(model.params['dt'], cost.f_cost(state0_, target_state_, control_) )
+    runtime_ = np.zeros(( int(max_iteration_+1) ))
+    runtime_start_ = timer()
+    
     print("RUN ", i, ", total integrated cost = ", total_cost_[i])
 
-    
     state1_ = state0_.copy()
     u_opt0_ = control_.copy()
     best_control_ = control_.copy()
@@ -80,6 +129,8 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         step_, total_cost_[i] = fo.step_size(model, outstate_[:,:,:], target_state_,
                      best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
         
+        runtime_[i] = timer() - runtime_start_
+        
         print("RUN ", i, ", total integrated cost = ", total_cost_[i])
         best_control_ = u_opt0_ + step_ * dir1_
         
@@ -91,29 +142,35 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         u_opt0_ = best_control_.copy()
         
         rate_ = fo.updateState(model, best_control_)
-        state1_[:,0,:] = rate_[:,0,:]
-        state1_[:,1,:] = model.state["rates_inh"][:,:]
-        state1_[:,2,:] = model.state["mufe"][:,:]
-        state1_[:,3,:] = model.state["mufi"][:,:]
-        state1_[:,4,:] = model.state["IA"][:,:]
         
-        state1_[:,5,:] = model.state["seem"][:,:]
-        state1_[:,6,:] = model.state["seim"][:,:]
-        state1_[:,7,:] = model.state["siem"][:,:]
-        state1_[:,8,:] = model.state["siim"][:,:]
-        state1_[:,9,:] = model.state["seev"][:,:]
-        state1_[:,10,:] = model.state["seiv"][:,:]
-        state1_[:,11,:] = model.state["siev"][:,:]
-        state1_[:,12,:] = model.state["siiv"][:,:]
+        state1_ = fo.updateFullState(model, best_control_)
         
-        state1_[:,13,:] = model.state["mue_ou"][:,:]
-        state1_[:,14,:] = model.state["mui_ou"][:,:]
+        a1 = state1_[:,0,:] == rate_[:,0,:]
+        a2 = state1_[:,1,:] == model.state["rates_inh"][:,:]
+        a3 = state1_[:,2,:] == model.state["mufe"][:,:]
+        a4 = state1_[:,3,:] == model.state["mufi"][:,:]
+        a5 = state1_[:,4,:] == model.state["IA"][:,:]
         
-        state1_[:,15,:] = model.state["sigmae_f"][:,:]
-        state1_[:,16,:] = model.state["sigmai_f"][:,:]
-        state1_[:,17,:] = model.state["Vmean_exc"][:,:]
-        state1_[:,18,:] = model.state["tau_exc"][:,:]
-        state1_[:,19,:] = model.state["tau_inh"][:,:]
+        a6 = state1_[:,5,:] == model.state["seem"][:,:]
+        a7 = state1_[:,6,:] == model.state["seim"][:,:]
+        a8 = state1_[:,7,:] == model.state["siem"][:,:]
+        a9 = state1_[:,8,:] == model.state["siim"][:,:]
+        a10 = state1_[:,9,:] == model.state["seev"][:,:]
+        a11 = state1_[:,10,:] == model.state["seiv"][:,:]
+        a12 = state1_[:,11,:] == model.state["siev"][:,:]
+        a13 = state1_[:,12,:] == model.state["siiv"][:,:]
+        
+        a14 = state1_[:,13,:] == model.state["mue_ou"][:,:]
+        a15 = state1_[:,14,:] == model.state["mui_ou"][:,:]
+        
+        a16 = state1_[:,15,:] == model.state["sigmae_f"][:,:]
+        a17 = state1_[:,16,:] == model.state["sigmai_f"][:,:]
+        a18 = state1_[:,17,:] == model.state["Vmean_exc"][:,:]
+        a19 = state1_[:,18,:] == model.state["tau_exc"][:,:]
+        a20 = state1_[:,19,:] == model.state["tau_inh"][:,:]
+        
+        if np.array( [a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20]).any() == False:
+            print("something wrong")
         
         
         s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_)
@@ -139,9 +196,75 @@ def A1(model, control_, target_state_, max_iteration_, tolerance_, startStep_, c
         
     print("Improved over ", max_iteration_, " iterations by ", improvement, " percent.")
     if max_iteration_ != 0:
-        print("final gradient = ", g0_min_)
+        print("max abs value of final gradient = ", np.amax(np.abs(g0_min_)) )
+        
+    if (t_sim_pre_ < dt and t_sim_post_ < dt):
+        return best_control_, state1_, total_cost_, runtime_
     
-    return best_control_, state1_, total_cost_, 0.
+    if (t_sim_post_ > dt):
+        
+        for iv, sv in zip( range(len(init_vars)), range(len(state_vars)) ):
+            if state_vars[sv] in init_vars[iv]:
+                #print("variable = ", state_vars[sv])
+                #print(" state = ", model.state[state_vars[sv]])
+                #print(" init param = ", model.params[init_vars[iv]])
+                if model.params[init_vars[iv]].ndim == 2:
+                    if startind_ == 1:
+                        model.params[init_vars[iv]][:,0] = model.state[state_vars[sv]][:,-1]
+                    else:
+                        model.params[init_vars[iv]][:,:] = delay_state_vars_[:, sv, :]              
+                else:
+                    model.params[init_vars[iv]][:] = model.state[state_vars[sv]][:,-1]
+            else:
+                logging.error("Initial and state variable labelling does not agree.") 
+
+    
+        model.params.duration = t_sim_post_ - dt
+        control_post_ = model.getZeroControl()
+        state_post_ = fo.updateFullState(model, control_post_)
+ 
+    model.params.duration = t_sim_ + t_sim_pre_ + t_sim_post_
+    bc_ = model.getZeroControl()
+    bs_ = model.getZeroFullState()
+        
+    i1 = int(round(t_sim_pre_/dt, 1))
+    i2 = int(round(t_sim_post_/dt, 1))
+    
+    if (i2 != 0 and i1 != 0):   
+        bc_[:,:,i1:-i2] = best_control_[:,:,:]
+        bs_[:,:,:i1+1] = state_pre_[:,:,:]
+        for n in range(bs_.shape[0]):
+            for v in range(bs_.shape[1]):
+                if state_vars[v] is not "Vmean_exc":
+                    if bs_[n,v,i1] != state1_[n,v,0]:
+                        logging.error("Problem in initial value trasfer")
+                        print("Problem in initial value trasfer for ", state_vars[v])
+                        print(bs_[n,v,:])
+                        print(state1_[n,v,:])
+        bs_[:,:,i1:-i2] = state1_[:,:,:]
+        bs_[:,:,-i2:] = state_post_[:,:,:]
+    elif (i2 == 0 and i1 != 0):
+        bc_[:,:,i1:] = best_control_[:,:,:]
+        bs_[:,:,:i1+1] = state_pre_[:,:,:]
+        for n in range(bs_.shape[0]):
+            for v in range(bs_.shape[1]):
+                if state_vars[v] is not "Vmean_exc":
+                    if bs_[n,v,i1] != state1_[n,v,0]:
+                        logging.error("Problem in initial value trasfer")
+                        print("Problem in initial value trasfer for ", state_vars[v])
+                        print(bs_[n,v,:])
+                        print(state1_[n,v,:])
+        bs_[:,:,i1:] = state1_[:,:,:]
+    elif (i2 != 0 and i1 == 0):
+        bc_[:,:,:-i2] = best_control_[:,:,:]
+        bs_[:,:,:-i2] = state1_[:,:,:]
+        bs_[:,:,-i2:] = state_post_[:,:,:]
+    else:
+        bc_[:,:,:] = best_control_[:,:,:]
+        bs_[:,:,:] = state1_[:,:,:]
+            
+    return bc_, bs_, total_cost_, runtime_
+
 
 def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
     dt = model.params.dt
@@ -220,7 +343,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
             
             
                 
-        res = - phi_[0,4,ind_time] * jac[2,17]
+        res = - phi_[0,4,ind_time] * jac[4,17]
         phi_[0,17,ind_time-1] = res
         
         res = - phi_[0,2,ind_time-1] * jac[2,18]
@@ -250,7 +373,6 @@ def jacobian(model, state_, control_, t_):
     
     a = model.params["a"]
     b = model.params["b"]
-    EA = model.params["EA"]
     tauA = model.params["tauA"]
     
     C = model.params["C"]
@@ -302,13 +424,13 @@ def jacobian(model, state_, control_, t_):
     
     jacobian_ = np.zeros((state_.shape[1], state_.shape[1]))
     jacobian_[0,0] = 1.
-    jacobian_[0,2] = - d_r_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, state_[0,15,t_]) * 1e3 # - state_[0,2,t_] / C
-    jacobian_[0,4] = - d_r_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1]) * 1e3 * ( - 1. / C ) #  - state_[0,2,t_] / C
-    jacobian_[0,15] = - d_r_func_sigma(state_[0,2,t_-1] - state_[0,4,t_] / C, state_[0,15,t_-1]) * 1e3 #  - state_[0,2,t_-1] / C
+    jacobian_[0,2] = - d_r_func_mu(model, state_[0,2,t_] - state_[0,4,t_] / C, state_[0,15,t_]) * 1e3 # - state_[0,2,t_] / C
+    jacobian_[0,4] = - d_r_func_mu(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1]) * 1e3 * ( - 1. / C ) #  - state_[0,2,t_] / C
+    jacobian_[0,15] = - d_r_func_sigma(model, state_[0,2,t_-1] - state_[0,4,t_] / C, state_[0,15,t_-1]) * 1e3 #  - state_[0,2,t_-1] / C
     
     jacobian_[1,1] = 1.
-    jacobian_[1,3] = - d_r_func_mu(state_[0,3,t_], state_[0,16,t_]) * 1e3
-    jacobian_[1,16] = - d_r_func_sigma(state_[0,3,t_-1], state_[0,16,t_-1]) * 1e3
+    jacobian_[1,3] = - d_r_func_mu(model, state_[0,3,t_], state_[0,16,t_]) * 1e3
+    jacobian_[1,16] = - d_r_func_sigma(model, state_[0,3,t_-1], state_[0,16,t_-1]) * 1e3
     
     jacobian_[2,2] = 1. / state_[0,18,t_]
     jacobian_[2,5] = - Jee_max / state_[0,18,t_]
@@ -324,7 +446,7 @@ def jacobian(model, state_, control_, t_):
     jacobian_[3,19] = ( Jii_max * state_[0,8,t_-1] + Jie_max * state_[0,7,t_-1] + control_[0,1,t_] + ext_inh_current
                        + state_[0,14,t_-1] - state_[0,3,t_-1] ) / state_[0,19,t_-1]**2
     
-    jacobian_[4,0] = b * 1e-3
+    jacobian_[4,0] = - b * 1e-3
     jacobian_[4,4] = 1. / tauA
     jacobian_[4,17] = - a / tauA
     
@@ -383,16 +505,16 @@ def jacobian(model, state_, control_, t_):
     jacobian_[16,12] = - 0.5 * ( (1 + z1ii) * taum + tau_si )**(-1) * ( 2. * Jii_max**2 * tau_si * taum ) * sigma_sqrt_i
     jacobian_[16,16] = 1.
     
-    jacobian_[17,2] = - d_V_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, state_[0,15,t_])
-    jacobian_[17,4] = - d_tau_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1]) * ( - 1. / C )
-    jacobian_[17,15] = - d_V_func_sigma(state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1])
+    jacobian_[17,2] = - d_V_func_mu(model, state_[0,2,t_] - state_[0,4,t_] / C, state_[0,15,t_])
+    jacobian_[17,4] = - d_V_func_mu(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1]) * ( - 1. / C )
+    jacobian_[17,15] = - d_V_func_sigma(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1])
     
-    jacobian_[18,2] = - d_tau_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, state_[0,15,t_])
-    jacobian_[18,4] = - d_tau_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1]) * ( - 1. / C )
-    jacobian_[18,15] = - d_tau_func_sigma(state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1])
+    jacobian_[18,2] = - d_tau_func_mu(model, state_[0,2,t_] - state_[0,4,t_] / C, state_[0,15,t_])
+    jacobian_[18,4] = - d_tau_func_mu(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1]) * ( - 1. / C )
+    jacobian_[18,15] = - d_tau_func_sigma(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1])
     
-    jacobian_[19,3] = - d_tau_func_mu(state_[0,3,t_], state_[0,16,t_])
-    jacobian_[19,16] = - d_tau_func_sigma(state_[0,3,t_-1], state_[0,16,t_-1])
+    jacobian_[19,3] = - d_tau_func_mu(model, state_[0,3,t_], state_[0,16,t_])
+    jacobian_[19,16] = - d_tau_func_sigma(model, state_[0,3,t_-1], state_[0,16,t_-1])
     
     return jacobian_
 
@@ -432,45 +554,96 @@ def D_u_h(model, state_, t_):
     duh_[3,3] = - 1. / state_[0,19,t_-1]
     return duh_
 
-def d_r_func_mu(mu, sigma):
-    x_shift_mu = - 2.
-    x_scale_mu = 0.6
-    y_scale_mu = 0.1
-    return y_scale_mu * x_scale_mu / np.cosh(x_scale_mu * mu + x_shift_mu)**2
+def d_r_func_mu(model, mu, sigma):
+    result = 0.
+    if model.name == "aln-control":# or model.name == "aln":
+        x_shift_mu = - 2.
+        x_scale_mu = 0.6
+        y_scale_mu = 0.1
+        result = y_scale_mu * x_scale_mu / np.cosh(x_scale_mu * mu + x_shift_mu)**2
+    elif model.name == "aln":
+        result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_r)
+    else:
+        print("no drivative of rate implemented")
+    if np.abs(result) < 1e-7 and np.abs(result) > 1e-10:
+        print("WARNING: small derivative of r wrt mu")
+    return result
 
-def d_r_func_sigma(mu, sigma):
-    x_shift_sigma = -1.
-    x_scale_sigma = 0.6
-    y_scale_sigma = 1./2500.
-    return np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma
+def d_r_func_sigma(model, mu, sigma):
+    result = 0.
+    if model.name == "aln-control":# or model.name == "aln":
+        x_shift_sigma = -1.
+        x_scale_sigma = 0.6
+        y_scale_sigma = 1./2500.
+        result = np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma
+    elif model.name == "aln":
+        result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_r)
+    else:
+        print("no drivative of rate implemented")
+    if np.abs(result) < 1e-7:
+        print("WARNING: small derivative of r wrt sigma")
+    return result
 
-def d_tau_func_mu(mu, sigma):
-    mu_shift = - 1.1
-    sigma_scale = 0.5
-    mu_scale = - 10
-    mu_scale1 = - 3
-    sigma_shift = 1.4
-    return sigma_scale * sigma + mu_scale1 + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )
+def d_tau_func_mu(model, mu, sigma):
+    result = 0.
+    if model.name == "aln-control":# or model.name == "aln":
+        mu_shift = - 1.1
+        sigma_scale = 0.5
+        mu_scale = - 10
+        mu_scale1 = - 3
+        sigma_shift = 1.4
+        result = sigma_scale * sigma + mu_scale1 + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )
+    elif model.name == "aln":
+        result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_tau_mu)
+    else:
+        print("no drivative of tau implemented")
+    if np.abs(result) < 1e-4:
+        print("WARNING: small derivative of tau wrt mu")
+    return result
 
-def d_tau_func_sigma(mu, sigma):
-    mu_shift = - 1.1
-    sigma_scale = 0.5
-    mu_scale = - 10
-    mu_scale1 = - 3
-    y_shift = 15.
-    sigma_shift = 1.4
-    return sigma_scale * ( mu_shift + mu ) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )  
+def d_tau_func_sigma(model, mu, sigma):
+    result = 0.
+    if model.name == "aln-control":# or model.name == "aln":
+        mu_shift = - 1.1
+        sigma_scale = 0.5
+        mu_scale = - 10
+        sigma_shift = 1.4
+        result = sigma_scale * ( mu_shift + mu ) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp(
+            mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )  
+    elif model.name == "aln":
+        result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_tau_mu)
+    else:
+        print("no drivative of tau implemented")
+    if np.abs(result) < 1e-7:
+        print("WARNING: small derivative of tau wrt sigma")
+    return result
 
-def d_V_func_mu(mu, sigma):
-    y_scale1 = 30.
-    mu_shift1 = 1.
-    y_scale2 = 2.
-    mu_shift2 = 0.5
-    return 1.
-    return y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
+def d_V_func_mu(model, mu, sigma):
+    result = 0.
+    if model.name == "aln-control":# or model.name == "aln":
+        y_scale1 = 30.
+        mu_shift1 = 1.
+        y_scale2 = 2.
+        mu_shift2 = 0.5
+        result = y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
+    elif model.name == "aln":
+        result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_V)
+    else:
+        print("no drivative of V implemented")
+    if np.abs(result) < 1e-3:
+        print("WARNING: small derivative of V wrt mu")
+    return result
 
-def d_V_func_sigma(mu, sigma):
-    y_scale2 = 2.
-    mu_shift2 = 0.5
-    return 1.
-    return - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2
+def d_V_func_sigma(model, mu, sigma):
+    result = 0.
+    if model.name == "aln-control":# or model.name == "aln":
+        y_scale2 = 2.
+        mu_shift2 = 0.5
+        result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2
+    elif model.name == "aln":
+        result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_V)
+    else:
+        print("no drivative of V implemented")
+    if np.abs(result) < 1e-6:
+        print("WARNING: small derivative of V wrt sigma")
+    return result

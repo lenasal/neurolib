@@ -4,7 +4,8 @@ import random
 
 from neurolib.models.fhn import FHNModel
 from neurolib.models.aln import ALNModel
-from neurolib.models.alnSimp import ALNModelSimp
+from neurolib.models.aln_control import Model_ALN_control
+
 from neurolib.utils import costFunctions as cost
 import test_control_functions as func
 
@@ -21,24 +22,24 @@ dur_pre = 0.0
 dur_post = 0.
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
-tests = ["alnsimp"] #"alnsimp"
+tests = ["aln1"] #
 
 np.set_printoptions(precision=16)
 
 def getmodel(i):
     if i == "fhn1":
         model_ = FHNModel()
-    elif i == "alnsimp":
-        model_ = ALNModelSimp()
-        # if zero, no handle on rates
-        model_.params.ext_exc_current = 1.
-        model_.params.ext_inh_current = 1.
     elif i == "aln1":
         model_ = ALNModel()
         model_.params.signalV = 0.
         model_.params.de = 0.
         model_.params.di = 0.
         func.setParametersALN(model_)
+    elif i == "aln-control":
+        model_ = Model_ALN_control()
+        model_.params.signalV = 0.
+        model_.params.de = 0.
+        model_.params.di = 0.
     elif i == "fhn2":
         coupling12 = random.uniform(0, 1)
         coupling21 = random.uniform(0, 1)

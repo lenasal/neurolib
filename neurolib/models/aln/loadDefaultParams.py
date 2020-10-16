@@ -137,8 +137,8 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None, seed=None)
     params.Jii_max = -1.64  # mV/ms
 
     # neuron model parameters
-    params.a = 0.0  # nS, can be 15.0
-    params.b = 0.0  # pA, can be 40.0
+    params.a = 15.0  # nS, can be 15.0
+    params.b = 40.0  # pA, can be 40.0
     params.EA = -80.0  # mV
     params.tauA = 200.0  # ms
 

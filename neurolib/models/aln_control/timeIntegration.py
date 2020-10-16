@@ -109,8 +109,15 @@ def timeIntegration(params, control):
     siiv[:,:startind] = params["siiv_init"].copy()  # Inh synaptic input variance
     siev[:,:startind] = params["siev_init"].copy()
 
-    mue_ou[:,:startind] = params["mue_ou"].copy()  # Mean of external exc OU input (mV/ms)
-    mui_ou[:,:startind] = params["mui_ou"].copy()  # Mean of external inh ON inout (mV/ms)
+    if ( type(params["mue_ou"]) == np.float64 or type(params["mue_ou"]) == float ):
+        mue_ou[:,:startind] = params["mue_ou"].copy() # Mean of external exc OU input (mV/ms)
+        mui_ou[:,:startind] = params["mui_ou"].copy()  # Mean of external inh ON inout (mV/ms)
+    elif params["mue_ou"].ndim == 2:
+        mue_ou[:,:startind] = params["mue_ou"].copy()[:,-1] # Mean of external exc OU input (mV/ms)
+        mui_ou[:,:startind] = params["mui_ou"].copy()[:,-1]  # Mean of external inh ON inout (mV/ms)
+    else:
+        mue_ou[:,:startind] = params["mue_ou"].copy() # Mean of external exc OU input (mV/ms)
+        mui_ou[:,:startind] = params["mui_ou"].copy()  # Mean of external inh ON inout (mV/ms)
     
     sigmae_f = np.zeros((N, len(t)+startind))
     sigmai_f = np.zeros((N, len(t)+startind))
@@ -295,13 +302,13 @@ def timeIntegration_njit_elementwise(
             
             z1ii = factor_ii1 * rd_inh[no]
             z2ii = factor_ii2 * rd_inh[no]
-                        
+                                    
             sig_ee = seev[no,i-1] * ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
             sig_ei = seiv[no,i-1] * ( 2. * Jei_max**2 * tau_si * taum ) * ( (1 + z1ei) * taum + tau_si )**(-1)
             
             sigmae_f[no,i-1] = np.sqrt( sig_ee + sig_ei + sigmae_ext**2 )
             tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
-            
+                        
             sig_ii = siiv[no,i-1] * ( 2. * Jii_max**2 * tau_si * taum ) * ( (1 + z1ii) * taum + tau_si )**(-1)
             sig_ie = siev[no,i-1] * ( 2. * Jie_max**2 * tau_se * taum ) * ( (1 + z1ie) * taum + tau_se )**(-1)
             
@@ -309,7 +316,7 @@ def timeIntegration_njit_elementwise(
             tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
             
             #-----------------------------------------------------
-            
+                        
             seem_rhs = ( - seem[no,i-1]  + ( 1. - seem[no,i-1] ) * z1ee ) / tau_se
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
             seev_rhs = ( (1. - seem[no,i-1])**2 * z2ee + seev[no,i-1] * (z2ee - 2. * tau_se * ( z1ee + 1.) ) ) / tau_se**2 
@@ -345,18 +352,18 @@ def timeIntegration_njit_elementwise(
             
             #-----------------------------------------------------
             
-            mufe_rhs = ( Jee_max * seem[no,i-1] + Jei_max * seim[no,i-1] + control_ext[no,0,i] + ext_exc_current[no,i] + mue_ou[no,i-1]
+            mufe_rhs = ( Jee_max * seem[no,i-1] + Jei_max * seim[no,i-1] + control_ext[no,0,i-startind+1] + ext_exc_current[no,i] + mue_ou[no,i-1]
                         - mufe[no,i-1] ) / tau_exc[no,i-1]
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
             Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
-            
-            mufi_rhs = ( Jii_max * siim[no,i-1] + Jie_max * siem[no,i-1] + control_ext[no,1,i] + ext_inh_current[no,i] + mui_ou[no,i-1]
+                        
+            mufi_rhs = ( Jii_max * siim[no,i-1] + Jie_max * siem[no,i-1] + control_ext[no,1,i-startind+1] + ext_inh_current[no,i] + mui_ou[no,i-1]
                         - mufi[no,i-1] ) / tau_inh[no,i-1]
             mufi[no,i] = mufi[no,i-1] + dt * mufi_rhs
             rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
             
-            IA_rhs =  - b * rates_exc[no,i] * 1e-3 + ( a * ( Vmean_exc[no,i] - EA ) - IA[no,i-1] ) / tauA
+            IA_rhs =  b * rates_exc[no,i] * 1e-3 + ( a * ( Vmean_exc[no,i] - EA ) - IA[no,i-1] ) / tauA
             IA[no,i] = IA[no,i-1] + dt * IA_rhs
             
             # ornstein-uhlenbeck process
@@ -386,7 +393,7 @@ def timeIntegration_njit_elementwise(
     sig_ei = seiv[no,-1] * ( 2. * Jei_max**2 * tau_si * taum ) * ( (1 + z1ei) * taum + tau_si )**(-1)
 
     sigmae_f[no,-1] = np.sqrt( sig_ee + sig_ei + sigmae_ext**2 )
-    tau_exc[no,-1] = tau_func(mufe[no,-1], sigmae_f[no,-1])
+    tau_exc[no,-1] = tau_func(mufe[no,-1] - IA[no,-1] / C, sigmae_f[no,-1])
     
     sig_ii = siiv[no,-1] * ( 2. * Jii_max**2 * tau_si * taum ) * ( (1 + z1ii) * taum + tau_si )**(-1)
     sig_ie = siev[no,-1] * ( 2. * Jie_max**2 * tau_se * taum ) * ( (1 + z1ie) * taum + tau_se )**(-1)
@@ -425,5 +432,4 @@ def V_func(mu, sigma):
     y_shift = - 85.
     y_scale2 = 2.
     mu_shift2 = 0.5
-    return mu + sigma
     return y_shift + y_scale1 * np.tanh( mu + mu_shift1 ) + y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma

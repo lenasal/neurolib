@@ -4,7 +4,8 @@ import random
 
 from neurolib.models.fhn import FHNModel
 from neurolib.models.aln import ALNModel
-from neurolib.models.alnSimp import ALNModelSimp
+from neurolib.models.aln_control import Model_ALN_control
+
 from neurolib.utils import costFunctions as cost
 import test_control_functions as func
 
@@ -21,7 +22,7 @@ dur_pre = 0.
 dur_post = 0.
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
-tests = ["alnsimp"]
+tests = ["aln1"] #"aln-control"
 
 def getmodel(i):
     if i == "fhn1":
@@ -31,12 +32,16 @@ def getmodel(i):
         model_.params.signalV = 0.
         model_.params.de = 0.
         model_.params.di = 0.
+        
+        model_.params.ext_exc_current = 4. * random.uniform(0, 1)
+        model_.params.ext_inh_current = 4. * random.uniform(0, 1)
+        
         func.setParametersALN(model_)
-    elif i == "alnsimp":
-        model_ = ALNModelSimp()
-        # if zero, no handle on rates
-        model_.params.ext_exc_current = 1.
-        model_.params.ext_inh_current = 1.
+    elif i == "aln-control":
+        model_ = Model_ALN_control()
+        model_.params.signalV = 0.
+        model_.params.de = 0.
+        model_.params.di = 0.
     elif i == "fhn2":
         coupling12 = random.uniform(0, 1)
         coupling21 = random.uniform(0, 1)
@@ -117,21 +122,15 @@ class TestA1A2Conv(unittest.TestCase):
         
         testip, testie, testis = random.uniform(0., 1.), random.uniform(0., 1.), random.uniform(0., 1.)
         #cost.setParams(1., 0., 0.)
-        cost.setParams(testip, testie, testis)
+        cost.setParams(testip, testie, 0.)
         
         func.setInitVarsZero(model, init_vars)
         
-        A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(control2, target, c_scheme, u_mat, u_scheme, 10,
+        A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(control2, target, c_scheme, u_mat, u_scheme, max_iteration,
                             algorithm_tolerance, start_step, 2.*controlmax, duration, dur_pre, dur_post, CGVar = None)
         
-        #func.setInitVarsZero(model, init_vars)
-        #cost.setParams(testip, testie, testis)
-        
-        #A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(A1_bestControl, target, c_scheme, u_mat, u_scheme, max_iteration,
-         #                   algorithm_tolerance, start_step, 2.*controlmax, duration, dur_pre, dur_post, CGVar = None)
-        
         func.setInitVarsZero(model, init_vars)
-
+        
         A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
                             algorithm_tolerance, incl_steps, start_step, test_step, 1e5 * controlmax, duration, dur_pre, dur_post)
         
@@ -140,8 +139,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         for n in range(A2_bestControl.shape[0]):
             for v in range(A2_bestControl.shape[1]):
-                for t in range(A2_bestControl.shape[2] - 1 - cntrl_zeros_post):
-                    print(n, v, t, A2_bestControl[n, v, t], A1_bestControl[n, v, t])
+                for t in range(1, A2_bestControl.shape[2] - 1 - cntrl_zeros_post):
                     self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)    
     
 
