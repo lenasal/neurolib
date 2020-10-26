@@ -15,14 +15,14 @@ controlmin, controlmax = -2., 2.
 algorithm_tolerance = 1e-16
 max_iteration = int(1e4)
 start_step = 20.
-test_step = 1e-12
+test_step = 1e-6
 
 duration = 0.6
-dur_pre = 0.
-dur_post = 0.
+dur_pre = 0.4
+dur_post = 0.4
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
-tests = ["aln1"] #"aln-control"
+tests = ["aln1"]#, "aln-control"]
 
 def getmodel(i):
     if i == "fhn1":
@@ -35,6 +35,7 @@ def getmodel(i):
         
         model_.params.ext_exc_current = 4. * random.uniform(0, 1)
         model_.params.ext_inh_current = 4. * random.uniform(0, 1)
+        func.setParametersALN(model_)
         
         func.setParametersALN(model_)
     elif i == "aln-control":
@@ -42,6 +43,7 @@ def getmodel(i):
         model_.params.signalV = 0.
         model_.params.de = 0.
         model_.params.di = 0.
+        func.setParametersALN(model_)
     elif i == "fhn2":
         coupling12 = random.uniform(0, 1)
         coupling21 = random.uniform(0, 1)
@@ -84,12 +86,6 @@ def getmodel(i):
         
     return model_
 
-def getSchemes(model_):
-    c_scheme = np.zeros((len(model_.output_vars), len(model_.output_vars) ))
-    c_scheme[0,0] = 1.
-    u_mat = np.identity(model_.params['N'])
-    u_scheme = np.array([[1, 0], [0, 0]])
-    return c_scheme, u_mat, u_scheme
 
 class TestA1A2Conv(unittest.TestCase):
       
@@ -99,7 +95,7 @@ class TestA1A2Conv(unittest.TestCase):
         print("set pre and post duration to zero")
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
-        c_scheme, u_mat, u_scheme = getSchemes(model)
+        c_scheme, u_mat, u_scheme = func.getSchemes(model)
         
         incl_steps = int(1. + duration/model.params.dt)
             

@@ -12,7 +12,7 @@ def getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax):
     control_ = model.getZeroControl()
     for n in range(control_.shape[0]):
         for v in range(control_.shape[1]):
-            for t in range(cntrl_zeros_pre, control_.shape[2]):
+            for t in range(cntrl_zeros_pre+1, control_.shape[2]):
                 control_[n, v, t] = random.uniform(controlmin, controlmax)
     return control_
     
@@ -47,3 +47,12 @@ def setParametersALN(model):
     model.params.siem_init = np.array( [[0.5 * 0.5 ]] )
     model.params.siiv_init = np.array( [[0.01 * 0.5 ]] )
     model.params.siev_init = np.array( [[0.01 * 0.5 ]] )
+    model.params.mue_ou = np.array( [[0.4]] ) * np.ones((model.params.N,))
+    model.params.mui_ou = np.array( [[0.3]] ) * np.ones((model.params.N,))
+    
+def getSchemes(model):
+    c_scheme = np.zeros((len(model.output_vars), len(model.output_vars) ))
+    c_scheme[0,0] = 1.
+    u_mat = np.identity(model.params['N'])
+    u_scheme = np.array([[1, 0], [0, 0]])
+    return c_scheme, u_mat, u_scheme

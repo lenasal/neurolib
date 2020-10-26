@@ -12,17 +12,17 @@ import test_control_functions as func
 assertion_tolerance = 2
         
 controlmin, controlmax = -2., 2.
-algorithm_tolerance = 1e-16
+algorithm_tolerance = 1e-12
 max_iteration = int(1e4)
-start_step = 1000.
+start_step = 100.
 test_step = 1e-12
 
-duration = 0.4
-dur_pre = 0.0
-dur_post = 0.
+duration = 0.6
+dur_pre = 0.4
+dur_post = 0.4
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
-tests = ["aln1"] #
+tests = ["aln1", "aln-control"]
 
 np.set_printoptions(precision=16)
 
@@ -40,6 +40,7 @@ def getmodel(i):
         model_.params.signalV = 0.
         model_.params.de = 0.
         model_.params.di = 0.
+        func.setParametersALN(model_)
     elif i == "fhn2":
         coupling12 = random.uniform(0, 1)
         coupling21 = random.uniform(0, 1)
@@ -82,13 +83,6 @@ def getmodel(i):
         
     return model_
 
-def getSchemes(model_):
-    c_scheme = np.zeros((len(model_.output_vars), len(model_.output_vars) ))
-    c_scheme[0,0] = 1.
-    u_mat = np.identity(model_.params['N'])
-    u_scheme = np.array([[1, 0], [0, 0]])
-    return c_scheme, u_mat, u_scheme
-
 class TestA1(unittest.TestCase): 
 # set init vars zero everywhere or nowhere
     
@@ -96,10 +90,9 @@ class TestA1(unittest.TestCase):
     def test_A1inputControlForPrecisionCostOnly(self):
                         
         print("test_A1inputControlForPrecisionCostOnly for model ", testcaseind)
-        print("set pre and post duration to zero")
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
-        c_scheme, u_mat, u_scheme = getSchemes(model)
+        c_scheme, u_mat, u_scheme = func.getSchemes(model)
             
         func.setInitVarsZero(model, init_vars)
             
@@ -109,7 +102,7 @@ class TestA1(unittest.TestCase):
         cntrl_zeros_post = int(dur_post / model.params.dt)
             
         control1 = func.getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax)  
-        #control1 = model.getZeroControl()
+
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
             cntrl_zeros_post = 1
@@ -126,8 +119,8 @@ class TestA1(unittest.TestCase):
                
         A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(control2, target, c_scheme, u_mat,
                             u_scheme, max_iteration_ = max_iteration, tolerance_ = algorithm_tolerance, startStep_ = start_step,
-                            max_control_ = 1e5 * controlmax, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post, CGVar = None)
-        
+                            max_control_ = 1e5 * controlmax, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post,
+                            CGVar = None)        
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
                     
@@ -137,13 +130,12 @@ class TestA1(unittest.TestCase):
                     self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance) 
                     
     
-    
     def test_A1zeroControlForEnergyCostOnly(self):
         
         print("test_A1zeroControlForEnergyCostOnly for model ", testcaseind)
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
-        c_scheme, u_mat, u_scheme = getSchemes(model)
+        c_scheme, u_mat, u_scheme = func.getSchemes(model)
                 
         func.setInitVarsZero(model, init_vars)
         
@@ -162,9 +154,6 @@ class TestA1(unittest.TestCase):
         
         model.params.duration = duration
         control2 = func.getRandomControl(model, 0, controlmin, controlmax)
-        
-        #control2 = control1.copy()[:,:,cntrl_zeros_pre:]
-        #control2[0,0,1] += 1.
         
         testip, testie, testis = 0., 1., 0.
         cost.setParams(testip, testie, testis)

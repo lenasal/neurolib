@@ -1,7 +1,6 @@
 import numpy as np
 import logging
 from . import costFunctions as cost
-from ..models import jacobian_aln as jac_aln
 
 def printState(model, state_):
     state_vars = model.state_vars
@@ -81,12 +80,15 @@ def get_init(model, init_vars_, state_vars_):
                 IC_[:,iv] = model.state[state_vars_[sv]][:,-1]
     return IC_
 
-def set_init(model, IC_, init_vars_, state_vars_):
+def set_init(model, IC_, init_vars_, state_vars_, startind_):
     for iv in range(len(init_vars_)):
-        if model.params[init_vars_[iv]].ndim == 2:
-            model.params[init_vars_[iv]][:,0] = IC_[:,iv]
+        if model.params[init_vars_[iv]].ndim == 1:
+            model.params[init_vars_[iv]][:] = IC_[:, iv, 0]
         else:
-            model.params[init_vars_[iv]] = IC_[:,iv]
+            if startind_ == 1:
+                model.params[init_vars_[iv]][:,0] = IC_[:, iv, 0] 
+            else: 
+                model.params[init_vars_[iv]] = IC_[:, iv, :]
 
 def update_init(model, init_vars_, state_vars_):
     for iv, sv in zip( range(len(init_vars_)), range(len(state_vars_)) ):
@@ -129,80 +131,136 @@ def test_step(model, state_, target_, control_, dir_, test_step_ = 1e-12):
     else:
         return 0., cost0_int_
     
+def setmaxcontrol(control_, max_control_):
+    for j in range(len(control_[0,0,:])):
+            if control_[0,0,j] > max_control_:
+                control_[0,0,j] = max_control_
+            elif control_[0,0,j] < - max_control_:
+                control_[0,0,j] = - max_control_
+                #print("decrease exc control for index ", j)
+            if control_[0,1,j] > max_control_:
+                control_[0,1,j] = max_control_
+            elif control_[0,1,j] < - max_control_:
+                control_[0,1,j] = - max_control_
+    return control_
     
-def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 10000,
-              bisec_factor_ = 2., max_control_ = 20.):
+def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
+              bisec_factor_ = 2., max_control_ = 20., tolerance_ = 1e-16, substep_ = 0.1):
     
     dt = model.params['dt']
     cost0_ = cost.f_cost(state_, target_, control_)
     cost0_int_ = cost.f_int(dt, cost0_)
     cost_min_int_ = cost0_int_
     step_ = start_step_
-    step_min_ = step_
+    step_min_ = 0.
     
     for i in range(max_it_):
-        #if (max_iteration_ == 1):
         test_control_ = control_ + step_ * dir_
         
         # include maximum control value to assure no divergence
         if ( np.amax(np.absolute(test_control_)) > max_control_):
-            if (i < max_it_-1):
-                #print("too big control")
-                step_ /= bisec_factor_
-                continue
-            else:
-                print("control too big, but no further iteration")
-                return 0., cost0_int_
+            test_control_ = setmaxcontrol(test_control_, max_control_)
             
         state1_ = updateState(model, test_control_)
         cost1_ = cost.f_cost(state1_, target_, test_control_)
         cost1_int_ = cost.f_int(dt, cost1_)
         
-        #if (bisec_factor_ == 1.005):
-         #   print("step = ", step_, " , cost = ", cost1_int_, ", initial cost = ", cost0_int_)
+        if (step_ * np.amax(np.absolute(test_control_)) < tolerance_):
+            print("test control change smaller than tolerance, return zero step")
+            return 0., cost0_int_
 
         if (cost1_int_ < cost_min_int_):
-            #print("found step = ", step_, " with cost1, cost0 : ", cost1_int_, cost0_int_)
-            #print("with control = ", test_control_)
             cost_min_int_ = cost1_int_
             step_min_ = step_
+            
         # return smallest step size before cost is increasing again
         elif (cost1_int_ > cost_min_int_ and cost_min_int_ < cost0_int_):
-            #print("step size for minimal cost: ", step_min_)
-            #print("state = ", state1_)
-            if (step_min_ == start_step_):
-                print("Using initial step.")
+
+            # iterate between step_range[0] and [2] more granularly
+            substep = substep_
+            step_min_up, cost_min_int_ = scan(model, dt, substep, control_, step_min_, dir_, target_, cost_min_int_, max_control_)
+
+            substep = - substep_
+            step_min_down, cost_min_int_ = scan(model, dt, substep, control_, step_min_, dir_, target_, cost_min_int_, max_control_)
+            
+            
+            if (step_min_up > step_min_ ):
+                if (step_min_down == step_min_):
+                    return step_min_up, cost_min_int_
+                elif (step_min_down < step_min_):
+                    return step_min_down, cost_min_int_
+            elif (step_min_down < step_min_):
+                return step_min_down, cost_min_int_
+            
             return step_min_, cost_min_int_
         
         if (i == max_it_-1):
             if (max_it_ != 1):
                 print(" max iteration reached, step size = ", step_)
-            #else:
-                #plt.plot(state1_[0,0,:], state1_[0,1,:])
-               # plt.show()
-            return 0., cost0_int_
-        
-        
-        # decrease bisection factor once we approach the minimum value, such that we don't miss it
-        if ( cost1_int_/cost0_int_ < 1.4 and bisec_factor_ > 1.2 ): 
-            bisec_factor_ = 1.2
-            #print("change bisection factor to ", bisec_factor_)
-        if ( cost1_int_/cost0_int_ < 1.1 and bisec_factor_ > 1.1 ): 
-            bisec_factor_ = 1.1
-            #print("change bisection factor to ", bisec_factor_)
-        if ( cost1_int_/cost0_int_ < 1.05 and bisec_factor_ > 1.05 ): 
-            bisec_factor_ = 1.05
-        #    print("change bisection factor to ", bisec_factor_)
-        if ( cost1_int_/cost0_int_ < 1.01 and bisec_factor_ > 1.03 ): 
-            bisec_factor_ = 1.03
-            #print("change bisection factor to ", bisec_factor_)
-        if ( cost1_int_/cost0_int_ < 1.005 and bisec_factor_ > 1.01 ): 
-            bisec_factor_ = 1.01
-        #if ( cost1_int_/cost0_int_ < 1.0001 and bisec_factor_ > 1.005 ): 
-        #    bisec_factor_ = 1.005
-        #if ( cost1_int_/cost0_int_ < 1.005 and bisec_factor_ > 1.002 ): 
-            #bisec_factor_ = 1.002
+            return step_min_, cost_min_int_
         
         
         step_ /= bisec_factor_
+        
+def scan(model_, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_):
+    cntrl_ = control_ + ( 1. + substep_ ) * step_min_ * dir_
+    cntrl_ = setmaxcontrol(cntrl_, max_control_)
+    state_ = updateState(model_, cntrl_)
+    cost_ = cost.f_cost(state_, target_, cntrl_)
+    cost_int = cost.f_int(dt_, cost_)
+    step_min1_ = step_min_
     
+    
+    while (cost_int < cost_min_int_):
+        cost_min_int_ = cost_int
+        step_min1_ += substep_ * step_min_
+        
+        cntrl_ += substep_ * step_min_ * dir_
+        cntrl_ = setmaxcontrol(cntrl_, max_control_)
+        state_ = updateState(model_, cntrl_)
+        cost_ = cost.f_cost(state_, target_, cntrl_)
+        cost_int = cost.f_int(dt_, cost_)
+        
+    return step_min1_, cost_min_int_
+
+def set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_,  state_, state_post_):
+    if (i2 != 0 and i1 != 0):   
+        bc_[:,:,i1:-i2] = best_control_[:,:,:]
+        bs_[:,:,:i1+1] = state_pre_[:,:,:]
+        for n in range(bs_.shape[0]):
+            for v in range(bs_.shape[1]):
+                if bs_[n,v,i1] != state_[n,v,0]:
+                    logging.error("Problem in initial value trasfer")
+        bs_[:,:,i1:-i2] = state_[:,:,:]
+        bs_[:,:,-i2:] = state_post_[:,:,:]
+    elif (i2 == 0 and i1 != 0):
+        bc_[:,:,i1:] = best_control_[:,:,:]
+        bs_[:,:,:i1+1] = state_pre_[:,:,:]
+        for n in range(bs_.shape[0]):
+            for v in range(bs_.shape[1]):
+                if bs_[n,v,i1] != state_[n,v,0]:
+                    logging.error("Problem in initial value trasfer for output var number ", v)
+        bs_[:,:,i1:] = state_[:,:,:]
+    elif (i2 != 0 and i1 == 0):
+        bc_[:,:,:-i2] = best_control_[:,:,:]
+        bs_[:,:,:-i2] = state_[:,:,:]
+        bs_[:,:,-i2:] = state_post_[:,:,:]
+    else:
+        bc_[:,:,:] = best_control_[:,:,:]
+        bs_[:,:,:] = state_[:,:,:]
+        
+    return bc_, bs_
+    
+
+def adapt_step(control_, ind_node, ind_var, start_step_, dir_, max_control_):
+    start_st_ = start_step_
+    max_index = -1
+    max_cntrl = max_control_
+    for k in range(control_.shape[2]):
+        if ( np.abs(control_[ind_node, ind_var, k] + start_step_ * dir_[ind_node, ind_var,k]) > max_cntrl ):
+            max_index = k
+            max_cntrl = np.abs(control_[ind_node, ind_var,k] + start_step_ * dir_[ind_node, ind_var,k])
+    if max_index != -1:
+        start_st_ = ( max_control_ - np.abs(control_[ind_node, ind_var,max_index]) ) / np.abs(dir_[ind_node, ind_var,max_index])
+    
+    return start_st_

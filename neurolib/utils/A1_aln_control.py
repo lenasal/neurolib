@@ -56,7 +56,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         model.params['duration'] = t_sim_pre_
         control_pre_ = model.getZeroControl()
         state_pre_ = fo.updateFullState(model, control_pre_)
-        
+                
         if startind_ == 1:
             fo.update_init(model, init_vars, state_vars)
         else:
@@ -108,7 +108,13 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
     phi0_ = model.getZeroFullState()
     
-    while( i < max_iteration_):
+    while( i < max_iteration_ ):
+        
+        if ( total_cost_[i] < tolerance_ ):
+            print("Cost negligibly small.")
+            max_iteration_ = i
+            break
+            
         i += 1   
         
         phi1_ = phi(model, state0_, target_state_, best_control_, phi0_)
@@ -124,10 +130,52 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
 
         dir0_ = - g0_min_.copy()
         dir1_ = dir0_.copy()
-
+        
+        #print("dir = ", dir0_[:,:,:10])
+        
+        """
+        # compute stepsize separately and then put together
+        d = dir1_.copy()
+        d[:,1,:] = 0.
+        
+        s_exc, tc_exc = fo.step_size(model, outstate_[:,:,:], target_state_,
+                     best_control_, d, start_step_ = 100., max_it_ = 1000, max_control_ = cntrl_max_)
+        
+        #print("step size exc = ", s_exc)
+        
+        d = dir1_.copy()
+        d[:,0,:] = 0.
+        
+        s_inh, tc_inh = fo.step_size(model, outstate_[:,:,:], target_state_,
+                     best_control_, d, start_step_ = 100., max_it_ = 1000, max_control_ = cntrl_max_)
+        
+        #print("step size inh = ", s_inh)
+        
+        joint_dir = dir1_.copy()
+        joint_dir[:,0,:] = s_exc * dir1_[:,0,:] #/ (s_exc + s_inh)
+        joint_dir[:,1,:] = s_inh * dir1_[:,1,:] #/ (s_exc + s_inh)
+        
+        joint_step_, joint_cost = fo.step_size(model, outstate_[:,:,:], target_state_,
+                     best_control_, joint_dir, start_step_ = startStep_, max_control_ = cntrl_max_)
+        
+        print("step size = ", joint_step_, joint_cost)
+        """
         
         step_, total_cost_[i] = fo.step_size(model, outstate_[:,:,:], target_state_,
                      best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
+        
+        
+        print("step size = ", step_, total_cost_[i])
+        
+        """
+        if joint_cost < total_cost_[i]:
+            step_ = joint_step_
+            total_cost_[i] = joint_cost
+            dir1_ = joint_dir.copy()
+            print("choose separately")
+        else:
+            print("choose joint computation")
+        """
         
         runtime_[i] = timer() - runtime_start_
         
@@ -141,10 +189,15 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             break
         u_opt0_ = best_control_.copy()
         
-        rate_ = fo.updateState(model, best_control_)
+        #rate_ = fo.updateState(model, best_control_)
         
         state1_ = fo.updateFullState(model, best_control_)
         
+        #print("compute cost another time:")
+        #testC = cost.f_cost(state1_, target_state_, best_control_)
+        #print(testC)
+        #print("int cost = ", cost.f_int(dt, testC) )
+        """
         a1 = state1_[:,0,:] == rate_[:,0,:]
         a2 = state1_[:,1,:] == model.state["rates_inh"][:,:]
         a3 = state1_[:,2,:] == model.state["mufe"][:,:]
@@ -171,6 +224,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         if np.array( [a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20]).any() == False:
             print("something wrong")
+        """
         
         
         s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_)
@@ -196,7 +250,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
     print("Improved over ", max_iteration_, " iterations by ", improvement, " percent.")
     if max_iteration_ != 0:
-        print("max abs value of final gradient = ", np.amax(np.abs(g0_min_)) )
+        max_g, min_g = np.amax(g0_min_), np.amin(g0_min_)
+        print("max value of final gradient at index = ", np.where(g0_min_ == max_g), max_g )
+        print("min value of final gradient at index = ", np.where(g0_min_ == min_g), min_g )
         
     if (t_sim_pre_ < dt and t_sim_post_ < dt):
         return best_control_, state1_, total_cost_, runtime_
@@ -238,9 +294,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 if state_vars[v] is not "Vmean_exc":
                     if bs_[n,v,i1] != state1_[n,v,0]:
                         logging.error("Problem in initial value trasfer")
-                        print("Problem in initial value trasfer for ", state_vars[v])
-                        print(bs_[n,v,:])
-                        print(state1_[n,v,:])
+                        #print("Problem in initial value trasfer for ", state_vars[v])
+                        #print(bs_[n,v,i1])
+                        #print(state1_[n,v,0])
         bs_[:,:,i1:-i2] = state1_[:,:,:]
         bs_[:,:,-i2:] = state_post_[:,:,:]
     elif (i2 == 0 and i1 != 0):
@@ -251,9 +307,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 if state_vars[v] is not "Vmean_exc":
                     if bs_[n,v,i1] != state1_[n,v,0]:
                         logging.error("Problem in initial value trasfer")
-                        print("Problem in initial value trasfer for ", state_vars[v])
-                        print(bs_[n,v,:])
-                        print(state1_[n,v,:])
+                        #print("Problem in initial value trasfer for ", state_vars[v])
+                        #print(bs_[n,v,i1])
+                        #print(state1_[n,v,0])
         bs_[:,:,i1:] = state1_[:,:,:]
     elif (i2 != 0 and i1 == 0):
         bc_[:,:,:-i2] = best_control_[:,:,:]
@@ -263,7 +319,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         bc_[:,:,:] = best_control_[:,:,:]
         bs_[:,:,:] = state1_[:,:,:]
             
-    return bc_, bs_, total_cost_, runtime_
+    return bc_, bs_, total_cost_, runtime_#, g0_min_
 
 
 def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
@@ -293,7 +349,6 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
                                                                       phi_[0,7,ind_time], phi_[0,9,ind_time], phi_[0,11,ind_time],
                                                                       phi_[0,15,ind_time], phi_[0,16,ind_time] ] ),
                                                           np.array( [jac[2,0], jac[4,0], jac[5,0], jac[7,0], jac[9,0], jac[11,0], jac[15,0], jac[16,0]] ) )
-        
         phi_[0,1,ind_time] = - full_cost_grad[1] - np.dot( np.array( [phi_[0,3,ind_time], phi_[0,6,ind_time], phi_[0,8,ind_time],
                                                                       phi_[0,10,ind_time], phi_[0,12,ind_time], phi_[0,15,ind_time],
                                                                       phi_[0,16,ind_time] ] ),
@@ -528,7 +583,10 @@ def g(model, phi_, state_, control_):
     
     # shift if control is applied shifted wrt mu
     phi_shift = np.zeros(( phi_.shape ))
-    phi_shift[:,:,1:] = phi_[:,:,0:-1] 
+    phi_shift[:,:,1:] = phi_[:,:,0:-1]
+    #phi_shift[:,:,0] = phi_shift[:,:,1]
+    
+    #print("phi shift 2, 3 : ", phi_shift[:,2:4,:])
     
     phi1_ = np.zeros(( grad_cost_e_.shape ))
     for t in range(1,state_.shape[2]):
@@ -539,7 +597,9 @@ def g(model, phi_, state_, control_):
     g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_[0,0,:]
     g_[:,1,:] = grad_cost_e_[0,1,:] + grad_cost_s_[0,1,:] + phi1_[0,1,:]
     
-    #print("grad cost e = ", grad_cost_e_)
+    #print("grad cost e = ", grad_cost_e_[0,0,:])
+    #print("phi exc = ", phi1_[0,0,:])
+    #print("phi inh = ", phi1_[0,1,:])
     #print("g = ", g_)
 
     return g_
@@ -565,8 +625,8 @@ def d_r_func_mu(model, mu, sigma):
         result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_r)
     else:
         print("no drivative of rate implemented")
-    if np.abs(result) < 1e-7 and np.abs(result) > 1e-10:
-        print("WARNING: small derivative of r wrt mu")
+    if np.abs(result) < 1e-16:
+        print("WARNING: vanishing derivative of r wrt mu")
     return result
 
 def d_r_func_sigma(model, mu, sigma):
@@ -580,8 +640,8 @@ def d_r_func_sigma(model, mu, sigma):
         result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_r)
     else:
         print("no drivative of rate implemented")
-    if np.abs(result) < 1e-7:
-        print("WARNING: small derivative of r wrt sigma")
+    if np.abs(result) < 1e-16:
+        print("WARNING: vanishing derivative of r wrt sigma")
     return result
 
 def d_tau_func_mu(model, mu, sigma):
@@ -597,8 +657,8 @@ def d_tau_func_mu(model, mu, sigma):
         result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_tau_mu)
     else:
         print("no drivative of tau implemented")
-    if np.abs(result) < 1e-4:
-        print("WARNING: small derivative of tau wrt mu")
+    #if np.abs(result) < 1e-16:
+    #    print("WARNING: vanishing derivative of tau wrt mu")
     return result
 
 def d_tau_func_sigma(model, mu, sigma):
@@ -614,8 +674,8 @@ def d_tau_func_sigma(model, mu, sigma):
         result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_tau_mu)
     else:
         print("no drivative of tau implemented")
-    if np.abs(result) < 1e-7:
-        print("WARNING: small derivative of tau wrt sigma")
+    #if np.abs(result) < 1e-16:
+    #    print("WARNING: vanishing derivative of tau wrt sigma")
     return result
 
 def d_V_func_mu(model, mu, sigma):
@@ -630,8 +690,8 @@ def d_V_func_mu(model, mu, sigma):
         result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_V)
     else:
         print("no drivative of V implemented")
-    if np.abs(result) < 1e-3:
-        print("WARNING: small derivative of V wrt mu")
+    if np.abs(result) < 1e-16:
+        print("WARNING: vanishing derivative of V wrt mu")
     return result
 
 def d_V_func_sigma(model, mu, sigma):
@@ -644,6 +704,6 @@ def d_V_func_sigma(model, mu, sigma):
         result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_V)
     else:
         print("no drivative of V implemented")
-    if np.abs(result) < 1e-6:
-        print("WARNING: small derivative of V wrt sigma")
+    if np.abs(result) < 1e-16:
+        print("WARNING: vanishing derivative of V wrt sigma")
     return result

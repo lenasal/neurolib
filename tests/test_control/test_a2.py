@@ -30,6 +30,7 @@ def getmodel(i):
         model_.params.signalV = 0.
         model_.params.de = 0.
         model_.params.di = 0.
+        func.setParametersALN(model_)        
     elif i == "fhn2":
         coupling12 = random.uniform(0, 1)
         coupling21 = random.uniform(0, 1)

@@ -16,7 +16,7 @@ def interpolate(model, sigma_f, muf, precalc_table):
 
 # gradient of transfer function wrt changes in sigma
 def der_sigma(model, sigma_f, muf, precalc_table):
-    ds = model.params.ds
+    ds = model.params.ds * 0.01
     result0 = interpolate(model, sigma_f, muf, precalc_table)
     result1 = interpolate(model, sigma_f + ds, muf, precalc_table)
     
@@ -26,14 +26,16 @@ def der_sigma(model, sigma_f, muf, precalc_table):
 
 # gradient of transfer function wrt changes in mu
 def der_mu_up(model, sigma_f, muf, precalc_table):
-    dI = model.params.dI
-    
+    dI = model.params.dI * 0.01    
     result0 = interpolate(model, sigma_f, muf, precalc_table)
     result1 = interpolate(model, sigma_f, muf + dI, precalc_table)
     result2 = interpolate(model, sigma_f, muf - dI, precalc_table)
     
     der1 = ( result1 - result0) / dI
     der2 = ( result0 - result2) / dI
+    
+    #if (np.abs(der1 - der2) > 10-8):    
+    #    print("WARNING: Large difference in der : ", der1 - der2)
             
     return der1
 
@@ -98,7 +100,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
 
     # outside one boundary
     if yi < y[0]:
-        print("case 2")
+        #print("case 2")
         yid1 = 0
         dyid = 0.0
         if xi >= x[0] and xi < x[-1]:
@@ -115,7 +117,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
         return xid1, yid1, dxid, dyid
 
     if yi >= y[-1]:
-        print("case 3")
+        #print("case 3")
         yid1 = -1
         dyid = 0.0
         if xi >= x[0] and xi < x[-1]:
@@ -133,7 +135,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
         return xid1, yid1, dxid, dyid
 
     if xi < x[0]:
-        print("case 4")
+        #print("case 4")
         xid1 = 0
         dxid = 0.0
         # We know that yi is within the boundaries
@@ -143,7 +145,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
         return xid1, yid1, dxid, dyid
 
     if xi >= x[-1]:
-        print("case 5")
+        #print("case 5")
         xid1 = -1
         dxid = 0.0
         # We know that yi is within the boundaries

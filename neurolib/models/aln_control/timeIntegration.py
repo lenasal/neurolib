@@ -282,6 +282,37 @@ def timeIntegration_njit_elementwise(
     factor_ii1 = ( cii * Ki * tau_si / np.abs(Jii_max ) )
     factor_ii2 = ( cii**2 * Ki * tau_si**2 / Jii_max**2 )
     
+    
+    # time t = 0
+    for no in range(N):
+        rd_exc[no,no] = rates_exc[no,0] * 1e-3
+        rd_inh[no] = rates_inh[no,0] * 1e-3
+            
+        z1ee = factor_ee1 * rd_exc[no,no]
+        z2ee = factor_ee2 * rd_exc[no,no]  
+        
+        z1ei = factor_ei1 * rd_inh[no]
+        z2ei = factor_ei2 * rd_inh[no]
+        
+        z1ie = factor_ie1 * rd_exc[no,no]
+        z2ie = factor_ie2 * rd_exc[no,no] 
+        
+        z1ii = factor_ii1 * rd_inh[no]
+        z2ii = factor_ii2 * rd_inh[no]
+        
+        sig_ee = seev[no,0] * ( 2. * Jee_max**2 * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
+        sig_ei = seiv[no,0] * ( 2. * Jei_max**2 * tau_si * taum ) * ( (1 + z1ei) * taum + tau_si )**(-1)
+    
+        sigmae_f[no,0] = np.sqrt( sig_ee + sig_ei + sigmae_ext**2 )
+        tau_exc[no,0] = tau_func(mufe[no,0] - IA[no,0] / C, sigmae_f[no,0])
+        
+        sig_ii = siiv[no,0] * ( 2. * Jii_max**2 * tau_si * taum ) * ( (1 + z1ii) * taum + tau_si )**(-1)
+        sig_ie = siev[no,0] * ( 2. * Jie_max**2 * tau_se * taum ) * ( (1 + z1ie) * taum + tau_se )**(-1)
+                
+        sigmai_f[no,0] = np.sqrt( sig_ii + sig_ie + sigmai_ext**2 )
+        tau_inh[no,0] = tau_func(mufi[no,-1], sigmai_f[no,-1])
+        
+    
     for i in range(startind, startind + len(t)):
         for no in range(N):
             
