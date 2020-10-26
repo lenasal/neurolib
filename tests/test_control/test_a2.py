@@ -4,6 +4,8 @@ import random
 
 from neurolib.models.fhn import FHNModel
 from neurolib.models.aln import ALNModel
+from neurolib.models.aln_control import Model_ALN_control
+
 from neurolib.utils import costFunctions as cost
 import test_control_functions as func
 
@@ -20,7 +22,7 @@ dur_pre = 0.#5
 dur_post = 0.#5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
-tests = ["aln1"]
+tests = ["aln1", "aln-control"]
 
 def getmodel(i):
     if i == "fhn1":
@@ -30,7 +32,13 @@ def getmodel(i):
         model_.params.signalV = 0.
         model_.params.de = 0.
         model_.params.di = 0.
-        func.setParametersALN(model_)        
+        func.setParametersALN(model_)   
+    elif i == "aln-control":
+        model_ = Model_ALN_control()
+        model_.params.signalV = 0.
+        model_.params.de = 0.
+        model_.params.di = 0.
+        func.setParametersALN(model_)
     elif i == "fhn2":
         coupling12 = random.uniform(0, 1)
         coupling21 = random.uniform(0, 1)
@@ -82,7 +90,6 @@ def getSchemes(model_):
 
 class TestA2(unittest.TestCase):
  
-# set init vars zero everywhere or nowhere
     def test_A2inputControlForPrecisionCostOnly(self):
         print("test_A2inputControlForPrecisionCostOnly for model ", testcaseind)
         
@@ -123,10 +130,9 @@ class TestA2(unittest.TestCase):
         for n in range(A2_bestControl.shape[0]):
             for v in range(A2_bestControl.shape[1]):
                 for t in range(1, control1.shape[2]-2):
-                    self.assertAlmostEqual(A2_bestControl[n, v, t], control1[n, v, t], assertion_tolerance)
-  
+                    self.assertAlmostEqual(A2_bestControl[n, v, t], control1[n, v, t], assertion_tolerance)  
     
-    def test_A2zeroControlForEnergyCostOnly(self):
+    def test_A2zeroControlForEnergyAndSparsityCostOnly(self):
         print("test_A2inputControlForPrecisionCostOnly for model ", testcaseind)
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
@@ -151,7 +157,7 @@ class TestA2(unittest.TestCase):
         model.params.duration = duration
         control2 = func.getRandomControl(model, 0, controlmin, controlmax)
         
-        testip, testie, testis = 0., 1., 0.
+        testip, testie, testis = 0., random.uniform(0., 1.), random.uniform(0., 1.)
         cost.setParams(testip, testie, testis)
         
         func.setInitVarsZero(model, init_vars)

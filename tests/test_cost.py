@@ -28,197 +28,29 @@ class TestCostFunctions(unittest.TestCase):
         self.assertNotEqual(params[1], testie)
         self.assertEqual(params[2], testis)
         
-    def test_sparsityInt_1_1(self):
+    def test_sparsity(self):
         T = 10.
         dt = 0.1
         N = 2
         var = 2
         test_control_value = 2.
         test_control = np.zeros(( N, var, int(T/dt) ))
-        result = 80.
+        result_cost = N * var * test_control_value * np.sqrt(T)
+        result_gradient = test_control_value / np.sqrt( test_control_value**2 * T )
         
         cost.setParams(0., 0., 1.)
         
         for t in range(test_control.shape[2]):
             test_control[:,:,t] = test_control_value
             
-        self.assertAlmostEqual(cost.f_cost_sparsity1_int(dt, test_control), result, tolerance_digits)
+        self.assertAlmostEqual(cost.f_cost_sparsity_int(dt, test_control), result_cost, tolerance_digits)
         
-    def test_sparsityInt_1_2(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = 80.
+        gradient = cost.f_cost_sparsity_gradient(dt, test_control)
         
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[:,0,t] = 2. * test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity1_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_1_3(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = 80.
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[0,:,t] = 2. * test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity1_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_2_1(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = np.sqrt(640.)
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[:,:,t] = test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity2_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_2_2(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = np.sqrt(640.)
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[:,0,t] = 2. * test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity2_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_2_3(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = np.sqrt(640.)
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[0,:,t] = 2. * test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity2_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_3_1(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = 4. * np.sqrt(40.)
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[:,:,t] = test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity3_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_3_2(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = 4. * np.sqrt(40.)
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[:,0,t] = 2. * test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity3_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_3_3(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = 4. * np.sqrt(40.)
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[0,:,t] = 2. * test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity3_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_4_1(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = 2.
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[:,:,t] = test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity4_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_3_2(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = 2.
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[:,0,t] = 2. * test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity4_int(dt, test_control), result, tolerance_digits)
-        
-    def test_sparsityInt_3_3(self):
-        T = 10.
-        dt = 0.1
-        N = 2
-        var = 2
-        test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
-        result = 1.
-        
-        cost.setParams(0., 0., 1.)
-        
-        for t in range(test_control.shape[2]):
-            test_control[0,:,t] = 2. * test_control_value
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity4_int(dt, test_control), result, tolerance_digits)
+        for n in range(test_control.shape[0]):
+            for v in range(test_control.shape[1]):
+                for t in range(test_control.shape[2]):
+                    self.assertAlmostEqual(gradient[n,v,t], result_gradient, tolerance_digits)
 
 if __name__ == '__main__':
     unittest.main()

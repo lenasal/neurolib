@@ -68,17 +68,16 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     runtime_ = np.zeros(( int(max_iteration_+1) ))
     runtime_start_ = timer()
     
-    
     state_ = fo.updateState(model, best_control_)
     state0_ = state_.copy()
     
     for i in range( int(max_iteration_) ):
             
-        cost_ = cost.f_cost(state_, target_, best_control_)
-        total_cost_[i] = cost.f_int(dt, cost_)
+        #cost_ = cost.f_cost(state_, target_, best_control_)
+        total_cost_[i] = cost.f_int(dt, state_, target_, best_control_)
         print('RUN ', i, ', total integrated cost: ', total_cost_[i])
 
-        delta_ = gf_dc1(model, best_control_, target_, include_timestep_, start_step_, test_step_, max_control_,
+        delta_ = gf_dc(model, best_control_, target_, include_timestep_, start_step_, test_step_, max_control_,
                        startind_, delay_state_vars_)
         best_control_ += delta_
         #best_control_[:,:,-1] = best_control_[:,:,-2]
@@ -104,8 +103,8 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     model.run(control = best_control_)
     for i in range(len(output_vars)):
         state_[:,i,:] = model[output_vars[i]][:,:]
-    cost_ = cost.f_cost(state_, target_, best_control_)
-    total_cost_[max_iteration_] = cost.f_int(dt, cost_)
+    #cost_ = cost.f_cost(state_, target_, best_control_)
+    total_cost_[max_iteration_] = cost.f_int(dt, state_, target_, best_control_)
     print('RUN ', max_iteration_, ', total integrated cost: ', total_cost_[max_iteration_])
     runtime_[max_iteration_] = timer() - runtime_start_
     
@@ -187,7 +186,7 @@ def get_dir(model, ind_node, ind_var, ind_time, state0, target0_, control0_, tes
 
 
 # Gradient of the cost function with respect to the control
-def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_, max_control_, startind_, delay_state_vars_):
+def gf_dc(model, control_, target_, include_timestep_, start_step_, test_step_, max_control_, startind_, delay_state_vars_):
     
     N = model.params['N']
     dt = model.params['dt']
@@ -206,19 +205,9 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
     init_vars = model.init_vars
     state_vars = model.state_vars 
     
-    IC_init = np.zeros( (N, len(init_vars), startind_) )
     delay_state_vars0_ = delay_state_vars_.copy()
     
-    for ind_var in range(len(init_vars)):
-        if ( type(model.params[init_vars[ind_var]]) == np.float64 or type(model.params[init_vars[ind_var]]) == float ):
-            IC_init[:, ind_var, 0] = model.params[init_vars[ind_var]]
-        elif len(model.params[init_vars[ind_var]][:].shape) == 2:
-            if startind_ == 1:
-                IC_init[:, ind_var, 0] = model.params[init_vars[ind_var]][:,0]
-            else:
-                IC_init[:, ind_var, :] = delay_state_vars0_[:, ind_var, :]
-        else:
-            IC_init[:, ind_var, 0] = model.params[init_vars[ind_var]][:]    
+    IC_init = fo.get_init(model, init_vars, state_vars, startind_, delay_state_vars_)
     
     change_dur_ = False
         
@@ -238,7 +227,7 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
                 if (dir_.any() != 0.):
                     start_st_ = fo.adapt_step(control0_, ind_node, ind_var, start_step_, dir_, max_control_) 
                     if not start_st_ == 0.:
-                        step_ = fo.step_size(model, state0, target0_, control0_, dir_, start_st_, max_it_ = 10000,
+                        step_ = fo.step_size(model, state0, target0_, control0_, dir_, start_st_, max_it_ = 1000,
                                              bisec_factor_ = 2., max_control_=max_control_)
                 
                         control0_[ind_node, ind_var, 1] += step_[0] * dir_[ind_node, ind_var, 1]
@@ -248,7 +237,6 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
         model.run(control=control0_[:, :, :3])
         fo.update_delayed_state(model, delay_state_vars0_, state_vars, init_vars, startind_)
         
-        
         duration_sim -= dt
         model.params['duration'] = duration_sim
         change_dur_ = True
@@ -256,18 +244,6 @@ def gf_dc1(model, control_, target_, include_timestep_, start_step_, test_step_,
     model.params['duration'] = duration_init
     
     fo.set_init(model, IC_init, init_vars, state_vars, startind_)
-       
-    """
-    for j_var in range(len(init_vars)):
-        if model.params[init_vars[j_var]].ndim == 1:
-            model.params[init_vars[j_var]][:] = IC_init[:, j_var, 0]
-            
-        else:
-            if startind_ == 1:
-                model.params[init_vars[j_var]][:,0] = IC_init[:, j_var, 0] 
-            else: 
-                model.params[init_vars[j_var]] = IC_init[:, j_var, :]
-    """
                 
     return delta_c
 

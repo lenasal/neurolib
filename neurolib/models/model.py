@@ -638,8 +638,8 @@ class Model:
     def cost(self, state_, target_state_, control_):
         return cost.f_cost(state_, target_state_, control_)
     
-    def costIntegral(self, cost_, start_t_ = -1, stop_t_ = -1):
-        return cost.f_int(self.params['dt'], cost_, start_t_, stop_t_)
+    def costIntegral(self, state_, target_, control_, start_t_ = -1, stop_t_ = -1):
+        return cost.f_int(self.params['dt'], state_, target_, control_, start_t_, stop_t_)
     
     def costPrecisionGradientT(self, state_t_, target_state_t_):
         return cost.cost_precision_gradient_t(state_t_, target_state_t_)

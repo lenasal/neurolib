@@ -69,15 +69,20 @@ def adjust_shape_init_params(model, init_vars_, startind_):
                 if (model.params[init_vars_[iv]].shape[1] <= 1):
                     model.params[init_vars_[iv]] = np.dot( model.params[init_vars_[iv]], np.ones((1, startind_)) )
 
-def get_init(model, init_vars_, state_vars_):
-    IC_ = np.zeros(( model.params.N, len(init_vars_) ))
-    for iv, sv in zip( range(len(init_vars_)), range(len(state_vars_)) ):
-        if state_vars_[sv] in init_vars_[iv]:
-            if model.params[init_vars_[iv]].ndim == 2:
-                IC_[:,iv] = model.state[state_vars_[sv]][:,-1]
+def get_init(model, init_vars_, state_vars_, startind_, delay_state_vars_):
+    IC_ = np.zeros( (model.params.N, len(init_vars_), startind_) )
+    
+    for iv in range(len(init_vars_)):
+        if ( type(model.params[init_vars_[iv]]) == np.float64 or type(model.params[init_vars_[iv]]) == float ):
+            IC_[:, iv, 0] = model.params[init_vars_[iv]]
+        elif len(model.params[init_vars_[iv]][:].shape) == 2:
+            if startind_ == 1:
+                IC_[:, iv, 0] = model.params[init_vars_[iv]][:,0]
             else:
-                print(init_vars_[iv], model.state[state_vars_[sv]].shape)
-                IC_[:,iv] = model.state[state_vars_[sv]][:,-1]
+                IC_[:, iv, :] = delay_state_vars_[:, iv, :]
+        else:
+            IC_[:, iv, 0] = model.params[init_vars_[iv]][:]
+
     return IC_
 
 def set_init(model, IC_, init_vars_, state_vars_, startind_):
@@ -119,11 +124,11 @@ def update_init_delayed(model, delay_state_vars_, init_vars_, state_vars_, t_pre
 
 def test_step(model, state_, target_, control_, dir_, test_step_ = 1e-12):
     dt = model.params['dt']
-    cost0_int_ = cost.f_int(dt, cost.f_cost(state_, target_, control_))
+    cost0_int_ = cost.f_int(dt, state_, target_, control_)
     
     test_control_ = control_ + test_step_ * dir_
     state1_ = updateState(model, test_control_)
-    cost1_int_ = cost.f_int(dt, cost.f_cost(state1_, target_, test_control_))
+    cost1_int_ = cost.f_int(dt, state1_, target_, test_control_)
     #print("test step size computation : ------ step size, cost1, cost0 : ", test_step_, cost1_int_, cost0_int_)
         
     if (cost1_int_ < cost0_int_):
@@ -148,8 +153,8 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
               bisec_factor_ = 2., max_control_ = 20., tolerance_ = 1e-16, substep_ = 0.1):
     
     dt = model.params['dt']
-    cost0_ = cost.f_cost(state_, target_, control_)
-    cost0_int_ = cost.f_int(dt, cost0_)
+    #cost0_ = cost.f_cost(state_, target_, control_)
+    cost0_int_ = cost.f_int(dt, state_, target_, control_)
     cost_min_int_ = cost0_int_
     step_ = start_step_
     step_min_ = 0.
@@ -162,8 +167,8 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
             test_control_ = setmaxcontrol(test_control_, max_control_)
             
         state1_ = updateState(model, test_control_)
-        cost1_ = cost.f_cost(state1_, target_, test_control_)
-        cost1_int_ = cost.f_int(dt, cost1_)
+        #cost1_ = cost.f_cost(state1_, target_, test_control_)
+        cost1_int_ = cost.f_int(dt, state1_, target_, test_control_)
         
         if (step_ * np.amax(np.absolute(test_control_)) < tolerance_):
             print("test control change smaller than tolerance, return zero step")
@@ -206,8 +211,8 @@ def scan(model_, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int
     cntrl_ = control_ + ( 1. + substep_ ) * step_min_ * dir_
     cntrl_ = setmaxcontrol(cntrl_, max_control_)
     state_ = updateState(model_, cntrl_)
-    cost_ = cost.f_cost(state_, target_, cntrl_)
-    cost_int = cost.f_int(dt_, cost_)
+    #cost_ = cost.f_cost(state_, target_, cntrl_)
+    cost_int = cost.f_int(dt_, state_, target_, cntrl_)
     step_min1_ = step_min_
     
     
@@ -218,8 +223,8 @@ def scan(model_, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int
         cntrl_ += substep_ * step_min_ * dir_
         cntrl_ = setmaxcontrol(cntrl_, max_control_)
         state_ = updateState(model_, cntrl_)
-        cost_ = cost.f_cost(state_, target_, cntrl_)
-        cost_int = cost.f_int(dt_, cost_)
+        #cost_ = cost.f_cost(state_, target_, cntrl_)
+        cost_int = cost.f_int(dt_, state_, target_, cntrl_)
         
     return step_min1_, cost_min_int_
 

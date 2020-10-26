@@ -33,7 +33,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
 
     total_cost_ = np.zeros((max_iteration_+1))
-    total_cost_[i] = cost.f_int(model.params['dt'], cost.f_cost(state0_, target_state_, control_) )
+    total_cost_[i] = cost.f_int(model.params['dt'], state0_, target_state_, control_ )
     print("RUN ", i, ", total integrated cost = ", total_cost_[i])
 
     

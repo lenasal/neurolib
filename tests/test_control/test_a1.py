@@ -86,7 +86,6 @@ def getmodel(i):
 class TestA1(unittest.TestCase): 
 # set init vars zero everywhere or nowhere
     
-       
     def test_A1inputControlForPrecisionCostOnly(self):
                         
         print("test_A1inputControlForPrecisionCostOnly for model ", testcaseind)
@@ -130,7 +129,7 @@ class TestA1(unittest.TestCase):
                     self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance) 
                     
     
-    def test_A1zeroControlForEnergyCostOnly(self):
+    def test_A1zeroControlForEnergyAndSparsityCostOnly(self):
         
         print("test_A1zeroControlForEnergyCostOnly for model ", testcaseind)
         
@@ -155,7 +154,7 @@ class TestA1(unittest.TestCase):
         model.params.duration = duration
         control2 = func.getRandomControl(model, 0, controlmin, controlmax)
         
-        testip, testie, testis = 0., 1., 0.
+        testip, testie, testis = 0., random.uniform(0., 1.), random.uniform(0., 1.)
         cost.setParams(testip, testie, testis)
         
         func.setInitVarsZero(model, init_vars)
