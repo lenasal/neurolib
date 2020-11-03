@@ -69,7 +69,7 @@ def getmodel(i, dur_pre, dur_post):
     elif i == "aln1":
         model_ = ALNModel()
         dt = model_.params.dt
-        maxDelay = min(dur_pre - 2 * dt, dur_post - 2 * dt)
+        maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
     
         model_.params.signalV = np.around( maxDelay * random.uniform(0., 1.), 1)
         model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
@@ -83,7 +83,7 @@ def getmodel(i, dur_pre, dur_post):
     elif i == "aln-control":
         model_ = Model_ALN_control()
         dt = model_.params.dt
-        maxDelay = min(dur_pre - 2 * dt, dur_post - 2 * dt)
+        maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
         
         model_.params.signalV = np.around( maxDelay * random.uniform(0., 1.), 1)
         model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
@@ -127,7 +127,7 @@ def getmodel(i, dur_pre, dur_post):
     elif i == "aln1delay":
         model_ = ALNModel()
         dt = model_.params.dt
-        maxDelay = min(dur_pre - 2 * dt, dur_post - 2 * dt)
+        maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
         
         model_.params.signalV = np.around( maxDelay * random.uniform(0., 1.), 1)
         model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
@@ -144,9 +144,10 @@ def getmodel(i, dur_pre, dur_post):
         
         model_ = ALNModel(Cmat = c_mat, Dmat = fiber_matrix)
         dt = model_.params.dt
+        maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
         
-        model_.params.signalV = round( min(dur_pre - dt, dur_post - dt) * random.uniform(0., 1.), 1)
-        model_.params.de = round( min(dur_pre - dt, dur_post - dt) * random.uniform(0., 1.), 1)
-        model_.params.di = round( min(dur_pre - dt, dur_post - dt) * random.uniform(0., 1.), 1)
+        model_.params.signalV = np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.di = np.around( maxDelay * random.uniform(0., 1.), 1)
         
     return model_

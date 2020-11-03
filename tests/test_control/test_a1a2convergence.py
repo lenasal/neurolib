@@ -18,8 +18,8 @@ start_step = 20.
 test_step = 1e-6
 
 duration = 0.8
-dur_pre = 0.5
-dur_post = 0.5
+dur_pre = 0.0
+dur_post = 0.0
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["aln1"]#, "aln-control"]
@@ -29,7 +29,8 @@ class TestA1A2Conv(unittest.TestCase):
 # set init vars zero everywhere or nowhere       
     def test_A1A2ConvergeForRandomTarget(self):
         print("test_A1inputControlForPrecisionCostOnly for model ", testcaseind)
-        print("set pre and post duration to zero")
+        
+        print("speeds = ", model.params.signalV, model.params.de, model.params.di)
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)

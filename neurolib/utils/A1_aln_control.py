@@ -49,7 +49,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     t_pre_ndt = np.around(t_sim_pre_ / dt).astype(int)
     delay_state_vars_ = np.zeros(( model.params.N, len(state_vars), startind_ ))
     
-    if t_pre_ndt <= startind_:
+    if ( startind_ > 1 and t_pre_ndt <= startind_ ):
         logging.error("Not possible to set up initial conditions without sufficient simulation time before control")
         return
     
