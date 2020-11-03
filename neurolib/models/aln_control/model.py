@@ -85,3 +85,9 @@ class Model_ALN_control(Model):
 
         # Initialize base class Model
         super().__init__(integration=integration, params=params)
+        
+    def getMaxDelay(self):
+        # compute maximum delay of model
+        ndt_de = round(self.params["de"] / self.params["dt"])
+        ndt_di = round(self.params["di"] / self.params["dt"])
+        return int(max(ndt_de, ndt_di))

@@ -16,9 +16,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
        cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar):
         
     dt = model.params['dt']
+    max_iteration_ = int(max_iteration_)
 
     
-    """    
+        
     # run model with dt duration once to set delay matrix
     model.params['duration'] = dt
     model.run(control=model.getZeroControl())
@@ -35,21 +36,22 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     else:
         max_global_delay = np.max(Dmat_ndt)
         
-    print(max_global_delay == model.getMaxDelay() )
+    print(max_global_delay == model.getMaxDelay(), max_global_delay )
         
     startind_ = int(max_global_delay + 1)
-    """
-    startind_ = 1
-    
+        
     state_vars = model.state_vars
     init_vars = model.init_vars
-    output_vars = model.output_vars
     
     if (startind_ > 1):
-        fo.adjust_shape_init_params(model, init_vars, startind_)    
+        fo.adjust_shape_init_params(model, init_vars, startind_)
     
     t_pre_ndt = np.around(t_sim_pre_ / dt).astype(int)
     delay_state_vars_ = np.zeros(( model.params.N, len(state_vars), startind_ ))
+    
+    if t_pre_ndt <= startind_:
+        logging.error("Not possible to set up initial conditions without sufficient simulation time before control")
+        return
     
     # simulate with duration t_sim_pre before start
     if (t_sim_pre_ >= dt):
@@ -65,35 +67,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     model.params['duration'] = t_sim_
     i=0
         
-    #rate_ = fo.updateState(model, control_)
-    #state0_ = model.getZeroFullState()
     state0_ = fo.updateFullState(model, control_)
-    
-    """
-    state0_[:,0,:] = rate_[:,0,:]
-    state0_[:,1,:] = model.state["rates_inh"][:,:]
-    state0_[:,2,:] = model.state["mufe"][:,:]
-    state0_[:,3,:] = model.state["mufi"][:,:]
-    state0_[:,4,:] = model.state["IA"][:,:]
-    
-    state0_[:,5,:] = model.state["seem"][:,:]
-    state0_[:,6,:] = model.state["seim"][:,:]
-    state0_[:,7,:] = model.state["siem"][:,:]
-    state0_[:,8,:] = model.state["siim"][:,:]
-    state0_[:,9,:] = model.state["seev"][:,:]
-    state0_[:,10,:] = model.state["seiv"][:,:]
-    state0_[:,11,:] = model.state["siev"][:,:]
-    state0_[:,12,:] = model.state["siiv"][:,:]
-    
-    state0_[:,13,:] = model.state["mue_ou"][:,:]
-    state0_[:,14,:] = model.state["mui_ou"][:,:]
-    
-    state0_[:,15,:] = model.state["sigmae_f"][:,:]
-    state0_[:,16,:] = model.state["sigmai_f"][:,:]
-    state0_[:,17,:] = model.state["Vmean_exc"][:,:]
-    state0_[:,18,:] = model.state["tau_exc"][:,:]
-    state0_[:,19,:] = model.state["tau_inh"][:,:]
-    """    
 
     total_cost_ = np.zeros((max_iteration_+1))
     total_cost_[i] = cost.f_int(model.params['dt'], state0_, target_state_, control_ )
@@ -107,6 +81,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     best_control_ = control_.copy()
     
     phi0_ = model.getZeroFullState()
+    g0_min_ = np.zeros(( phi0_.shape[0], 2, phi0_.shape[2] ))
     
     while( i < max_iteration_ ):
         
@@ -130,24 +105,25 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
 
         dir0_ = - g0_min_.copy()
         dir1_ = dir0_.copy()
-        
-        #print("dir = ", dir0_[:,:,:10])
-        
+                
         """
         # compute stepsize separately and then put together
-        d = dir1_.copy()
-        d[:,1,:] = 0.
+        d_exc = dir1_.copy()
+        d_exc[:,1,:] = 0.
+        
+        #start_st = fo.adapt_step_adjoint(best_control_, startStep_, d, cntrl_max_)
+        #print("set start step to ", start_st)
         
         s_exc, tc_exc = fo.step_size(model, outstate_[:,:,:], target_state_,
-                     best_control_, d, start_step_ = 100., max_it_ = 1000, max_control_ = cntrl_max_)
+                     best_control_, d_exc, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_)
         
         #print("step size exc = ", s_exc)
         
-        d = dir1_.copy()
-        d[:,0,:] = 0.
+        d_inh = dir1_.copy()
+        d_inh[:,0,:] = 0.
         
         s_inh, tc_inh = fo.step_size(model, outstate_[:,:,:], target_state_,
-                     best_control_, d, start_step_ = 100., max_it_ = 1000, max_control_ = cntrl_max_)
+                     best_control_, d_inh, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_)
         
         #print("step size inh = ", s_inh)
         
@@ -158,21 +134,35 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         joint_step_, joint_cost = fo.step_size(model, outstate_[:,:,:], target_state_,
                      best_control_, joint_dir, start_step_ = startStep_, max_control_ = cntrl_max_)
         
-        print("step size = ", joint_step_, joint_cost)
+        #print("step size = ", joint_step_, joint_cost)
         """
         
         step_, total_cost_[i] = fo.step_size(model, outstate_[:,:,:], target_state_,
                      best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_)
         
         
-        print("step size = ", step_, total_cost_[i])
-        
+        #print("step size = ", step_, total_cost_[i])
         """
-        if joint_cost < total_cost_[i]:
+        costMin = np.amin( [tc_exc, tc_inh, joint_cost, total_cost_[i]] )
+        
+        if (tc_exc ==  costMin):
+            print("choose exc only")
+            step_ = s_exc
+            total_cost_[i] = tc_exc
+            dir1_ = d_exc.copy()
+            
+        elif (tc_inh ==  costMin):
+            print("choose inh only")
+            step_ = s_inh
+            total_cost_[i] = tc_inh
+            dir1_ = d_inh.copy()
+        
+        elif (joint_cost ==  costMin):
+            print("choose exc, inh combination")
             step_ = joint_step_
             total_cost_[i] = joint_cost
             dir1_ = joint_dir.copy()
-            print("choose separately")
+            
         else:
             print("choose joint computation")
         """
@@ -181,6 +171,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         print("RUN ", i, ", total integrated cost = ", total_cost_[i])
         best_control_ = u_opt0_ + step_ * dir1_
+        best_control_ = fo.setmaxcontrol(best_control_, cntrl_max_)
         
         u_diff_ = ( np.absolute(best_control_ - u_opt0_) < tolerance_ )
         if ( u_diff_.all() ):
@@ -188,45 +179,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             max_iteration_ = i
             break
         u_opt0_ = best_control_.copy()
-        
-        #rate_ = fo.updateState(model, best_control_)
-        
+                
         state1_ = fo.updateFullState(model, best_control_)
-        
-        #print("compute cost another time:")
-        #testC = cost.f_cost(state1_, target_state_, best_control_)
-        #print(testC)
-        #print("int cost = ", cost.f_int(dt, testC) )
-        """
-        a1 = state1_[:,0,:] == rate_[:,0,:]
-        a2 = state1_[:,1,:] == model.state["rates_inh"][:,:]
-        a3 = state1_[:,2,:] == model.state["mufe"][:,:]
-        a4 = state1_[:,3,:] == model.state["mufi"][:,:]
-        a5 = state1_[:,4,:] == model.state["IA"][:,:]
-        
-        a6 = state1_[:,5,:] == model.state["seem"][:,:]
-        a7 = state1_[:,6,:] == model.state["seim"][:,:]
-        a8 = state1_[:,7,:] == model.state["siem"][:,:]
-        a9 = state1_[:,8,:] == model.state["siim"][:,:]
-        a10 = state1_[:,9,:] == model.state["seev"][:,:]
-        a11 = state1_[:,10,:] == model.state["seiv"][:,:]
-        a12 = state1_[:,11,:] == model.state["siev"][:,:]
-        a13 = state1_[:,12,:] == model.state["siiv"][:,:]
-        
-        a14 = state1_[:,13,:] == model.state["mue_ou"][:,:]
-        a15 = state1_[:,14,:] == model.state["mui_ou"][:,:]
-        
-        a16 = state1_[:,15,:] == model.state["sigmae_f"][:,:]
-        a17 = state1_[:,16,:] == model.state["sigmai_f"][:,:]
-        a18 = state1_[:,17,:] == model.state["Vmean_exc"][:,:]
-        a19 = state1_[:,18,:] == model.state["tau_exc"][:,:]
-        a20 = state1_[:,19,:] == model.state["tau_inh"][:,:]
-        
-        if np.array( [a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20]).any() == False:
-            print("something wrong")
-        """
-        
-        
+                
         s_diff_ = ( np.absolute(state1_ - state0_) < tolerance_)
         if ( s_diff_.all() ):
             print("State only changes marginally.")
@@ -242,11 +197,13 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         state0_ = state1_.copy() 
         dir0_ = dir1_.copy()  
-        phi0_ = phi1_.copy()         
+        phi0_ = phi1_.copy()     
+        
+    state1_ = fo.updateFullState(model, best_control_)
     
     improvement = 100.
     if total_cost_[0] != 0.:
-        improvement = improvement = 100. - (100.*(total_cost_[max_iteration_]/total_cost_[0]))
+        improvement = 100. - (100.*(total_cost_[max_iteration_]/total_cost_[0]))
         
     print("Improved over ", max_iteration_, " iterations by ", improvement, " percent.")
     if max_iteration_ != 0:
@@ -255,10 +212,20 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         print("min value of final gradient at index = ", np.where(g0_min_ == min_g), min_g )
         
     if (t_sim_pre_ < dt and t_sim_post_ < dt):
-        return best_control_, state1_, total_cost_, runtime_
+        return best_control_, state1_, total_cost_, runtime_#, g0_min_
+    
+    t_post_ndt = np.around(t_sim_post_ / dt).astype(int)
+    
+    state_post_ = 0.
     
     if (t_sim_post_ > dt):
         
+        if startind_ == 1:
+            fo.update_init(model, init_vars, state_vars)
+        else:
+            fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_post_ndt, startind_)
+        
+        """
         for iv, sv in zip( range(len(init_vars)), range(len(state_vars)) ):
             if state_vars[sv] in init_vars[iv]:
                 #print("variable = ", state_vars[sv])
@@ -273,9 +240,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                     model.params[init_vars[iv]][:] = model.state[state_vars[sv]][:,-1]
             else:
                 logging.error("Initial and state variable labelling does not agree.") 
-
+        """
     
-        model.params.duration = t_sim_post_ - dt
+        model.params.duration = t_sim_post_ #- dt
         control_post_ = model.getZeroControl()
         state_post_ = fo.updateFullState(model, control_post_)
  
@@ -286,38 +253,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     i1 = int(round(t_sim_pre_/dt, 1))
     i2 = int(round(t_sim_post_/dt, 1))
     
-    if (i2 != 0 and i1 != 0):   
-        bc_[:,:,i1:-i2] = best_control_[:,:,:]
-        bs_[:,:,:i1+1] = state_pre_[:,:,:]
-        for n in range(bs_.shape[0]):
-            for v in range(bs_.shape[1]):
-                if state_vars[v] is not "Vmean_exc":
-                    if bs_[n,v,i1] != state1_[n,v,0]:
-                        logging.error("Problem in initial value trasfer")
-                        #print("Problem in initial value trasfer for ", state_vars[v])
-                        #print(bs_[n,v,i1])
-                        #print(state1_[n,v,0])
-        bs_[:,:,i1:-i2] = state1_[:,:,:]
-        bs_[:,:,-i2:] = state_post_[:,:,:]
-    elif (i2 == 0 and i1 != 0):
-        bc_[:,:,i1:] = best_control_[:,:,:]
-        bs_[:,:,:i1+1] = state_pre_[:,:,:]
-        for n in range(bs_.shape[0]):
-            for v in range(bs_.shape[1]):
-                if state_vars[v] is not "Vmean_exc":
-                    if bs_[n,v,i1] != state1_[n,v,0]:
-                        logging.error("Problem in initial value trasfer")
-                        #print("Problem in initial value trasfer for ", state_vars[v])
-                        #print(bs_[n,v,i1])
-                        #print(state1_[n,v,0])
-        bs_[:,:,i1:] = state1_[:,:,:]
-    elif (i2 != 0 and i1 == 0):
-        bc_[:,:,:-i2] = best_control_[:,:,:]
-        bs_[:,:,:-i2] = state1_[:,:,:]
-        bs_[:,:,-i2:] = state_post_[:,:,:]
-    else:
-        bc_[:,:,:] = best_control_[:,:,:]
-        bs_[:,:,:] = state1_[:,:,:]
+    fo.set_pre_post(model, i1, i2, bc_, bs_, best_control_, state_pre_, state1_, state_post_, state_vars)
             
     return bc_, bs_, total_cost_, runtime_#, g0_min_
 
@@ -353,6 +289,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
                                                                       phi_[0,10,ind_time], phi_[0,12,ind_time], phi_[0,15,ind_time],
                                                                       phi_[0,16,ind_time] ] ),
                                                           np.array( [jac[3,1], jac[6,1], jac[8,1], jac[10,1], jac[12,1], jac[15,1], jac[16,1]] ) )
+        
     
         
         if (ind_time != phi_.shape[2]-1):
@@ -370,9 +307,6 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0):
             
             der = phi_[0,3,ind_time] * jac[3,7] + phi_[0,7,ind_time] * jac[7,7] + phi_[0,11,ind_time] * jac[11,7]
             phi_[0,7,ind_time-1] = phi_[0,7,ind_time] - dt * der
-            
-            der = phi_[0,3,ind_time] * jac[3,8] + phi_[0,8,ind_time] * jac[8,8] + phi_[0,12,ind_time] * jac[12,8]
-            phi_[0,8,ind_time-1] = phi_[0,8,ind_time] - dt * der
             
             der = phi_[0,3,ind_time] * jac[3,8] + phi_[0,8,ind_time] * jac[8,8] + phi_[0,12,ind_time] * jac[12,8]
             phi_[0,8,ind_time-1] = phi_[0,8,ind_time] - dt * der
@@ -448,9 +382,15 @@ def jacobian(model, state_, control_, t_):
     
     tau_ou = model.params.tau_ou
     
+    dt = model.params["dt"]
+    
+    ndt_de = np.around(model.params.de / dt).astype(int)
+    ndt_di = np.around(model.params.di / dt).astype(int)
+    
     rd_exc = np.zeros(( model.params.N,model.params.N ))
     rd_inh = np.zeros(( model.params.N ))
     rd_exc[0,0] = state_[0,0,t_] * 1e-3
+        
     rd_inh[0] = state_[0,1,t_] * 1e-3
     
     factor_ee1 = ( cee * Ke * tau_se / np.abs(Jee_max) )
@@ -524,7 +464,6 @@ def jacobian(model, state_, control_, t_):
     jacobian_[10,1] = - ( (1. - state_[0,6,t_])**2 * factor_ei2 + state_[0,10,t_] * ( factor_ei2 - 2. * tau_si *  factor_ei1 ) ) * 1e-3 / tau_si**2
     jacobian_[10,6] = 2. * (1. - state_[0,6,t_]) * z2ei / tau_si**2
     jacobian_[10,10] = - (z2ei - 2. * tau_si * ( z1ei + 1.) ) / tau_si**2
-    #jacobian_[10,10] = - 1. / tau_si**2
     
     jacobian_[11,0] = - ( (1. - state_[0,7,t_])**2 * factor_ie2 + state_[0,11,t_] * ( factor_ie2 - 2. * tau_se *  factor_ie1 ) ) * 1e-3 / tau_se**2
     jacobian_[11,7] = 2. * (1. - state_[0,7,t_]) * z2ie / tau_se**2
@@ -586,21 +525,15 @@ def g(model, phi_, state_, control_):
     phi_shift[:,:,1:] = phi_[:,:,0:-1]
     #phi_shift[:,:,0] = phi_shift[:,:,1]
     
-    #print("phi shift 2, 3 : ", phi_shift[:,2:4,:])
     
     phi1_ = np.zeros(( grad_cost_e_.shape ))
     for t in range(1,state_.shape[2]):
         jac_u_ = D_u_h(model, state_[:,:,:], t)
         phi1_[0,0,t] = np.dot(phi_shift[0,:,t], jac_u_)[2]
         phi1_[0,1,t] = np.dot(phi_shift[0,:,t], jac_u_)[3]
-    
+            
     g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_[0,0,:]
     g_[:,1,:] = grad_cost_e_[0,1,:] + grad_cost_s_[0,1,:] + phi1_[0,1,:]
-    
-    #print("grad cost e = ", grad_cost_e_[0,0,:])
-    #print("phi exc = ", phi1_[0,0,:])
-    #print("phi inh = ", phi1_[0,1,:])
-    #print("g = ", g_)
 
     return g_
 
@@ -616,7 +549,7 @@ def D_u_h(model, state_, t_):
 
 def d_r_func_mu(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
+    if model.name == "aln-control":
         x_shift_mu = - 2.
         x_scale_mu = 0.6
         y_scale_mu = 0.1
@@ -625,13 +558,13 @@ def d_r_func_mu(model, mu, sigma):
         result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_r)
     else:
         print("no drivative of rate implemented")
-    if np.abs(result) < 1e-16:
-        print("WARNING: vanishing derivative of r wrt mu")
+    #if np.abs(result) < 1e-16:
+    #    print("WARNING: vanishing derivative of r wrt mu")
     return result
 
 def d_r_func_sigma(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
+    if model.name == "aln-control":
         x_shift_sigma = -1.
         x_scale_sigma = 0.6
         y_scale_sigma = 1./2500.
@@ -646,7 +579,7 @@ def d_r_func_sigma(model, mu, sigma):
 
 def d_tau_func_mu(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
+    if model.name == "aln-control":
         mu_shift = - 1.1
         sigma_scale = 0.5
         mu_scale = - 10
@@ -663,7 +596,7 @@ def d_tau_func_mu(model, mu, sigma):
 
 def d_tau_func_sigma(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
+    if model.name == "aln-control":
         mu_shift = - 1.1
         sigma_scale = 0.5
         mu_scale = - 10
@@ -680,7 +613,7 @@ def d_tau_func_sigma(model, mu, sigma):
 
 def d_V_func_mu(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
+    if model.name == "aln-control":
         y_scale1 = 30.
         mu_shift1 = 1.
         y_scale2 = 2.
@@ -690,13 +623,13 @@ def d_V_func_mu(model, mu, sigma):
         result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_V)
     else:
         print("no drivative of V implemented")
-    if np.abs(result) < 1e-16:
-        print("WARNING: vanishing derivative of V wrt mu")
+    #if np.abs(result) < 1e-16:
+     #   print("WARNING: vanishing derivative of V wrt mu")
     return result
 
 def d_V_func_sigma(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
+    if model.name == "aln-control":
         y_scale2 = 2.
         mu_shift2 = 0.5
         result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2

@@ -113,8 +113,10 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     
     # no control
     model.run(control=model.getZeroControl())
+
     output_vars = model.output_vars
     control_vars = model.control_input_vars
+
     
     control_time_exc = []
     control_time_inh = []

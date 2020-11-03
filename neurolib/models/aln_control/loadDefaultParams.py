@@ -64,6 +64,10 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None):
     params.Ke = 800.0  # Number of excitatory inputs per neuron
     params.Ki = 200.0  # Number of inhibitory inputs per neuron
     
+    # synaptic delays
+    params.de = 4.0  # ms local constant delay "EE = IE"
+    params.di = 2.0  # ms local constant delay "EI = II"
+    
     # synaptic time constants
     params.tau_se = 2.0  # ms  "EE = IE", for fixed delays
     params.tau_si = 5.0  # ms  "EI = II"

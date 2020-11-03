@@ -7,13 +7,9 @@ from ..models import bold
 from ..utils.collections import dotdict
 from ..utils import costFunctions as cost
 from ..utils import A1_fhn as opti1_fhn
-from ..utils import A1_aln_exc as opti1_aln_exc
 from ..utils import A1_aln_control as opti1_aln_control
 from ..utils import A1_a as opti1_a
-from ..utils import A1_c as opti1_c
-from ..utils import A1_d as opti1_d
-from ..utils import A1_e as opti1_e
-from ..utils import A1_f as opti1_f
+
 from ..utils import A2 as opti2
 
 
@@ -655,21 +651,10 @@ class Model:
         elif self.name == "aln":
             return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
                                         tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
-        elif self.name == "aln-exc":
-            return opti1_aln_exc.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
-                                    tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
         elif self.name == "aln-control":
             return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
                                     tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
-        
         elif self.name == "a":
-            return opti1_a.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
-        elif self.name == "c":
-            return opti1_c.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
-        elif self.name == "d":
-            return opti1_d.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
-        elif self.name == "e":
-            return opti1_e.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
-        elif self.name == "f":
-            return opti1_f.A1(self, control_, target_state_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_)
+            return opti1_a.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
+                                    tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
 

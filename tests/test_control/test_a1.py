@@ -17,71 +17,14 @@ max_iteration = int(1e4)
 start_step = 100.
 test_step = 1e-12
 
-duration = 0.6
-dur_pre = 0.4
-dur_post = 0.4
+duration = 0.8
+dur_pre = 0.5
+dur_post = 0.5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
-tests = ["aln1", "aln-control"]
+tests = ["aln1"]#, "aln-control"]
 
 np.set_printoptions(precision=16)
-
-def getmodel(i):
-    if i == "fhn1":
-        model_ = FHNModel()
-    elif i == "aln1":
-        model_ = ALNModel()
-        model_.params.signalV = 0.
-        model_.params.de = 0.
-        model_.params.di = 0.
-        func.setParametersALN(model_)
-    elif i == "aln-control":
-        model_ = Model_ALN_control()
-        model_.params.signalV = 0.
-        model_.params.de = 0.
-        model_.params.di = 0.
-        func.setParametersALN(model_)
-    elif i == "fhn2":
-        coupling12 = random.uniform(0, 1)
-        coupling21 = random.uniform(0, 1)
-        c_mat = np.array( [[0, coupling21], [coupling12, 0]] )
-        fiber_matrix = np.zeros(( len(c_mat), len(c_mat) ))
-        model_ = FHNModel(Cmat = c_mat, Dmat = fiber_matrix)
-    elif i == "aln2":
-        coupling12 = random.uniform(0, 1)
-        coupling21 = random.uniform(0, 1)
-        c_mat = np.array( [[0, coupling21], [coupling12, 0]] )
-        fiber_matrix = np.zeros(( len(c_mat), len(c_mat) ))
-        model_ = ALNModel(Cmat = c_mat, Dmat = fiber_matrix)
-        model_.params.signalV = 0.
-        model_.params.de = 0.
-        model_.params.di = 0.
-    elif i == "fhn2delay":
-        coupling12 = random.uniform(0, 1)
-        coupling21 = random.uniform(0, 1)
-        c_mat = np.array( [[0, coupling21], [coupling12, 0]] )
-        delay12 = random.uniform(0, 1)
-        delay21 = random.uniform(0, 1)
-        fiber_matrix = np.array( [[0, delay21], [delay12, 0]] )
-        model_ = FHNModel(Cmat = c_mat, Dmat = fiber_matrix)
-    elif i == "aln1delay":
-        model_ = ALNModel()
-        model_.params.signalV = random.uniform(0, 2. * duration)
-        model_.params.de = random.uniform(0, 2. * dur_pre)
-        model_.params.di = random.uniform(0, 2. * dur_post)
-    elif i == "aln2delay":
-        coupling12 = random.uniform(0, 1)
-        coupling21 = random.uniform(0, 1)
-        c_mat = np.array( [[0, coupling21], [coupling12, 0]] )
-        delay12 = random.uniform(0, 1)
-        delay21 = random.uniform(0, 1)
-        fiber_matrix = np.array( [[0, delay21], [delay12, 0]] )
-        model_ = ALNModel(Cmat = c_mat, Dmat = fiber_matrix)
-        model_.params.signalV = random.uniform(0, 2. * duration)
-        model_.params.de = random.uniform(0, 2. * dur_pre)
-        model_.params.di = random.uniform(0, 2. * dur_post)
-        
-    return model_
 
 class TestA1(unittest.TestCase): 
 # set init vars zero everywhere or nowhere
@@ -128,6 +71,11 @@ class TestA1(unittest.TestCase):
                 for t in range(1, control1.shape[2] - 2):
                     self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance) 
                     
+        for t in range(len(A1_runtime)-1):
+            if (A1_runtime[t+1] == 0.):
+                break
+                self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
+                    
     
     def test_A1zeroControlForEnergyAndSparsityCostOnly(self):
         
@@ -169,6 +117,11 @@ class TestA1(unittest.TestCase):
             for v in range(A1_bestControl.shape[1]):
                 for t in range(1, A1_bestControl.shape[2] - 2):
                     self.assertAlmostEqual(A1_bestControl[n, v, t], 0., assertion_tolerance)  
+                    
+        for t in range(len(A1_runtime)-1):
+            if (A1_runtime[t+1] == 0.):
+                break
+                self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
     
 
     
@@ -183,7 +136,7 @@ if __name__ == '__main__':
     
     for testcaseind in tests:
         print(testcaseind)
-        model = getmodel(testcaseind)
+        model = func.getmodel(testcaseind, dur_pre, dur_post)
     
         suite = unittest.TestLoader().loadTestsFromTestCase(TestA1)
         result.append(unittest.TextTestRunner(verbosity=2).run(suite) )

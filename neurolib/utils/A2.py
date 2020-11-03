@@ -12,6 +12,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
        t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50):
             
     dt = model.params['dt']
+    max_iteration_ = int(max_iteration_)
     
     # run model with dt duration once to set delay matrix
     model.params['duration'] = dt
@@ -29,24 +30,28 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     else:
         max_global_delay = np.max(Dmat_ndt)
         
-    print(max_global_delay == model.getMaxDelay() )
+    print(max_global_delay == model.getMaxDelay(), model.getMaxDelay() )
         
     startind_ = int(model.getMaxDelay() + 1)
     
     state_vars = model.state_vars
     init_vars = model.init_vars
-    
+        
     if (startind_ > 1):
-        fo.adjust_shape_init_params(model, init_vars, startind_)    
-    
+        fo.adjust_shape_init_params(model, init_vars, startind_)
+            
     t_pre_ndt = np.around(t_sim_pre_ / dt).astype(int)
     delay_state_vars_ = np.zeros(( model.params.N, len(state_vars), startind_ ))
+    
+    if t_pre_ndt <= startind_:
+        logging.error("Not possible to set up initial conditions without sufficient simulation time before control")
+        return
     
     # simulate with duration t_sim_pre before start
     if (t_sim_pre_ >= dt):
         model.params['duration'] = t_sim_pre_
         control_pre_ = model.getZeroControl()
-        state_pre_ = fo.updateState(model, control_pre_)
+        state_pre_ = fo.updateFullState(model, control_pre_)
         
         if startind_ == 1:
             fo.update_init(model, init_vars, state_vars)
@@ -80,6 +85,8 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
         delta_ = gf_dc(model, best_control_, target_, include_timestep_, start_step_, test_step_, max_control_,
                        startind_, delay_state_vars_)
         best_control_ += delta_
+        
+        #cannot compute last entry
         #best_control_[:,:,-1] = best_control_[:,:,-2]
         #best_control_[:,:,0] = best_control_[:,:,1]
 
@@ -100,9 +107,10 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
             max_iteration_ = i+1
             break
         
-    model.run(control = best_control_)
-    for i in range(len(output_vars)):
-        state_[:,i,:] = model[output_vars[i]][:,:]
+    state_ = fo.updateFullState(model, best_control_)
+    
+    #for i in range(len(output_vars)):
+    #    state_[:,i,:] = model[output_vars[i]][:,:]
     #cost_ = cost.f_cost(state_, target_, best_control_)
     total_cost_[max_iteration_] = cost.f_int(dt, state_, target_, best_control_)
     print('RUN ', max_iteration_, ', total integrated cost: ', total_cost_[max_iteration_])
@@ -117,34 +125,29 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     if (t_sim_pre_ < dt and t_sim_post_ < dt):
         return best_control_, state_, total_cost_, runtime_
     
+    t_post_ndt = np.around(t_sim_post_ / dt).astype(int)
+    
+    state_post_ = 0.
+    
     if (t_sim_post_ > dt):
         
-        for iv, sv in zip( range(len(init_vars)), range(len(state_vars)) ):
-            if state_vars[sv] in init_vars[iv]:
-                if model.params[init_vars[iv]].ndim == 2:
-                    if startind_ == 1:
-                        model.params[init_vars[iv]][:,0] = model.state[state_vars[sv]][:,-1]
-                    else:
-                        model.params[init_vars[iv]][:,:] = delay_state_vars_[:, sv, :]              
-                else:
-                    model.params[init_vars[iv]][:] = model.state[state_vars[sv]][:,-1]
-            else:
-                logging.error("Initial and state variable labelling does not agree.") 
-
+        if startind_ == 1:
+            fo.update_init(model, init_vars, state_vars)
+        else:
+            fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_post_ndt, startind_)
     
-        model.params.duration = t_sim_post_ - dt
+        model.params.duration = t_sim_post_
         control_post_ = model.getZeroControl()
-        state_post_ = fo.updateState(model, control_post_)
-    
+        state_post_ = fo.updateFullState(model, control_post_)
     
     model.params.duration = t_sim_ + t_sim_pre_ + t_sim_post_
     bc_ = model.getZeroControl()
-    bs_ = model.getZeroState()
+    bs_ = model.getZeroFullState()
         
     i1 = int(round(t_sim_pre_/dt, 1))
     i2 = int(round(t_sim_post_/dt, 1))
         
-    bc_, bs_ = fo.set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_, state_, state_post_)
+    bc_, bs_ = fo.set_pre_post(model, i1, i2, bc_, bs_, best_control_, state_pre_, state_, state_post_, model.state_vars)
             
     return bc_, bs_, total_cost_, runtime_
 
@@ -212,7 +215,7 @@ def gf_dc(model, control_, target_, include_timestep_, start_step_, test_step_, 
     change_dur_ = False
         
     ##!!!!! -1 ???
-    for ind_time in range(control_.shape[2]-2):#2):
+    for ind_time in range(control_.shape[2]-2):
         for ind_node in range(N):
             for ind_var in range(len(control_input)):
                 

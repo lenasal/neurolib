@@ -159,7 +159,10 @@ def numba_cost_sparsity_gradient(i_s, control_, control_energy):
     cost_grad =  np.zeros(( control_.shape ))
     for ind_node in range(control_.shape[0]):
         for ind_var in range(control_.shape[1]):
-            cost_grad[ind_node, ind_var, :] = i_s * control_[ind_node, ind_var,:] / control_energy[ind_node, ind_var]
+            if control_energy[ind_node, ind_var] == 0.:
+                cost_grad[ind_node, ind_var, :] = 0.
+            else:
+                cost_grad[ind_node, ind_var, :] = i_s * control_[ind_node, ind_var,:] / control_energy[ind_node, ind_var]
     return cost_grad
 
 def f_cost_sparsity_int(dt, control_):
@@ -219,6 +222,10 @@ def f_int(dt, state_, target_, control_, start_t_ = -1, stop_t_ = -1):
     cost_prec = cost_precision_int(dt, state_, target_)
     cost_energy = cost_energy_int(dt, control_)
     cost_sparsity = f_cost_sparsity_int(dt, control_)
+    
+    #print("cost precision = ", cost_prec)
+    #print("cost energy = ", cost_energy)
+    #("cost sparsity = ", cost_sparsity)
 
     
     cost_int = cost_prec + cost_energy + cost_sparsity

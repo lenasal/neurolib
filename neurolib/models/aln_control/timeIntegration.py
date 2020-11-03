@@ -35,6 +35,10 @@ def timeIntegration(params, control):
     Ke = params["Ke"]  # Recurrent Exc coupling. "EE = IE" assumed for act_dep_coupling in current implementation
     Ki = params["Ki"]  # Recurrent Exc coupling. "EI = II" assumed for act_dep_coupling in current implementation
     
+    # Recurrent connection delays
+    de = params["de"]  # Local constant delay "EE = IE" (ms)
+    di = params["di"]  # Local constant delay "EI = II" (ms)
+    
     tau_se = params["tau_se"]  # Synaptic decay time constant for exc. connections "EE = IE" (ms)
     tau_si = params["tau_si"]  # Synaptic decay time constant for inh. connections  "EI = II" (ms)
     
@@ -72,7 +76,18 @@ def timeIntegration(params, control):
     t = np.arange(1, round(duration, 6) / dt + 1) * dt  # Time variable (ms)
     sqrt_dt = np.sqrt(dt)
     
-    startind = 1
+    ndt_de = np.around(de / dt).astype(int)
+    ndt_di = np.around(di / dt).astype(int)
+
+    rd_exc = np.zeros((N, N))  # kHz  rd_exc(i,j): Connection from jth node to ith
+    rd_inh = np.zeros(N)
+
+    # Already done above when Dmat_ndt is built
+    # for l in range(N):
+    #    Dmat_ndt[l, l] = ndt_de  # if no distributed, this is a fixed value (E-E coupling)
+
+    max_global_delay = max(ndt_de, ndt_di)
+    startind = int(max_global_delay + 1)
     
     # state variable arrays, have length of t + startind
     # they store initial conditions AND simulated data
@@ -194,6 +209,8 @@ def timeIntegration(params, control):
         rd_inh,
         sqrt_dt,
         startind,
+        ndt_de,
+        ndt_di,
         mue_ou,
         mui_ou,
         sigmae_f,
@@ -256,6 +273,8 @@ def timeIntegration_njit_elementwise(
         rd_inh,
         sqrt_dt,
         startind,
+        ndt_de,
+        ndt_di,
         mue_ou,
         mui_ou,
         sigmae_f,

@@ -17,75 +17,12 @@ max_iteration = int(1e4)
 start_step = 20.
 test_step = 1e-6
 
-duration = 0.6
-dur_pre = 0.4
-dur_post = 0.4
+duration = 0.8
+dur_pre = 0.5
+dur_post = 0.5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["aln1"]#, "aln-control"]
-
-def getmodel(i):
-    if i == "fhn1":
-        model_ = FHNModel()
-    elif i == "aln1":
-        model_ = ALNModel()
-        model_.params.signalV = 0.
-        model_.params.de = 0.
-        model_.params.di = 0.
-        
-        model_.params.ext_exc_current = 4. * random.uniform(0, 1)
-        model_.params.ext_inh_current = 4. * random.uniform(0, 1)
-        func.setParametersALN(model_)
-        
-        func.setParametersALN(model_)
-    elif i == "aln-control":
-        model_ = Model_ALN_control()
-        model_.params.signalV = 0.
-        model_.params.de = 0.
-        model_.params.di = 0.
-        func.setParametersALN(model_)
-    elif i == "fhn2":
-        coupling12 = random.uniform(0, 1)
-        coupling21 = random.uniform(0, 1)
-        c_mat = np.array( [[0, coupling21], [coupling12, 0]] )
-        fiber_matrix = np.zeros(( len(c_mat), len(c_mat) ))
-        model_ = FHNModel(Cmat = c_mat, Dmat = fiber_matrix)
-    elif i == "aln2":
-        coupling12 = random.uniform(0, 1)
-        coupling21 = random.uniform(0, 1)
-        c_mat = np.array( [[0, coupling21], [coupling12, 0]] )
-        fiber_matrix = np.zeros(( len(c_mat), len(c_mat) ))
-        model_ = ALNModel(Cmat = c_mat, Dmat = fiber_matrix)
-        model_.params.signalV = 0.
-        model_.params.de = 0.
-        model_.params.di = 0.
-    elif i == "fhn2delay":
-        coupling12 = random.uniform(0, 1)
-        coupling21 = random.uniform(0, 1)
-        c_mat = np.array( [[0, coupling21], [coupling12, 0]] )
-        delay12 = random.uniform(0, 1)
-        delay21 = random.uniform(0, 1)
-        fiber_matrix = np.array( [[0, delay21], [delay12, 0]] )
-        model_ = FHNModel(Cmat = c_mat, Dmat = fiber_matrix)
-    elif i == "aln1delay":
-        model_ = ALNModel()
-        model_.params.signalV = random.uniform(0, 2. * duration)
-        model_.params.de = random.uniform(0, 2. * dur_pre)
-        model_.params.di = random.uniform(0, 2. * dur_post)
-    elif i == "aln2delay":
-        coupling12 = random.uniform(0, 1)
-        coupling21 = random.uniform(0, 1)
-        c_mat = np.array( [[0, coupling21], [coupling12, 0]] )
-        delay12 = random.uniform(0, 1)
-        delay21 = random.uniform(0, 1)
-        fiber_matrix = np.array( [[0, delay21], [delay12, 0]] )
-        model_ = ALNModel(Cmat = c_mat, Dmat = fiber_matrix)
-        model_.params.signalV = random.uniform(0, 2. * duration)
-        model_.params.de = random.uniform(0, 2. * dur_pre)
-        model_.params.di = random.uniform(0, 2. * dur_post)
-        
-    return model_
-
 
 class TestA1A2Conv(unittest.TestCase):
       
@@ -111,6 +48,8 @@ class TestA1A2Conv(unittest.TestCase):
         if cntrl_zeros_post == 0:
             cntrl_zeros_post = 1
             
+        func.setInitVarsZero(model, init_vars)
+            
         target = func.setTargetFromControl(model, control1, output_vars, target_vars)[:,:, cntrl_zeros_pre:]
             
         model.params.duration = duration
@@ -123,22 +62,32 @@ class TestA1A2Conv(unittest.TestCase):
         func.setInitVarsZero(model, init_vars)
         
         A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(control2, target, c_scheme, u_mat, u_scheme, max_iteration,
-                            algorithm_tolerance, start_step, 2.*controlmax, duration, dur_pre, dur_post, CGVar = None)
+                            algorithm_tolerance, start_step, 1e5 * controlmax, duration, dur_pre, dur_post, CGVar = None)
         
         func.setInitVarsZero(model, init_vars)
-        
+
         A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
                             algorithm_tolerance, incl_steps, start_step, test_step, 1e5 * controlmax, duration, dur_pre, dur_post)
         
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         self.assertEqual(A2_bestControl.shape[2], cntrl_len)
         
+        for t in range(len(A1_runtime)-1):
+            if (A1_runtime[t+1] == 0.):
+                break
+                self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
+                
+        for t in range(len(A2_runtime)-1):
+            if (A2_runtime[t+1] == 0.):
+                break
+                self.assertLessEqual(A2_runtime[t], A2_runtime[t+1])
+        
         for n in range(A2_bestControl.shape[0]):
             for v in range(A2_bestControl.shape[1]):
                 for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - 1 - cntrl_zeros_post):
                     print(n,v,t)
-                    print("difference = ", A2_bestControl[n, v, t]-A1_bestControl[n, v, t])
-                    #self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)    
+                    print("difference = ", A2_bestControl[n, v, t] - A1_bestControl[n, v, t])
+                    self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)    
     
 
 if __name__ == '__main__':
@@ -151,7 +100,8 @@ if __name__ == '__main__':
     
     for testcaseind in tests:
         print(testcaseind)
-        model = getmodel(testcaseind)
+        model = func.getmodel(testcaseind, dur_pre, dur_post)
+        #model = getmodel(testcaseind)
     
         suite = unittest.TestLoader().loadTestsFromTestCase(TestA1A2Conv)
         result.append(unittest.TextTestRunner(verbosity=2).run(suite) )

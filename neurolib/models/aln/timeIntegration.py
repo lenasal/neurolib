@@ -206,30 +206,39 @@ def timeIntegration(params, control):
     siiv[:,:startind] = params["siiv_init"].copy()  # Inh synaptic input variance
     siev[:,:startind] = params["siev_init"].copy()
 
-    mue_ou[:,0] = params["mue_ou"].copy()  # Mean of external exc OU input (mV/ms)
-    mui_ou[:,0] = params["mui_ou"].copy()  # Mean of external inh ON inout (mV/ms)
+    mue_ou[:,:startind] = params["mue_ou"].copy()  # Mean of external exc OU input (mV/ms)
+    mui_ou[:,:startind] = params["mui_ou"].copy()  # Mean of external inh ON inout (mV/ms)
 
     # Set the initial firing rates.
     # if initial values are just N array:
     if type(params["rates_exc_init"]) is not type(np.array([])):
         logging.error("wrong input for initial rates")
-    if len(np.shape(params["rates_exc_init"])) == 1:
+    elif len(np.shape(params["rates_exc_init"])) == 1:
         logging.error("wrong input for initial rates")
         #rates_exc_init = (params["rates_exc_init"] * np.ones((1, startind))).T   # kHz
         #rates_inh_init = (params["rates_inh_init"] * np.ones((startind, 1))).T  # kHz
     # if initial values are just a Nx1 array
-    if np.shape(params["rates_exc_init"])[1] == 1:
+    elif np.shape(params["rates_exc_init"])[1] == 1:
         # repeat the 1-dim value stardind times
         rates_exc_init = np.dot(params["rates_exc_init"], np.ones((1, startind)))  # kHz
         rates_inh_init = np.dot(params["rates_inh_init"], np.ones((1, startind)))  # kHz
         # set initial adaptation current
-        IA_init = np.dot(params["IA_init"], np.ones((1, startind)))
     # if initial values are a Nxt array
     else:
         rates_exc_init = params["rates_exc_init"][:, -startind:]
         rates_inh_init = params["rates_inh_init"][:, -startind:]
-        IA_init = params["IA_init"][:, -startind:]
-    
+
+    if type(params["IA_init"]) is not type(np.array([])):
+        logging.error("wrong input for initial adaptation current")
+    elif len(np.shape(params["IA_init"])) == 1:
+        A_init = np.ones((1, startind)) * params["IA_init"][0]
+    # if initial values are just a Nx1 array
+    elif np.shape(params["IA_init"])[1] == 1:
+        # repeat the 1-dim value stardind times
+        IA_init = np.dot(params["IA_init"], np.ones((1, startind)))
+    # if initial values are a Nxt array
+    else:
+        IA_init = params["IA_init"][:, -startind:] 
 
     if RNGseed:
         np.random.seed(RNGseed)
@@ -572,8 +581,8 @@ def timeIntegration_njit_elementwise(
             xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,i-1], Irange, dI, mufi[no,i-1])
             xid1, yid1 = int(xid1), int(yid1)
 
-            rates_inh[no, i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
-            #rates_inh[no, i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
+            rates_inh[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
+            #rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
             
             
             # Vmean_inh = interpolate_values(precalc_V, xid1, yid1, dxid, dyid) # not used
@@ -675,11 +684,75 @@ def timeIntegration_njit_elementwise(
                         
     #sigmae_f[:,:startind] = sigmae_f[:,startind]
     #sigmai_f[:,:startind] = sigmai_f[:,startind]
-    Vmean_exc[:,:startind] = Vmean_exc[:,startind]
-    tau_exc[:,:startind-1] = tau_exc[:,startind-1]
-    tau_inh[:,:startind-1] = tau_inh[:,startind-1]
-    tau_exc[:,-1] = tau_exc[:,-2]
-    tau_inh[:,-1] = tau_inh[:,-2]
+    #Vmean_exc[:,:startind] = Vmean_exc[:,startind]
+    if a == 0.:
+        Vmean_exc[:,:startind] = Vmean_exc[:,startind]
+    else:
+        Vmean_exc[:,:startind] = EA + ( 1./a ) * ( tauA * ( IA[:,startind] - IA[:,startind-1] ) / dt - tauA * b * rates_exc[:,startind] * 1e-3 + IA[:,startind-1]) 
+    
+    if not distr_delay:
+    # Get the input from one node into another from the rates at time t - connection_delay - 1
+    # remark: assume Kie == Kee and Kei == Kii
+        for no in range(N):
+            # interareal coupling
+            for l in range(N):
+                # rd_exc(i,j) delayed input rate from population j to population i
+                rd_exc[l,no] = rates_exc[no,-Dmat_ndt[l, no]-1] * 1e-3  # convert Hz to kHz
+            # Warning: this is a vector and not a matrix as rd_exc
+            rd_inh[no] = rates_inh[no,-ndt_di-1] * 1e-3  # convert Hz to kHz
+    
+    # compute row sum of Cmat*rd_exc and Cmat**2*rd_exc
+    rowsum = 0
+    rowsumsq = 0
+    for col in range(N):
+        rowsum = rowsum + Cmat[no,col] * rd_exc[no,col]
+        rowsumsq = rowsumsq + Cmat[no,col] ** 2 * rd_exc[no,col]
+
+    # z1: weighted sum of delayed rates, weights=c*K
+    z1ee = (
+        cee * Ke * rd_exc[no,no] + c_gl * Ke_gl * rowsum + c_gl * Ke_gl * ext_exc_rate[no,-1]
+    )  # rate from other regions + exc_ext_rate
+    z1ei = cei * Ki * rd_inh[no]
+    z1ie = (
+        cie * Ke * rd_exc[no, no] + c_gl * Ke_gl * ext_inh_rate[no,-1]
+    )  # first test of external rate input to inh. population
+    z1ii = cii * Ki * rd_inh[no]
+    #print("parameters of calculation: rd_exc[no, no], rd_inh[no]", rd_exc[no, no], rd_inh[no])
+    # z2: weighted sum of delayed rates, weights=c^2*K (see thesis last ch.)
+    z2ee = (
+        cee ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * rowsumsq + c_gl ** 2 * Ke_gl * ext_exc_rate[no,-1]
+    )
+    #print("parts of z2ee: ", cee ** 2 * Ke * rd_exc[no, no],  cee ** 2 * Ke, rd_exc[no, no])
+    z2ei = cei ** 2 * Ki * rd_inh[no]
+    z2ie = (
+        cie ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * ext_inh_rate[no,-1]
+    )  # external rate input to inh. population
+    z2ii = cii ** 2 * Ki * rd_inh[no]
+
+    sigmae = np.sqrt(
+        2 * sq_Jee_max * seev[no,-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
+        + 2 * sq_Jei_max * seiv[no,-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
+        + sigmae_ext ** 2
+    )  # mV/sqrt(ms)
+    
+    sigmai = np.sqrt(
+        2 * sq_Jie_max * siev[no,-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
+        + 2 * sq_Jii_max * siiv[no,-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
+        + sigmai_ext ** 2
+    )  # mV/sqrt(ms)
+
+    if not filter_sigma:
+        sigmae_f[no,-1] = sigmae
+        sigmai_f[no,-1] = sigmai
+    
+    
+    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmae_f[no,-1], Irange, dI, mufe[no,-1] - IA[no,-1] / C)
+    xid1, yid1 = int(xid1), int(yid1)
+    tau_exc[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+
+    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,-1], Irange, dI, mufi[no,-1])
+    xid1, yid1 = int(xid1), int(yid1)
+    tau_inh[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou, sigmae_f, sigmai_f, Vmean_exc, tau_exc, tau_inh
 
@@ -889,5 +962,4 @@ def V_func(mu, sigma):
     y_shift = - 85.
     y_scale2 = 2.
     mu_shift2 = 0.5
-    return mu + sigma
     return y_shift + y_scale1 * np.tanh( mu + mu_shift1 ) + y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma

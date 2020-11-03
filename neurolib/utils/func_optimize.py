@@ -68,6 +68,8 @@ def adjust_shape_init_params(model, init_vars_, startind_):
             if model.params[init_vars_[iv]].ndim == 2:
                 if (model.params[init_vars_[iv]].shape[1] <= 1):
                     model.params[init_vars_[iv]] = np.dot( model.params[init_vars_[iv]], np.ones((1, startind_)) )
+            else:
+                model.params[init_vars_[iv]] = model.params[init_vars_[iv]][0] * np.ones((1, startind_))
 
 def get_init(model, init_vars_, state_vars_, startind_, delay_state_vars_):
     IC_ = np.zeros( (model.params.N, len(init_vars_), startind_) )
@@ -110,7 +112,6 @@ def update_init_delayed(model, delay_state_vars_, init_vars_, state_vars_, t_pre
         if state_vars_[sv] in init_vars_[iv]:
             if model.params[init_vars_[iv]].ndim == 2:
                 if (t_pre_ndt_ < startind_):
-                    # delay larger than pre simulation time
                     delay_state_vars_[:, sv, :-1] = model.params[init_vars_[iv]][:,1:]
                     delay_state_vars_[:, sv, -t_pre_ndt_:] = model.state[state_vars_[sv]][:,:]
                     model.params[init_vars_[iv]][:,:] = delay_state_vars_[:, sv, :]
@@ -170,6 +171,8 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         #cost1_ = cost.f_cost(state1_, target_, test_control_)
         cost1_int_ = cost.f_int(dt, state1_, target_, test_control_)
         
+        #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
+        
         if (step_ * np.amax(np.absolute(test_control_)) < tolerance_):
             print("test control change smaller than tolerance, return zero step")
             return 0., cost0_int_
@@ -228,28 +231,59 @@ def scan(model_, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int
         
     return step_min1_, cost_min_int_
 
-def set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_,  state_, state_post_):
+def set_pre_post(model, i1, i2, bc_, bs_, best_control_, state_pre_, state_, state_post_, state_vars):
     if (i2 != 0 and i1 != 0):   
         bc_[:,:,i1:-i2] = best_control_[:,:,:]
         bs_[:,:,:i1+1] = state_pre_[:,:,:]
         for n in range(bs_.shape[0]):
             for v in range(bs_.shape[1]):
-                if bs_[n,v,i1] != state_[n,v,0]:
+                if ( state_vars[v] == "Vmean_exc" and (model.params.a == 0. or model.params.b == 0.) ):
+                    if np.abs(bs_[n,v,i1] - state_[n,v,0]) > 1e-1:
+                        logging.error("Problem in initial value trasfer")
+                        print("Problem in initial value trasfer: ", state_vars[v], bs_[n,v,i1], state_[n,v,0])
+                elif np.abs(bs_[n,v,i1] - state_[n,v,0]) > 1e-8:
                     logging.error("Problem in initial value trasfer")
+                    print("Problem in initial value trasfer: ", state_vars[v], bs_[n,v,i1], state_[n,v,0])
         bs_[:,:,i1:-i2] = state_[:,:,:]
-        bs_[:,:,-i2:] = state_post_[:,:,:]
+        bs_[:,:,-i2:] = state_post_[:,:,1:]
+        for n in range(bs_.shape[0]):
+            for v in range(bs_.shape[1]):
+                if state_vars[v] == "Vmean_exc" and (model.params.a == 0. or model.params.b == 0.):
+                    if np.abs(bs_[n,v,i1] - state_[n,v,0]) > 1e-1:
+                        logging.error("Problem in initial value trasfer")
+                        print("Problem in initial value trasfer: ", state_vars[v], bs_[n,v,i1], state_[n,v,0])
+                elif np.abs(bs_[n,v,-i2-1] - state_post_[n,v,0]) > 1e-8:
+                    logging.error("Problem in initial value trasfer")
+                    print("Problem in initial value trasfer: ", state_vars[v], bs_[n,v,-i2-1], state_post_[n,v,0])
+        
     elif (i2 == 0 and i1 != 0):
         bc_[:,:,i1:] = best_control_[:,:,:]
         bs_[:,:,:i1+1] = state_pre_[:,:,:]
         for n in range(bs_.shape[0]):
             for v in range(bs_.shape[1]):
-                if bs_[n,v,i1] != state_[n,v,0]:
-                    logging.error("Problem in initial value trasfer for output var number ", v)
+                if ( state_vars[v] == "Vmean_exc" and (model.params.a == 0. or model.params.b == 0.) ):
+                    if np.abs(bs_[n,v,i1] - state_[n,v,0]) > 1e-1:
+                        logging.error("Problem in initial value trasfer")
+                        print("Problem in initial value trasfer: ", state_vars[v], bs_[n,v,i1], state_[n,v,0])
+                elif np.abs(bs_[n,v,i1] - state_[n,v,0]) > 1e-8:
+                    logging.error("Problem in initial value trasfer")
+                    print("Problem in initial value trasfer: ", state_vars[v], bs_[n,v,i1], state_[n,v,0])
         bs_[:,:,i1:] = state_[:,:,:]
+        
     elif (i2 != 0 and i1 == 0):
         bc_[:,:,:-i2] = best_control_[:,:,:]
         bs_[:,:,:-i2] = state_[:,:,:]
         bs_[:,:,-i2:] = state_post_[:,:,:]
+        for n in range(bs_.shape[0]):
+            for v in range(bs_.shape[1]):
+                if state_vars[v] == "Vmean_exc" and (model.params.a == 0. or model.params.b == 0.):
+                    if np.abs(bs_[n,v,i1] - state_[n,v,0]) > 1e-1:
+                        logging.error("Problem in initial value trasfer")
+                        print("Problem in initial value trasfer: ", state_vars[v], bs_[n,v,i1], state_[n,v,0])
+                elif np.abs(bs_[n,v,-i2-1] - state_post_[n,v,0]) > 1e-8:
+                    logging.error("Problem in initial value trasfer")
+                    print("Problem in initial value trasfer: ", state_vars[v], bs_[n,v,-i2-1], state_post_[n,v,0])
+                    
     else:
         bc_[:,:,:] = best_control_[:,:,:]
         bs_[:,:,:] = state_[:,:,:]
@@ -262,10 +296,31 @@ def adapt_step(control_, ind_node, ind_var, start_step_, dir_, max_control_):
     max_index = -1
     max_cntrl = max_control_
     for k in range(control_.shape[2]):
-        if ( np.abs(control_[ind_node, ind_var, k] + start_step_ * dir_[ind_node, ind_var,k]) > max_cntrl ):
+        if ( np.abs(control_[ind_node,ind_var,k] + start_step_ * dir_[ind_node,ind_var,k]) > max_cntrl ):
             max_index = k
             max_cntrl = np.abs(control_[ind_node, ind_var,k] + start_step_ * dir_[ind_node, ind_var,k])
     if max_index != -1:
-        start_st_ = ( max_control_ - np.abs(control_[ind_node, ind_var,max_index]) ) / np.abs(dir_[ind_node, ind_var,max_index])
+        start_st_ = ( max_control_ - np.abs(control_[ind_node,ind_var,max_index]) ) / np.abs(dir_[ind_node,ind_var,max_index])
+    
+    return start_st_
+
+def adapt_step_adjoint(control_, start_step_, dir_, max_control_):
+    start_st_ = start_step_
+    max_index_node = -1
+    max_index_var = -1
+    max_index_time = -1
+    max_cntrl = max_control_
+    
+    for n in range(control_.shape[0]):
+        for v in range(control_.shape[1]):
+            for k in range(control_.shape[2]):
+                if ( np.abs(control_[n,v,k] + start_step_ * dir_[n,v,k]) > max_cntrl ):
+                    max_index_node = n
+                    max_index_var = v
+                    max_index_time = k
+                    max_cntrl = np.abs(control_[n,v,k] + start_step_ * dir_[n,v,k])
+    if max_index_node != -1:
+        start_st_ = ( max_control_ - np.abs(control_[max_index_node,max_index_var,max_index_time]) 
+                     ) / np.abs(dir_[max_index_node,max_index_var,max_index_time])
     
     return start_st_
