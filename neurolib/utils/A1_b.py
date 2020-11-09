@@ -282,14 +282,24 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
         if (ind_time == 0):
             break
         
-        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,2,ind_time], phi_[0,4,ind_time], phi_[0,5,ind_time],
-                                                                      phi_[0,7,ind_time], phi_[0,9,ind_time], phi_[0,11,ind_time],
-                                                                      phi_[0,15,ind_time], phi_[0,16,ind_time] ] ),
-                                                          np.array( [jac[2,0], jac[4,0], jac[5,0], jac[7,0], jac[9,0], jac[11,0], jac[15,0], jac[16,0]] ) )
-        phi_[0,1,ind_time] = - full_cost_grad[1] - np.dot( np.array( [phi_[0,3,ind_time], phi_[0,6,ind_time], phi_[0,8,ind_time],
-                                                                      phi_[0,10,ind_time], phi_[0,12,ind_time], phi_[0,15,ind_time],
-                                                                      phi_[0,16,ind_time] ] ),
-                                                          np.array( [jac[3,1], jac[6,1], jac[8,1], jac[10,1], jac[12,1], jac[15,1], jac[16,1]] ) )
+        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,2,ind_time], phi_[0,4,ind_time],
+                                phi_[0,5,ind_time], phi_[0,7,ind_time], phi_[0,9,ind_time],
+                                phi_[0,11,ind_time], phi_[0,15,ind_time], phi_[0,16,ind_time] ] ),
+                                np.array( [jac[2,0], jac[4,0], jac[5,0], jac[7,0], jac[9,0], jac[11,0], jac[15,0], jac[16,0]] ) )
+        
+        ndt_di = np.around(model.params.di / dt).astype(int)
+        
+        if ind_time + ndt_di < state_.shape[2]:
+            shift_i = ndt_di
+        else:
+            shift_i = 0
+            
+        #shift_i = 0
+        
+        phi_[0,1,ind_time] = - full_cost_grad[1] - np.dot( np.array( [phi_[0,3,ind_time], phi_[0,6,ind_time+shift_i],
+                                phi_[0,8,ind_time+shift_i], phi_[0,10,ind_time+shift_i], phi_[0,12,ind_time+shift_i], 
+                                phi_[0,15,ind_time+shift_i], phi_[0,16,ind_time+shift_i] ] ), 
+                                np.array( [jac[3,1], jac[6,1], jac[8,1], jac[10,1], jac[12,1], jac[15,1], jac[16,1]] ) )
         
     
         
@@ -390,9 +400,25 @@ def jacobian(model, state_, control_, t_):
     
     rd_exc = np.zeros(( model.params.N,model.params.N ))
     rd_inh = np.zeros(( model.params.N ))
-    rd_exc[0,0] = state_[0,0,t_] * 1e-3
-        
-    rd_inh[0] = state_[0,1,t_] * 1e-3
+    
+    if t_ + ndt_de < state_.shape[2]:
+        shift_e = ndt_de
+    else:
+        shift_e = 0
+           
+    shift_e = 0
+    rd_exc[0,0] = state_[0,0,t_+shift_e] * 1e-3
+    
+    if t_ + ndt_di < state_.shape[2]:
+        shift_i = ndt_di
+    else:
+        shift_i = 0
+      
+    shift_i = 0
+    rd_inh[0] = state_[0,1,t_+shift_i] * 1e-3
+    
+    #rd_exc[0,0] = state_[0,0,t_] * 1e-3
+    #rd_inh[0] = state_[0,1,t_] * 1e-3
     
     factor_ee1 = ( cee * Ke * tau_se / np.abs(Jee_max) )
     factor_ee2 = ( cee**2 * Ke * tau_se**2 / Jee_max**2 )
