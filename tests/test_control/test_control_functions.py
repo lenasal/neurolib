@@ -67,6 +67,10 @@ def getSchemes(model):
     u_scheme = np.array([[1, 0], [0, 0]])
     return c_scheme, u_mat, u_scheme
 
+def getDelay_ndt(model_):
+    maxDelay = max(model_.params.di, model_.params.signalV, model_.params.de)
+    maxDelay_ndt = int(maxDelay / model_.params.dt)
+    return maxDelay_ndt
 
 def getmodel(i, dur_pre, dur_post):
     if i == "fhn1":

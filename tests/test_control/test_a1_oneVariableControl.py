@@ -12,11 +12,11 @@ import test_control_functions as func
 assertion_tolerance = 2
         
 controlmin, controlmax = -2., 2.
-algorithm_tolerance = 1e-18
-max_iteration = 5. * int(1e4)
+algorithm_tolerance = 1e-22
+max_iteration = 5 * int(1e4)
 start_step = 100.
 
-duration = 0.9
+duration = 0.6
 dur_pre = 0.5
 dur_post = 0.5
 
@@ -36,6 +36,10 @@ class TestA1(unittest.TestCase):
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
             
         func.setInitVarsZero(model, init_vars)
+        
+        model.params.signalV = 0.
+        model.params.de = 0.
+        model.params.di = 0.
             
         model.params.duration = duration + dur_pre
             
@@ -45,6 +49,7 @@ class TestA1(unittest.TestCase):
         variables = [0]
             
         control1 = func.getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax, variables_ = variables) 
+        #control1 = model.getZeroControl()
 
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
@@ -66,24 +71,21 @@ class TestA1(unittest.TestCase):
                             CGVar = None, variables_ = variables)        
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
-        
-        delay_ndt = func.getDelay_ndt(model)
                     
         for n in range(A1_bestControl.shape[0]):
             for v in range(A1_bestControl.shape[1]):
-                for t in range(1, control1.shape[2] - 2 - delay_ndt):
+                for t in range(1, control1.shape[2] - 2):
                     self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance) 
                     
         for t in range(len(A1_runtime)-1):
             if (A1_runtime[t+1] == 0.):
                 break
                 self.assertLessEqual(A1_cost[t+1], A1_cost[t])
-    
-    """
-                
-    def test_A1PrecisionCostOnly_ExcControlInhCost(self):
+          
+    """      
+    def test_A1PrecisionCostOnly_ExcontrolInhCost(self):
                         
-        print("test_A1PrecisionCostOnly_ExcControlInhCost for model ", testcaseind)
+        print("test_A1PrecisionCostOnly_ExcontrolInhCost for model ", testcaseind)
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -123,20 +125,18 @@ class TestA1(unittest.TestCase):
                             CGVar = None, variables_ = variables)        
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
-        
-        delay_ndt = func.getDelay_ndt(model)
                             
         for n in range(A1_bestControl.shape[0]):
             for v in range(A1_bestControl.shape[1]):
-                for t in range(1, control1.shape[2] - 2 - delay_ndt):
+                for t in range(1, control1.shape[2] - 2):
+                    print(n, v, t)
                     self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance) 
                     
         for t in range(len(A1_runtime)-1):
             if (A1_runtime[t+1] == 0.):
                 break
                 self.assertLessEqual(A1_cost[t+1], A1_cost[t])
-    """
-
+        """
 
     
 if __name__ == '__main__':
