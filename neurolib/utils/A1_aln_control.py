@@ -69,7 +69,6 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     state0_ = fo.updateFullState(model, control_)
 
     total_cost_ = np.zeros((max_iteration_+1))
-    print("variables = ", variables)
     total_cost_[i] = cost.f_int(model.params['dt'], state0_, target_state_, control_, v_ = variables )
     runtime_ = np.zeros(( int(max_iteration_+1) ))
     runtime_start_ = timer()
@@ -301,9 +300,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
             shift_i = ndt_di
         else:
             shift_i = 0
-            
-        #shift_i = 0
-                    
+                                
         phi_[0,1,ind_time] = - full_cost_grad[1] - np.dot( np.array( [phi_[0,3,ind_time], phi_[0,6,ind_time+shift_i],
                                 phi_[0,8,ind_time+shift_i], phi_[0,10,ind_time+shift_i], phi_[0,12,ind_time+shift_i], 
                                 phi_[0,15,ind_time+shift_i], phi_[0,16,ind_time+shift_i] ] ), 
@@ -590,7 +587,7 @@ def D_u_h(model, state_, t_):
 
 def d_r_func_mu(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":
+    if model.name == "aln-control" or model.name == "aln":
         x_shift_mu = - 2.
         x_scale_mu = 0.6
         y_scale_mu = 0.1
@@ -605,7 +602,7 @@ def d_r_func_mu(model, mu, sigma):
 
 def d_r_func_sigma(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":
+    if model.name == "aln-control" or model.name == "aln":
         x_shift_sigma = -1.
         x_scale_sigma = 0.6
         y_scale_sigma = 1./2500.
@@ -620,7 +617,7 @@ def d_r_func_sigma(model, mu, sigma):
 
 def d_tau_func_mu(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":
+    if model.name == "aln-control" or model.name == "aln":
         mu_shift = - 1.1
         sigma_scale = 0.5
         mu_scale = - 10
@@ -637,7 +634,7 @@ def d_tau_func_mu(model, mu, sigma):
 
 def d_tau_func_sigma(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":
+    if model.name == "aln-control" or model.name == "aln":
         mu_shift = - 1.1
         sigma_scale = 0.5
         mu_scale = - 10
@@ -654,7 +651,7 @@ def d_tau_func_sigma(model, mu, sigma):
 
 def d_V_func_mu(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":
+    if model.name == "aln-control" or model.name == "aln":
         y_scale1 = 30.
         mu_shift1 = 1.
         y_scale2 = 2.
@@ -670,7 +667,7 @@ def d_V_func_mu(model, mu, sigma):
 
 def d_V_func_sigma(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control":
+    if model.name == "aln-control" or model.name == "aln":
         y_scale2 = 2.
         mu_shift2 = 0.5
         result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2

@@ -565,12 +565,12 @@ def timeIntegration_njit_elementwise(
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
             
-            #rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
-            #Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+            rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
+            Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
             
             # shift tau by one???
             tau_exc[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-            #tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+            tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
                                     
             if filter_sigma:
                 tau_sigmae_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
@@ -582,12 +582,12 @@ def timeIntegration_njit_elementwise(
             xid1, yid1 = int(xid1), int(yid1)
 
             rates_inh[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
-            #rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
+            rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
             
             
             # Vmean_inh = interpolate_values(precalc_V, xid1, yid1, dxid, dyid) # not used
             tau_inh[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-            #tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
+            tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
             
             if filter_sigma:
                 tau_sigmai_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
@@ -749,10 +749,12 @@ def timeIntegration_njit_elementwise(
     xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmae_f[no,-1], Irange, dI, mufe[no,-1] - IA[no,-1] / C)
     xid1, yid1 = int(xid1), int(yid1)
     tau_exc[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+    tau_exc[no,-1] = tau_func(mufe[no,-1], sigmae_f[no,-1])
 
     xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,-1], Irange, dI, mufi[no,-1])
     xid1, yid1 = int(xid1), int(yid1)
     tau_inh[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+    tau_inh[no,-1] = tau_func(mufi[no,-1], sigmai_f[no,-1])
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou, sigmae_f, sigmai_f, Vmean_exc, tau_exc, tau_inh
 

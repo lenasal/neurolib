@@ -176,7 +176,7 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
         
-        if (step_ * np.amax(np.absolute(test_control_)) < tolerance_):
+        if (step_ * np.amax(np.absolute(test_control_)) < tolerance_ * 1e-5):
             print("test control change smaller than tolerance, return zero step")
             return 0., cost0_int_
 
