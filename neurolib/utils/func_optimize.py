@@ -123,13 +123,13 @@ def update_init_delayed(model, delay_state_vars_, init_vars_, state_vars_, t_pre
         else:
             logging.error("Initial and state variable labelling does not agree.")
 
-def test_step(model, state_, target_, control_, dir_, test_step_ = 1e-12):
+def test_step(model, state_, target_, control_, dir_, test_step_ = 1e-12, variables_ = [0,1]):
     dt = model.params['dt']
-    cost0_int_ = cost.f_int(dt, state_, target_, control_)
+    cost0_int_ = cost.f_int(dt, state_, target_, control_, v_ = variables_)
     
     test_control_ = control_ + test_step_ * dir_
     state1_ = updateState(model, test_control_)
-    cost1_int_ = cost.f_int(dt, state1_, target_, test_control_)
+    cost1_int_ = cost.f_int(dt, state1_, target_, test_control_, v_ = variables_)
     #print("test step size computation : ------ step size, cost1, cost0 : ", test_step_, cost1_int_, cost0_int_)
         
     if (cost1_int_ < cost0_int_):
@@ -151,11 +151,13 @@ def setmaxcontrol(control_, max_control_):
     return control_
     
 def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
-              bisec_factor_ = 2., max_control_ = 20., tolerance_ = 1e-16, substep_ = 0.1):
+              bisec_factor_ = 2., max_control_ = 20., tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1]):
     
     dt = model.params['dt']
     #cost0_ = cost.f_cost(state_, target_, control_)
-    cost0_int_ = cost.f_int(dt, state_, target_, control_)
+    
+    #print("variables in step size = ", variables_)
+    cost0_int_ = cost.f_int(dt, state_, target_, control_, v_ = variables_)
     cost_min_int_ = cost0_int_
     step_ = start_step_
     step_min_ = 0.
@@ -169,7 +171,8 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
             
         state1_ = updateState(model, test_control_)
         #cost1_ = cost.f_cost(state1_, target_, test_control_)
-        cost1_int_ = cost.f_int(dt, state1_, target_, test_control_)
+        
+        cost1_int_ = cost.f_int(dt, state1_, target_, test_control_, v_ = variables_)
         
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
         
@@ -183,15 +186,24 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
             
         # return smallest step size before cost is increasing again
         elif (cost1_int_ > cost_min_int_ and cost_min_int_ < cost0_int_):
+            
+            if (i == 1):
+                step_ = 1000. * start_step_
+                print("too small start step, increase to ", step_)
+                cost_min_int_ = cost0_int_
+                step_min_ = 0.
+                continue
 
             # iterate between step_range[0] and [2] more granularly
             substep = substep_
-            step_min_up, cost_min_int_ = scan(model, dt, substep, control_, step_min_, dir_, target_, cost_min_int_, max_control_)
+            step_min_up, cost_min_int_ = scan(model, dt, substep, control_, step_min_, dir_, target_,
+                                              cost_min_int_, max_control_, variables_)
 
             substep = - substep_
-            step_min_down, cost_min_int_ = scan(model, dt, substep, control_, step_min_, dir_, target_, cost_min_int_, max_control_)
+            step_min_down, cost_min_int_ = scan(model, dt, substep, control_, step_min_, dir_, target_,
+                                                cost_min_int_, max_control_, variables_)
             
-            
+            #print("scan done")
             if (step_min_up > step_min_ ):
                 if (step_min_down == step_min_):
                     return step_min_up, cost_min_int_
@@ -210,12 +222,12 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         
         step_ /= bisec_factor_
         
-def scan(model_, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_):
+def scan(model_, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_, variables_ = [0,1]):
     cntrl_ = control_ + ( 1. + substep_ ) * step_min_ * dir_
     cntrl_ = setmaxcontrol(cntrl_, max_control_)
     state_ = updateState(model_, cntrl_)
     #cost_ = cost.f_cost(state_, target_, cntrl_)
-    cost_int = cost.f_int(dt_, state_, target_, cntrl_)
+    cost_int = cost.f_int(dt_, state_, target_, cntrl_, v_ = variables_)
     step_min1_ = step_min_
     
     
@@ -227,7 +239,8 @@ def scan(model_, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int
         cntrl_ = setmaxcontrol(cntrl_, max_control_)
         state_ = updateState(model_, cntrl_)
         #cost_ = cost.f_cost(state_, target_, cntrl_)
-        cost_int = cost.f_int(dt_, state_, target_, cntrl_)
+        cost_int = cost.f_int(dt_, state_, target_, cntrl_, v_ = variables_)
+        
         
     return step_min1_, cost_min_int_
 

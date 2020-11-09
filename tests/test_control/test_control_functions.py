@@ -12,10 +12,16 @@ def setInitVarsZero(model, init_vars):
     else:
        setParametersALN(model)
         
-def getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax):
+def getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax, variables_ = [0,1]):
     control_ = model.getZeroControl()
+    cntrl_vars = [0,1]
+    if 0 not in variables_:
+        cntrl_vars = [0]
+    elif 1 not in variables_:
+        cntrl_vars = [1]
+        
     for n in range(control_.shape[0]):
-        for v in range(control_.shape[1]):
+        for v in cntrl_vars:
             for t in range(cntrl_zeros_pre+1, control_.shape[2]):
                 control_[n, v, t] = random.uniform(controlmin, controlmax)
     return control_
@@ -77,6 +83,8 @@ def getmodel(i, dur_pre, dur_post):
                         
         model_.params.ext_exc_current = 4. * random.uniform(0., 1.)
         model_.params.ext_inh_current = 4. * random.uniform(0., 1.)
+        
+        print("delay = ", model_.params.di, model_.params.signalV, model_.params.de)
         
         #setParametersALN(model_)
         

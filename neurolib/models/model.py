@@ -9,6 +9,7 @@ from ..utils import costFunctions as cost
 from ..utils import A1_fhn as opti1_fhn
 from ..utils import A1_aln_control as opti1_aln_control
 from ..utils import A1_a as opti1_a
+from ..utils import A1_b as opti1_b
 
 from ..utils import A2 as opti2
 
@@ -645,16 +646,19 @@ class Model:
         return opti2.A2(self, cntrl_, target_,  max_iteration_, tolerance_, include_timestep_, start_step_, test_step_, max_control_,
        t_sim_, t_sim_pre_, t_sim_post_)
     
-    def A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10., max_control_ = 20., t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, CGVar = None):
+    def A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10., max_control_ = 20., t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, CGVar = None, variables_ = [0,1]):
         if self.name == "fhn":
             return opti1_fhn.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
         elif self.name == "aln":
             return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
-                                        tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
+                                        tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar, variables_)
         elif self.name == "aln-control":
             return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
                                     tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
         elif self.name == "a":
             return opti1_a.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
-                                    tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
-
+                                    tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar, variables_)
+        
+        elif self.name == "b":
+            return opti1_b.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
+                                        tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar, variables_)

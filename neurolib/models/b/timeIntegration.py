@@ -213,22 +213,32 @@ def timeIntegration(params, control):
     # if initial values are just N array:
     if type(params["rates_exc_init"]) is not type(np.array([])):
         logging.error("wrong input for initial rates")
-    if len(np.shape(params["rates_exc_init"])) == 1:
+    elif len(np.shape(params["rates_exc_init"])) == 1:
         logging.error("wrong input for initial rates")
         #rates_exc_init = (params["rates_exc_init"] * np.ones((1, startind))).T   # kHz
         #rates_inh_init = (params["rates_inh_init"] * np.ones((startind, 1))).T  # kHz
     # if initial values are just a Nx1 array
-    if np.shape(params["rates_exc_init"])[1] == 1:
+    elif np.shape(params["rates_exc_init"])[1] == 1:
         # repeat the 1-dim value stardind times
         rates_exc_init = np.dot(params["rates_exc_init"], np.ones((1, startind)))  # kHz
         rates_inh_init = np.dot(params["rates_inh_init"], np.ones((1, startind)))  # kHz
         # set initial adaptation current
-        IA_init = np.dot(params["IA_init"], np.ones((1, startind)))
     # if initial values are a Nxt array
     else:
         rates_exc_init = params["rates_exc_init"][:, -startind:]
         rates_inh_init = params["rates_inh_init"][:, -startind:]
-        IA_init = params["IA_init"][:, -startind:]    
+
+    if type(params["IA_init"]) is not type(np.array([])):
+        logging.error("wrong input for initial adaptation current")
+    elif len(np.shape(params["IA_init"])) == 1:
+        A_init = np.ones((1, startind)) * params["IA_init"][0]
+    # if initial values are just a Nx1 array
+    elif np.shape(params["IA_init"])[1] == 1:
+        # repeat the 1-dim value stardind times
+        IA_init = np.dot(params["IA_init"], np.ones((1, startind)))
+    # if initial values are a Nxt array
+    else:
+        IA_init = params["IA_init"][:, -startind:] 
 
     if RNGseed:
         np.random.seed(RNGseed)
@@ -492,8 +502,6 @@ def timeIntegration_njit_elementwise(
             mui = (Jie_max * siem[no,i-1] + Jii_max * siim[no,i-1] + mui_ou[no,i-1] + ext_inh_current[no, i]
                    + control_ext[no, 1, i-startind+1]
                    )
-            #print("mui parts = ",  Jie_max * siem[no,i-1], Jii_max * siim[no,i-1], mui_ou[no,i-1], ext_inh_current[no, i]
-            #       ,control_ext[no, 1, i-startind+1])
             #if (i in range(startind, startind + 3,1)):
             #print("mue computation: ",no, i-startind, control_ext[no, 0, i-startind], control_ext[no, 1, i-startind])
 
@@ -527,27 +535,6 @@ def timeIntegration_njit_elementwise(
             )  # external rate input to inh. population
             z2ii = cii ** 2 * Ki * rd_inh[no]
 
-            sigmae_sq = (2 * sq_Jee_max * seev[no,i-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
-                + 2 * sq_Jei_max * seiv[no,i-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
-                + sigmae_ext ** 2)
-            #sigmae_sq = ( 2 * sq_Jei_max * seiv[no,i-1] * tau_si * taum
-            #             / ((1 + z1ei) * taum + tau_si) + sigmae_ext ** 2)
-            if sigmae_sq > 0.:
-                sigmae = np.sqrt(sigmae_sq)
-            else:
-                sigmae = 0.
-                
-            #sigmae = seiv[no,i-1]
-                
-            sigmai_sq = (2 * sq_Jie_max * siev[no,i-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
-                + 2 * sq_Jii_max * siiv[no,i-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
-                + sigmai_ext ** 2)
-            if sigmai_sq > 0.:
-                sigmai = np.sqrt(sigmai_sq)
-            else:
-                sigmai = 0.
-                
-            """
             sigmae = np.sqrt(
                 2 * sq_Jee_max * seev[no,i-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
                 + 2 * sq_Jei_max * seiv[no,i-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
@@ -559,28 +546,51 @@ def timeIntegration_njit_elementwise(
                 + 2 * sq_Jii_max * siiv[no,i-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
                 + sigmai_ext ** 2
             )  # mV/sqrt(ms)
-            """
 
             if not filter_sigma:
-               # print("sigmae = ", sigmae)
                 sigmae_f[no,i-1] = sigmae
                 sigmai_f[no,i-1] = sigmai
-            
+
             # Read the transfer function from the lookup table
             # -------------------------------------------------------------
 
             # ------- excitatory population
+            # mufe[no] - IA[no] / C is the total current of the excitatory population
+            xid1, yid1, dxid, dyid = fast_interp2_opt(
+                sigmarange, ds, sigmae_f[no,i-1], Irange, dI, mufe[no,i-1] - IA[no, i - 1] / C
+            )
+            xid1, yid1 = int(xid1), int(yid1)
+
+            #print("integration: xid1, yid1, dxid, dyid = ", xid1, yid1, dxid, dyid)
+            rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
+            Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
             
-            rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
-            Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+            #rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
+            #Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
             
             # shift tau by one???
-            tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+            tau_exc[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+            #tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+                                    
+            if filter_sigma:
+                tau_sigmae_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
 
             # ------- inhibitory population
-            rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
+            #  mufi[no] are the (filtered) currents of the inhibitory population
             
-            tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
+            xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,i-1], Irange, dI, mufi[no,i-1])
+            xid1, yid1 = int(xid1), int(yid1)
+
+            rates_inh[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
+            #rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
+            
+            
+            # Vmean_inh = interpolate_values(precalc_V, xid1, yid1, dxid, dyid) # not used
+            tau_inh[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+            #tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
+            
+            if filter_sigma:
+                tau_sigmai_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
 
             # -------------------------------------------------------------
 
@@ -589,7 +599,6 @@ def timeIntegration_njit_elementwise(
             mufe_rhs = (mue - mufe[no,i-1] 
                         #+ control_ext[no, 0, i-startind+1]
                         ) / tau_exc[no,i-1]
-
             
             mufi_rhs = (mui - mufi[no,i-1] 
                         #+ control_ext[no, 1, i-startind+1]
@@ -597,15 +606,22 @@ def timeIntegration_njit_elementwise(
 
             # rate has to be kHz
             IA_rhs = (a * (Vmean_exc[no,i] - EA) - IA[no, i - 1] + tauA * b * rates_exc[no, i] * 1e-3) / tauA
+            
+            # EQ. 4.43
+            if distr_delay:
+                rd_exc_rhs = (rates_exc[no, i] * 1e-3 - rd_exc[no, no]) / tau_de
+                rd_inh_rhs = (rates_inh[no, i] * 1e-3 - rd_inh[no]) / tau_di
+
+            if filter_sigma:
+                sigmae_f_rhs = (sigmae - sigmae_f[no,i-1]) / tau_sigmae_eff
+                sigmai_f_rhs = (sigmai - sigmai_f[no,i-1]) / tau_sigmai_eff
 
             # integration of synaptic input (eq. 4.36)
             
             seem_rhs = ((1 - seem[no,i-1]) * z1ee - seem[no,i-1]) / tau_se
             seim_rhs = ((1 - seim[no,i-1]) * z1ei - seim[no,i-1]) / tau_si
-            #seim_rhs = 1e0 * z1ei
             siem_rhs = ((1 - siem[no,i-1]) * z1ie - siem[no,i-1]) / tau_se
             siim_rhs = ((1 - siim[no,i-1]) * z1ii - siim[no,i-1]) / tau_si
-            #siim_rhs = 1e0 * z1ii
             seev_rhs = ((1 - seem[no,i-1]) ** 2 * z2ee + (z2ee - 2 * tau_se * (z1ee + 1)) * seev[no,i-1]) / tau_se ** 2
             seiv_rhs = ((1 - seim[no,i-1]) ** 2 * z2ei + (z2ei - 2 * tau_si * (z1ei + 1)) * seiv[no,i-1]) / tau_si ** 2
             siev_rhs = ((1 - siem[no,i-1]) ** 2 * z2ie + (z2ie - 2 * tau_se * (z1ie + 1)) * siev[no,i-1]) / tau_se ** 2
@@ -615,18 +631,25 @@ def timeIntegration_njit_elementwise(
 
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             mufi[no,i] = mufi[no,i-1] + dt * mufi_rhs
-            #IA[no,i] = IA[no, i - 1] + dt * IA_rhs
+            IA[no,i] = IA[no, i - 1] + dt * IA_rhs
 
-            #seem[no,i] = seem[no,i-1] + dt * seem_rhs
+            if distr_delay:
+                rd_exc[no, no] = rd_exc[no, no] + dt * rd_exc_rhs
+                rd_inh[no] = rd_inh[no] + dt * rd_inh_rhs
+
+            if filter_sigma:
+                sigmae_f[no,i] = sigmae_f[no,i-1] + dt * sigmae_f_rhs
+                sigmai_f[no,i] = sigmai_f[no,i-1] + dt * sigmai_f_rhs
+
+            seem[no,i] = seem[no,i-1] + dt * seem_rhs
             seim[no,i] = seim[no,i-1] + dt * seim_rhs
-            #siem[no,i] = siem[no,i-1] + dt * siem_rhs
-            #siim[no,i] = siim[no,i-1] + dt * siim_rhs
-            #seev[no,i] = seev[no,i-1] + dt * seev_rhs
+            siem[no,i] = siem[no,i-1] + dt * siem_rhs
+            siim[no,i] = siim[no,i-1] + dt * siim_rhs
+            seev[no,i] = seev[no,i-1] + dt * seev_rhs
             seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
-            #siev[no,i] = siev[no,i-1] + dt * siev_rhs
-            #siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
+            siev[no,i] = siev[no,i-1] + dt * siev_rhs
+            siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
 
-            """
             # Ensure the variance does not get negative for low activity
             if seev[no,i] < 0:
                 seev[no,i] = 0.0
@@ -639,7 +662,17 @@ def timeIntegration_njit_elementwise(
 
             if siiv[no,i] < 0:
                 siiv[no,i] = 0.0
-            """
+                  
+            if (not filter_sigma and i == startind + len(t) - 1):
+                sigmae_f[no,i] = np.sqrt(
+                2 * sq_Jee_max * seev[no,i] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
+                + 2 * sq_Jei_max * seiv[no,i] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
+                + sigmae_ext ** 2)  # mV/sqrt(ms)
+
+                sigmai_f[no,i] = np.sqrt(
+                2 * sq_Jie_max * siev[no,i] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
+                + 2 * sq_Jii_max * siiv[no,i] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
+                + sigmai_ext ** 2)
 
             # ornstein-uhlenbeck process
             mue_ou[no,i] = (
@@ -696,17 +729,11 @@ def timeIntegration_njit_elementwise(
     )  # external rate input to inh. population
     z2ii = cii ** 2 * Ki * rd_inh[no]
 
-    sigmae_sq = ( 2 * sq_Jee_max * seev[no,-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
+    sigmae = np.sqrt(
+        2 * sq_Jee_max * seev[no,-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
         + 2 * sq_Jei_max * seiv[no,-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
-        + sigmae_ext ** 2 )  # mV/sqrt(ms)
-    
-    #sigmae_sq = ( 2 * sq_Jei_max * seiv[no,-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si) + sigmae_ext ** 2)
-    if sigmae_sq > 0.:
-        sigmae = np.sqrt(sigmae_sq)
-    else:
-        sigmae = 0.
-    
-    #sigmae = seiv[no,-1]
+        + sigmae_ext ** 2
+    )  # mV/sqrt(ms)
     
     sigmai = np.sqrt(
         2 * sq_Jie_max * siev[no,-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
@@ -717,12 +744,71 @@ def timeIntegration_njit_elementwise(
     if not filter_sigma:
         sigmae_f[no,-1] = sigmae
         sigmai_f[no,-1] = sigmai
+    
+    
+    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmae_f[no,-1], Irange, dI, mufe[no,-1] - IA[no,-1] / C)
+    xid1, yid1 = int(xid1), int(yid1)
+    tau_exc[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
 
-    tau_exc[no,-1] = tau_func(mufe[no,i-1], sigmae_f[no,i-1])
-
-    tau_inh[no,-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
+    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,-1], Irange, dI, mufi[no,-1])
+    xid1, yid1 = int(xid1), int(yid1)
+    tau_inh[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou, sigmae_f, sigmai_f, Vmean_exc, tau_exc, tau_inh
+
+
+@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64})
+def interpolate_values(table, xid1, yid1, dxid, dyid):
+    output = (
+        table[yid1, xid1] * (1 - dxid) * (1 - dyid)
+        + table[yid1, xid1 + 1] * dxid * (1 - dyid)
+        + table[yid1 + 1, xid1] * (1 - dxid) * dyid
+        + table[yid1 + 1, xid1 + 1] * dxid * dyid
+    )
+    return output
+
+
+@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64})
+def lookup_no_interp(x, dx, xi, y, dy, yi):
+
+    """
+    Return the indices for the closest values for a look-up table
+    Choose the closest point in the grid
+
+    x     ... range of x values
+    xi    ... interpolation value on x-axis
+    dx    ... grid width of x ( dx = x[1]-x[0])
+               (same for y)
+
+    return:   idxX and idxY
+    """
+
+    if xi > x[0] and xi < x[-1]:
+        xid = (xi - x[0]) / dx
+        xid_floor = np.floor(xid)
+        if xid - xid_floor < dx / 2:
+            idxX = xid_floor
+        else:
+            idxX = xid_floor + 1
+    elif xi < x[0]:
+        idxX = 0
+    else:
+        idxX = len(x) - 1
+
+    if yi > y[0] and yi < y[-1]:
+        yid = (yi - y[0]) / dy
+        yid_floor = np.floor(yid)
+        if yid - yid_floor < dy / 2:
+            idxY = yid_floor
+        else:
+            idxY = yid_floor + 1
+
+    elif yi < y[0]:
+        idxY = 0
+    else:
+        idxY = len(y) - 1
+
+    return idxX, idxY
 
 
 def adjust_shape(original, target):
@@ -767,12 +853,113 @@ def adjust_shape(original, target):
 
     return original
 
+
+@numba.njit(locals={"xid1": numba.int64, "yid1": numba.int64, "dxid": numba.float64, "dyid": numba.float64})
+def fast_interp2_opt(x, dx, xi, y, dy, yi):
+
+    """
+    Returns the values needed for interpolation:
+    - bilinear (2D) interpolation within ranges,
+    - linear (1D) if "one edge" is crossed,
+    - corner value if "two edges" are crossed
+
+    x     ... range of the x value
+    xi    ... interpolation value on x-axis
+    dx    ... grid width of x ( dx = x[1]-x[0] )
+    (same for y)
+
+    return:   xid1    ... index of the lower interpolation value
+              dxid    ... distance of xi to the lower interpolation value
+              (same for y)
+    """
+
+    # within all boundaries
+    if xi >= x[0] and xi < x[-1] and yi >= y[0] and yi < y[-1]:
+        xid = (xi - x[0]) / dx
+        xid1 = np.floor(xid)
+        dxid = xid - xid1
+        yid = (yi - y[0]) / dy
+        yid1 = np.floor(yid)
+        dyid = yid - yid1
+        return xid1, yid1, dxid, dyid
+
+    # outside one boundary
+    if yi < y[0]:
+        yid1 = 0
+        dyid = 0.0
+        if xi >= x[0] and xi < x[-1]:
+            xid = (xi - x[0]) / dx
+            xid1 = np.floor(xid)
+            dxid = xid - xid1
+
+        elif xi < x[0]:
+            xid1 = 0
+            dxid = 0.0
+        else:  # xi >= x(end)
+            xid1 = -1
+            dxid = 0.0
+        return xid1, yid1, dxid, dyid
+
+    if yi >= y[-1]:
+        yid1 = -1
+        dyid = 0.0
+        if xi >= x[0] and xi < x[-1]:
+            xid = (xi - x[0]) / dx
+            xid1 = np.floor(xid)
+            dxid = xid - xid1
+
+        elif xi < x[0]:
+            xid1 = 0
+            dxid = 0.0
+
+        else:  # xi >= x(end)
+            xid1 = -1
+            dxid = 0.0
+        return xid1, yid1, dxid, dyid
+
+    if xi < x[0]:
+        xid1 = 0
+        dxid = 0.0
+        # We know that yi is within the boundaries
+        yid = (yi - y[0]) / dy
+        yid1 = np.floor(yid)
+        dyid = yid - yid1
+        return xid1, yid1, dxid, dyid
+
+    if xi >= x[-1]:
+        xid1 = -1
+        dxid = 0.0
+        # We know that yi is within the boundaries
+        yid = (yi - y[0]) / dy
+        yid1 = np.floor(yid)
+        dyid = yid - yid1
+
+    return xid1, yid1, dxid, dyid
+
 def r_func(mu, sigma):
-    return (mu + sigma) * 1e-2
+    x_shift_mu = - 2.
+    x_shift_sigma = -1.
+    x_scale_mu = 0.6
+    x_scale_sigma = 0.6
+    y_shift = 0.1
+    y_scale_mu = 0.1
+    y_scale_sigma = 1./2500.
+    return y_shift + np.tanh(x_scale_mu * mu + x_shift_mu) * y_scale_mu + np.cosh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma
 
 def tau_func(mu, sigma):
-    return (1. + mu + sigma) * 1e0
+    mu_shift = - 1.1
+    sigma_scale = 0.5
+    mu_scale = - 10
+    mu_scale1 = - 3
+    y_shift = 15.
+    sigma_shift = 1.4
+    return sigma_scale * ( mu_shift + mu ) * sigma + mu_scale1 * mu + y_shift + np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )    
    
 
 def V_func(mu, sigma):
-    return (mu + sigma) * 1e-2
+    y_scale1 = 30.
+    mu_shift1 = 1.
+    y_shift = - 85.
+    y_scale2 = 2.
+    mu_shift2 = 0.5
+    return y_shift + y_scale1 * np.tanh( mu + mu_shift1 ) + y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
