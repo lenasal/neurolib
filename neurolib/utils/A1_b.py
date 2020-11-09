@@ -28,12 +28,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
     Dmat_ndt = np.around(Dmat / dt).astype(int)
         
-    if model.name == "aln":
-        ndt_de = np.around(model.params.de / dt).astype(int)
-        ndt_di = np.around(model.params.di / dt).astype(int)
-        max_global_delay = max(np.max(Dmat_ndt), ndt_de, ndt_di)
-    else:
-        max_global_delay = np.max(Dmat_ndt)
+    ndt_de = np.around(model.params.de / dt).astype(int)
+    ndt_di = np.around(model.params.di / dt).astype(int)
+    max_global_delay = max(np.max(Dmat_ndt), ndt_de, ndt_di)
         
     print(max_global_delay == model.getMaxDelay(), max_global_delay )
         
@@ -47,11 +44,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
     t_pre_ndt = np.around(t_sim_pre_ / dt).astype(int)
     delay_state_vars_ = np.zeros(( model.params.N, len(state_vars), startind_ ))
-    
+        
     if ( startind_ > 1 and t_pre_ndt <= startind_ ):
         logging.error("Not possible to set up initial conditions without sufficient simulation time before control")
-        return
-    
+        
     # simulate with duration t_sim_pre before start
     if (t_sim_pre_ >= dt):
         model.params['duration'] = t_sim_pre_
@@ -62,7 +58,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             fo.update_init(model, init_vars, state_vars)
         else:
             fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_pre_ndt, startind_)
-    
+        
     model.params['duration'] = t_sim_
     i=0
         
@@ -106,67 +102,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
 
         dir0_ = - g0_min_.copy()
         dir1_ = dir0_.copy()
-                
-        """
-        # compute stepsize separately and then put together
-        d_exc = dir1_.copy()
-        d_exc[:,1,:] = 0.
-        
-        #start_st = fo.adapt_step_adjoint(best_control_, startStep_, d, cntrl_max_)
-        #print("set start step to ", start_st)
-        
-        s_exc, tc_exc = fo.step_size(model, outstate_[:,:,:], target_state_,
-                     best_control_, d_exc, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_)
-        
-        #print("step size exc = ", s_exc)
-        
-        d_inh = dir1_.copy()
-        d_inh[:,0,:] = 0.
-        
-        s_inh, tc_inh = fo.step_size(model, outstate_[:,:,:], target_state_,
-                     best_control_, d_inh, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_)
-        
-        #print("step size inh = ", s_inh)
-        
-        joint_dir = dir1_.copy()
-        joint_dir[:,0,:] = s_exc * dir1_[:,0,:] #/ (s_exc + s_inh)
-        joint_dir[:,1,:] = s_inh * dir1_[:,1,:] #/ (s_exc + s_inh)
-        
-        joint_step_, joint_cost = fo.step_size(model, outstate_[:,:,:], target_state_,
-                     best_control_, joint_dir, start_step_ = startStep_, max_control_ = cntrl_max_)
-        
-        #print("step size = ", joint_step_, joint_cost)
-        """
         
         step_, total_cost_[i] = fo.step_size(model, outstate_[:,:,:], target_state_,
                      best_control_, dir1_, start_step_ = startStep_, max_control_ = cntrl_max_, variables_ = variables)
         
-        
-        #print("step size = ", step_, total_cost_[i])
-        """
-        costMin = np.amin( [tc_exc, tc_inh, joint_cost, total_cost_[i]] )
-        
-        if (tc_exc ==  costMin):
-            print("choose exc only")
-            step_ = s_exc
-            total_cost_[i] = tc_exc
-            dir1_ = d_exc.copy()
-            
-        elif (tc_inh ==  costMin):
-            print("choose inh only")
-            step_ = s_inh
-            total_cost_[i] = tc_inh
-            dir1_ = d_inh.copy()
-        
-        elif (joint_cost ==  costMin):
-            print("choose exc, inh combination")
-            step_ = joint_step_
-            total_cost_[i] = joint_cost
-            dir1_ = joint_dir.copy()
-            
-        else:
-            print("choose joint computation")
-        """
         
         runtime_[i] = timer() - runtime_start_
         
@@ -225,23 +164,6 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             fo.update_init(model, init_vars, state_vars)
         else:
             fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_post_ndt, startind_)
-        
-        """
-        for iv, sv in zip( range(len(init_vars)), range(len(state_vars)) ):
-            if state_vars[sv] in init_vars[iv]:
-                #print("variable = ", state_vars[sv])
-                #print(" state = ", model.state[state_vars[sv]])
-                #print(" init param = ", model.params[init_vars[iv]])
-                if model.params[init_vars[iv]].ndim == 2:
-                    if startind_ == 1:
-                        model.params[init_vars[iv]][:,0] = model.state[state_vars[sv]][:,-1]
-                    else:
-                        model.params[init_vars[iv]][:,:] = delay_state_vars_[:, sv, :]              
-                else:
-                    model.params[init_vars[iv]][:] = model.state[state_vars[sv]][:,-1]
-            else:
-                logging.error("Initial and state variable labelling does not agree.") 
-        """
     
         model.params.duration = t_sim_post_ #- dt
         control_post_ = model.getZeroControl()
@@ -282,9 +204,16 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
         if (ind_time == 0):
             break
         
+        ndt_de = np.around(model.params.de / dt).astype(int)
+        
+        if ind_time + ndt_de < state_.shape[2]:
+            shift_e = ndt_de
+        else:
+            shift_e = 0
+                    
         phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,2,ind_time], phi_[0,4,ind_time],
-                                phi_[0,5,ind_time], phi_[0,7,ind_time], phi_[0,9,ind_time],
-                                phi_[0,11,ind_time], phi_[0,15,ind_time], phi_[0,16,ind_time] ] ),
+                                phi_[0,5,ind_time+shift_e], phi_[0,7,ind_time+shift_e], phi_[0,9,ind_time+shift_e],
+                                phi_[0,11,ind_time+shift_e], phi_[0,15,ind_time+shift_e], phi_[0,16,ind_time+shift_e] ] ),
                                 np.array( [jac[2,0], jac[4,0], jac[5,0], jac[7,0], jac[9,0], jac[11,0], jac[15,0], jac[16,0]] ) )
         
         ndt_di = np.around(model.params.di / dt).astype(int)
@@ -293,9 +222,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
             shift_i = ndt_di
         else:
             shift_i = 0
-            
-        #shift_i = 0
-        
+                    
         phi_[0,1,ind_time] = - full_cost_grad[1] - np.dot( np.array( [phi_[0,3,ind_time], phi_[0,6,ind_time+shift_i],
                                 phi_[0,8,ind_time+shift_i], phi_[0,10,ind_time+shift_i], phi_[0,12,ind_time+shift_i], 
                                 phi_[0,15,ind_time+shift_i], phi_[0,16,ind_time+shift_i] ] ), 
@@ -406,7 +333,9 @@ def jacobian(model, state_, control_, t_):
     else:
         shift_e = 0
            
-    shift_e = 0
+    # could leave this at zero and algorithm would do almost equally well
+    #shift_e = 0
+    
     rd_exc[0,0] = state_[0,0,t_+shift_e] * 1e-3
     
     if t_ + ndt_di < state_.shape[2]:
@@ -414,11 +343,11 @@ def jacobian(model, state_, control_, t_):
     else:
         shift_i = 0
       
-    shift_i = 0
+    # could leave this at zero and algorithm would do almost equally well
+    #shift_i = 0
+    
     rd_inh[0] = state_[0,1,t_+shift_i] * 1e-3
     
-    #rd_exc[0,0] = state_[0,0,t_] * 1e-3
-    #rd_inh[0] = state_[0,1,t_] * 1e-3
     
     factor_ee1 = ( cee * Ke * tau_se / np.abs(Jee_max) )
     factor_ee2 = ( cee**2 * Ke * tau_se**2 / Jee_max**2 )
