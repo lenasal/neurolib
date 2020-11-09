@@ -555,42 +555,17 @@ def timeIntegration_njit_elementwise(
             # -------------------------------------------------------------
 
             # ------- excitatory population
-            # mufe[no] - IA[no] / C is the total current of the excitatory population
-            xid1, yid1, dxid, dyid = fast_interp2_opt(
-                sigmarange, ds, sigmae_f[no,i-1], Irange, dI, mufe[no,i-1] - IA[no, i - 1] / C
-            )
-            xid1, yid1 = int(xid1), int(yid1)
+            rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
+            Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
 
-            #print("integration: xid1, yid1, dxid, dyid = ", xid1, yid1, dxid, dyid)
-            rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
-            Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
-            
-            #rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
-            #Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
-            
-            # shift tau by one???
-            tau_exc[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-            #tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
-                                    
-            if filter_sigma:
-                tau_sigmae_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
+            tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+
 
             # ------- inhibitory population
-            #  mufi[no] are the (filtered) currents of the inhibitory population
+            rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
             
-            xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,i-1], Irange, dI, mufi[no,i-1])
-            xid1, yid1 = int(xid1), int(yid1)
+            tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
 
-            rates_inh[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
-            #rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
-            
-            
-            # Vmean_inh = interpolate_values(precalc_V, xid1, yid1, dxid, dyid) # not used
-            tau_inh[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-            #tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
-            
-            if filter_sigma:
-                tau_sigmai_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
 
             # -------------------------------------------------------------
 
@@ -745,70 +720,11 @@ def timeIntegration_njit_elementwise(
         sigmae_f[no,-1] = sigmae
         sigmai_f[no,-1] = sigmai
     
-    
-    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmae_f[no,-1], Irange, dI, mufe[no,-1] - IA[no,-1] / C)
-    xid1, yid1 = int(xid1), int(yid1)
-    tau_exc[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+    tau_exc[no,-1] = tau_func(mufe[no,-1], sigmae_f[no,-1])
 
-    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,-1], Irange, dI, mufi[no,-1])
-    xid1, yid1 = int(xid1), int(yid1)
-    tau_inh[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
+    tau_inh[no,-1] = tau_func(mufi[no,-1], sigmai_f[no,-1])
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou, sigmae_f, sigmai_f, Vmean_exc, tau_exc, tau_inh
-
-
-@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64})
-def interpolate_values(table, xid1, yid1, dxid, dyid):
-    output = (
-        table[yid1, xid1] * (1 - dxid) * (1 - dyid)
-        + table[yid1, xid1 + 1] * dxid * (1 - dyid)
-        + table[yid1 + 1, xid1] * (1 - dxid) * dyid
-        + table[yid1 + 1, xid1 + 1] * dxid * dyid
-    )
-    return output
-
-
-@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64})
-def lookup_no_interp(x, dx, xi, y, dy, yi):
-
-    """
-    Return the indices for the closest values for a look-up table
-    Choose the closest point in the grid
-
-    x     ... range of x values
-    xi    ... interpolation value on x-axis
-    dx    ... grid width of x ( dx = x[1]-x[0])
-               (same for y)
-
-    return:   idxX and idxY
-    """
-
-    if xi > x[0] and xi < x[-1]:
-        xid = (xi - x[0]) / dx
-        xid_floor = np.floor(xid)
-        if xid - xid_floor < dx / 2:
-            idxX = xid_floor
-        else:
-            idxX = xid_floor + 1
-    elif xi < x[0]:
-        idxX = 0
-    else:
-        idxX = len(x) - 1
-
-    if yi > y[0] and yi < y[-1]:
-        yid = (yi - y[0]) / dy
-        yid_floor = np.floor(yid)
-        if yid - yid_floor < dy / 2:
-            idxY = yid_floor
-        else:
-            idxY = yid_floor + 1
-
-    elif yi < y[0]:
-        idxY = 0
-    else:
-        idxY = len(y) - 1
-
-    return idxX, idxY
 
 
 def adjust_shape(original, target):
@@ -853,113 +769,12 @@ def adjust_shape(original, target):
 
     return original
 
-
-@numba.njit(locals={"xid1": numba.int64, "yid1": numba.int64, "dxid": numba.float64, "dyid": numba.float64})
-def fast_interp2_opt(x, dx, xi, y, dy, yi):
-
-    """
-    Returns the values needed for interpolation:
-    - bilinear (2D) interpolation within ranges,
-    - linear (1D) if "one edge" is crossed,
-    - corner value if "two edges" are crossed
-
-    x     ... range of the x value
-    xi    ... interpolation value on x-axis
-    dx    ... grid width of x ( dx = x[1]-x[0] )
-    (same for y)
-
-    return:   xid1    ... index of the lower interpolation value
-              dxid    ... distance of xi to the lower interpolation value
-              (same for y)
-    """
-
-    # within all boundaries
-    if xi >= x[0] and xi < x[-1] and yi >= y[0] and yi < y[-1]:
-        xid = (xi - x[0]) / dx
-        xid1 = np.floor(xid)
-        dxid = xid - xid1
-        yid = (yi - y[0]) / dy
-        yid1 = np.floor(yid)
-        dyid = yid - yid1
-        return xid1, yid1, dxid, dyid
-
-    # outside one boundary
-    if yi < y[0]:
-        yid1 = 0
-        dyid = 0.0
-        if xi >= x[0] and xi < x[-1]:
-            xid = (xi - x[0]) / dx
-            xid1 = np.floor(xid)
-            dxid = xid - xid1
-
-        elif xi < x[0]:
-            xid1 = 0
-            dxid = 0.0
-        else:  # xi >= x(end)
-            xid1 = -1
-            dxid = 0.0
-        return xid1, yid1, dxid, dyid
-
-    if yi >= y[-1]:
-        yid1 = -1
-        dyid = 0.0
-        if xi >= x[0] and xi < x[-1]:
-            xid = (xi - x[0]) / dx
-            xid1 = np.floor(xid)
-            dxid = xid - xid1
-
-        elif xi < x[0]:
-            xid1 = 0
-            dxid = 0.0
-
-        else:  # xi >= x(end)
-            xid1 = -1
-            dxid = 0.0
-        return xid1, yid1, dxid, dyid
-
-    if xi < x[0]:
-        xid1 = 0
-        dxid = 0.0
-        # We know that yi is within the boundaries
-        yid = (yi - y[0]) / dy
-        yid1 = np.floor(yid)
-        dyid = yid - yid1
-        return xid1, yid1, dxid, dyid
-
-    if xi >= x[-1]:
-        xid1 = -1
-        dxid = 0.0
-        # We know that yi is within the boundaries
-        yid = (yi - y[0]) / dy
-        yid1 = np.floor(yid)
-        dyid = yid - yid1
-
-    return xid1, yid1, dxid, dyid
-
 def r_func(mu, sigma):
-    x_shift_mu = - 2.
-    x_shift_sigma = -1.
-    x_scale_mu = 0.6
-    x_scale_sigma = 0.6
-    y_shift = 0.1
-    y_scale_mu = 0.1
-    y_scale_sigma = 1./2500.
-    return y_shift + np.tanh(x_scale_mu * mu + x_shift_mu) * y_scale_mu + np.cosh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma
+    return (mu + sigma) * 1e-2
 
 def tau_func(mu, sigma):
-    mu_shift = - 1.1
-    sigma_scale = 0.5
-    mu_scale = - 10
-    mu_scale1 = - 3
-    y_shift = 15.
-    sigma_shift = 1.4
-    return sigma_scale * ( mu_shift + mu ) * sigma + mu_scale1 * mu + y_shift + np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )    
+    return (1. + mu + sigma) * 1e0
    
 
 def V_func(mu, sigma):
-    y_scale1 = 30.
-    mu_shift1 = 1.
-    y_shift = - 85.
-    y_scale2 = 2.
-    mu_shift2 = 0.5
-    return y_shift + y_scale1 * np.tanh( mu + mu_shift1 ) + y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
+    return (mu + sigma) * 1e-2

@@ -10,7 +10,7 @@ class b_Model(Model):
     Multi-population mean-field model with exciatory and inhibitory neurons per population.
     """
 
-    name = "aln"
+    name = "b"
     description = "Adaptive linear-nonlinear model of exponential integrate-and-fire neurons"
 
     init_vars = [

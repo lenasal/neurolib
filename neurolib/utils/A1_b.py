@@ -554,95 +554,19 @@ def D_u_h(model, state_, t_):
     return duh_
 
 def d_r_func_mu(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":
-        x_shift_mu = - 2.
-        x_scale_mu = 0.6
-        y_scale_mu = 0.1
-        result = y_scale_mu * x_scale_mu / np.cosh(x_scale_mu * mu + x_shift_mu)**2
-    elif model.name == "aln":
-        result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_r)
-    else:
-        print("no drivative of rate implemented")
-    #if np.abs(result) < 1e-16:
-    #    print("WARNING: vanishing derivative of r wrt mu")
-    return result
+    return 1e-2
 
 def d_r_func_sigma(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":
-        x_shift_sigma = -1.
-        x_scale_sigma = 0.6
-        y_scale_sigma = 1./2500.
-        result = np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma
-    elif model.name == "aln":
-        result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_r)
-    else:
-        print("no drivative of rate implemented")
-    if np.abs(result) < 1e-16:
-        print("WARNING: vanishing derivative of r wrt sigma")
-    return result
+    return 1e-2
 
 def d_tau_func_mu(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":
-        mu_shift = - 1.1
-        sigma_scale = 0.5
-        mu_scale = - 10
-        mu_scale1 = - 3
-        sigma_shift = 1.4
-        result = sigma_scale * sigma + mu_scale1 + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )
-    elif model.name == "aln":
-        result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_tau_mu)
-    else:
-        print("no drivative of tau implemented")
-    #if np.abs(result) < 1e-16:
-    #    print("WARNING: vanishing derivative of tau wrt mu")
-    return result
+    return 1e0
 
 def d_tau_func_sigma(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":
-        mu_shift = - 1.1
-        sigma_scale = 0.5
-        mu_scale = - 10
-        sigma_shift = 1.4
-        result = sigma_scale * ( mu_shift + mu ) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp(
-            mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )  
-    elif model.name == "aln":
-        result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_tau_mu)
-    else:
-        print("no drivative of tau implemented")
-    #if np.abs(result) < 1e-16:
-    #    print("WARNING: vanishing derivative of tau wrt sigma")
-    return result
+    return 1e0
 
 def d_V_func_mu(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":
-        y_scale1 = 30.
-        mu_shift1 = 1.
-        y_scale2 = 2.
-        mu_shift2 = 0.5
-        result = y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
-    elif model.name == "aln":
-        result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_V)
-    else:
-        print("no drivative of V implemented")
-    #if np.abs(result) < 1e-16:
-     #   print("WARNING: vanishing derivative of V wrt mu")
-    return result
+    return 1e-2
 
 def d_V_func_sigma(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":
-        y_scale2 = 2.
-        mu_shift2 = 0.5
-        result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2
-    elif model.name == "aln":
-        result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_V)
-    else:
-        print("no drivative of V implemented")
-    if np.abs(result) < 1e-16:
-        print("WARNING: vanishing derivative of V wrt sigma")
-    return result
+    return 1e-2
