@@ -541,6 +541,10 @@ def timeIntegration_njit_elementwise(
                 + sigmae_ext ** 2
             )  # mV/sqrt(ms)
             
+            ratio_exc = sigmae/sigmae_ext - 1.
+            if (ratio_exc < 1e-4 and ratio_exc != 0.):
+                print("ratio of sigma exc : ",  ratio_exc)
+            
             sigmai = np.sqrt(
                 2 * sq_Jie_max * siev[no,i-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
                 + 2 * sq_Jii_max * siiv[no,i-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
@@ -587,10 +591,6 @@ def timeIntegration_njit_elementwise(
                 rd_exc_rhs = (rates_exc[no, i] * 1e-3 - rd_exc[no, no]) / tau_de
                 rd_inh_rhs = (rates_inh[no, i] * 1e-3 - rd_inh[no]) / tau_di
 
-            if filter_sigma:
-                sigmae_f_rhs = (sigmae - sigmae_f[no,i-1]) / tau_sigmae_eff
-                sigmai_f_rhs = (sigmai - sigmai_f[no,i-1]) / tau_sigmai_eff
-
             # integration of synaptic input (eq. 4.36)
             
             seem_rhs = ((1 - seem[no,i-1]) * z1ee - seem[no,i-1]) / tau_se
@@ -607,14 +607,6 @@ def timeIntegration_njit_elementwise(
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             mufi[no,i] = mufi[no,i-1] + dt * mufi_rhs
             IA[no,i] = IA[no, i - 1] + dt * IA_rhs
-
-            if distr_delay:
-                rd_exc[no, no] = rd_exc[no, no] + dt * rd_exc_rhs
-                rd_inh[no] = rd_inh[no] + dt * rd_inh_rhs
-
-            if filter_sigma:
-                sigmae_f[no,i] = sigmae_f[no,i-1] + dt * sigmae_f_rhs
-                sigmai_f[no,i] = sigmai_f[no,i-1] + dt * sigmai_f_rhs
 
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
             seim[no,i] = seim[no,i-1] + dt * seim_rhs
@@ -710,6 +702,10 @@ def timeIntegration_njit_elementwise(
         + sigmae_ext ** 2
     )  # mV/sqrt(ms)
     
+    ratio_exc = sigmae/sigmae_ext - 1.
+    if (ratio_exc < 1e-4 and ratio_exc != 0.):
+                print("ratio of sigma exc : ",  ratio_exc)
+    
     sigmai = np.sqrt(
         2 * sq_Jie_max * siev[no,-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
         + 2 * sq_Jii_max * siiv[no,-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
@@ -770,7 +766,8 @@ def adjust_shape(original, target):
     return original
 
 def r_func(mu, sigma):
-    return (mu + sigma) * 1e-2
+    x_scale_sigma = 0.6
+    return ( mu + sigma )* 1e-2
 
 def tau_func(mu, sigma):
     return (1. + mu + sigma) * 1e0

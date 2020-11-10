@@ -189,6 +189,10 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
     out_state[:,1,:] = state_[:,1,:]
             
     for ind_time in range(phi_.shape[2]-1, start_ind_-1, -1):
+        
+        if (ind_time == 0):
+            break
+        
         jac = jacobian(model, state_[:,:,:], control_[:,:,:], ind_time)
         
         f_p_grad_t_ = cost.cost_precision_gradient_t(out_state[:,:,ind_time], target_state_[:,:,ind_time])
@@ -201,8 +205,6 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
         #phi_[0,1,ind_time-1] = res[1]
         #phi_[0,2,ind_time-1] = res[2]
         
-        if (ind_time == 0):
-            break
         
         ndt_de = np.around(model.params.de / dt).astype(int)
         

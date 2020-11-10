@@ -267,6 +267,10 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
     out_state[:,1,:] = state_[:,1,:]
             
     for ind_time in range(phi_.shape[2]-1, start_ind_-1, -1):
+        
+        if (ind_time == 0):
+            break
+        
         jac = jacobian(model, state_[:,:,:], control_[:,:,:], ind_time)
         
         f_p_grad_t_ = cost.cost_precision_gradient_t(out_state[:,:,ind_time], target_state_[:,:,ind_time])
@@ -279,8 +283,7 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
         #phi_[0,1,ind_time-1] = res[1]
         #phi_[0,2,ind_time-1] = res[2]
         
-        if (ind_time == 0):
-            break
+        
         
         ndt_de = np.around(model.params.de / dt).astype(int)
         
@@ -311,6 +314,11 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
         if (ind_time != phi_.shape[2]-1):
             der = phi_[0,0,ind_time+1] * jac[0,2] + phi_[0,2,ind_time] * jac[2,2] + phi_[0,17,ind_time] * jac[17,2] + phi_[0,18,ind_time] * jac[18,2]
             phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
+            
+            #if (ind_time in [6,7,8]):
+            #    print("t = ", ind_time)
+            #    print(phi_[0,0,ind_time+1], jac[0,2], phi_[0,2,ind_time], jac[2,2], phi_[0,17,ind_time], jac[17,2],
+            #         phi_[0,18,ind_time], jac[18,2])
             
             der = phi_[0,1,ind_time+1] * jac[1,3] + phi_[0,3,ind_time] * jac[3,3] + phi_[0,19,ind_time] * jac[19,3]
             phi_[0,3,ind_time-1] = phi_[0,3,ind_time] - dt * der
@@ -365,6 +373,9 @@ def phi(model, state_, target_state_, control_, phi_prev_, start_ind_ = 0, varia
         
         res = - phi_[0,1,ind_time] * jac[1,16] - phi_[0,19,ind_time-1] * jac[19,16]
         phi_[0,16,ind_time-1] = res
+        
+        #print("t = ", ind_time)
+        #print("phi = ", phi_[0,:,ind_time])
                 
     return phi_
 
@@ -558,6 +569,9 @@ def g(model, phi_, state_, control_, variables_ = [0,1]):
     phi_shift[:,:,1:] = phi_[:,:,0:-1]
     #phi_shift[:,:,0] = phi_shift[:,:,1]
     
+    #print("phi = ", phi_[0,2,:])
+    #print("phi_shift = ", phi_shift[0,2,:])
+    
     
     phi1_ = np.zeros(( grad_cost_e_.shape ))
     for t in range(1,state_.shape[2]):
@@ -587,7 +601,7 @@ def D_u_h(model, state_, t_):
 
 def d_r_func_mu(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control" or model.name == "aln":
+    if model.name == "aln-control":# or model.name == "aln":
         x_shift_mu = - 2.
         x_scale_mu = 0.6
         y_scale_mu = 0.1
@@ -602,7 +616,7 @@ def d_r_func_mu(model, mu, sigma):
 
 def d_r_func_sigma(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control" or model.name == "aln":
+    if model.name == "aln-control":# or model.name == "aln":
         x_shift_sigma = -1.
         x_scale_sigma = 0.6
         y_scale_sigma = 1./2500.
@@ -617,7 +631,7 @@ def d_r_func_sigma(model, mu, sigma):
 
 def d_tau_func_mu(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control" or model.name == "aln":
+    if model.name == "aln-control":# or model.name == "aln":
         mu_shift = - 1.1
         sigma_scale = 0.5
         mu_scale = - 10
@@ -634,7 +648,7 @@ def d_tau_func_mu(model, mu, sigma):
 
 def d_tau_func_sigma(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control" or model.name == "aln":
+    if model.name == "aln-control":# or model.name == "aln":
         mu_shift = - 1.1
         sigma_scale = 0.5
         mu_scale = - 10
@@ -651,7 +665,7 @@ def d_tau_func_sigma(model, mu, sigma):
 
 def d_V_func_mu(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control" or model.name == "aln":
+    if model.name == "aln-control":# or model.name == "aln":
         y_scale1 = 30.
         mu_shift1 = 1.
         y_scale2 = 2.
@@ -667,7 +681,7 @@ def d_V_func_mu(model, mu, sigma):
 
 def d_V_func_sigma(model, mu, sigma):
     result = 0.
-    if model.name == "aln-control" or model.name == "aln":
+    if model.name == "aln-control":# or model.name == "aln":
         y_scale2 = 2.
         mu_shift2 = 0.5
         result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2

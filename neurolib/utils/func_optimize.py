@@ -162,6 +162,8 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
     step_ = start_step_
     step_min_ = 0.
     
+    start_step_out_ = start_step_
+    
     for i in range(max_it_):
         test_control_ = control_ + step_ * dir_
         
@@ -176,7 +178,7 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
         
-        if (step_ * np.amax(np.absolute(test_control_)) < tolerance_ * 1e-5):
+        if (step_ * np.amax(np.absolute(dir_)) < tolerance_ * 1e-3):
             print("test control change smaller than tolerance, return zero step")
             return 0., cost0_int_
 
@@ -187,12 +189,17 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         # return smallest step size before cost is increasing again
         elif (cost1_int_ > cost_min_int_ and cost_min_int_ < cost0_int_):
             
+            
             if (i == 1):
-                step_ = 1000. * start_step_
+                step_ = 100. * start_step_
                 print("too small start step, increase to ", step_)
+                return step_size(model, state_, target_, control_, dir_, start_step_ = step_, max_it_ = 1000,
+                                 bisec_factor_ = bisec_factor_, max_control_ = max_control_, tolerance_ = tolerance_,
+                                 substep_ = substep_, variables_ = variables_)
                 cost_min_int_ = cost0_int_
                 step_min_ = 0.
                 continue
+            
 
             # iterate between step_range[0] and [2] more granularly
             substep = substep_
@@ -206,13 +213,16 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
             #print("scan done")
             if (step_min_up > step_min_ ):
                 if (step_min_down == step_min_):
-                    return step_min_up, cost_min_int_
+                    result =  step_min_up, cost_min_int_
                 elif (step_min_down < step_min_):
-                    return step_min_down, cost_min_int_
+                    result =  step_min_down, cost_min_int_
             elif (step_min_down < step_min_):
-                return step_min_down, cost_min_int_
+                result = step_min_down, cost_min_int_
+            else:
+                result = step_min_, cost_min_int_
             
-            return step_min_, cost_min_int_
+            #print("result step = ", result)
+            return result
         
         if (i == max_it_-1):
             if (max_it_ != 1):

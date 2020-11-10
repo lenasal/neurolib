@@ -85,8 +85,11 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
         model_.params.di = np.around( maxDelay * random.uniform(0., 1.), 1)
                         
-        model_.params.ext_exc_current = 4. * random.uniform(0., 1.)
-        model_.params.ext_inh_current = 4. * random.uniform(0., 1.)
+        model_.params.ext_exc_current = random.uniform(1., 4.)
+        model_.params.ext_inh_current = random.uniform(1., 4.)
+        
+        model_.params.sigmae_ext = random.uniform(1., 4.)
+        model_.params.sigmai_ext = random.uniform(1., 4.)
         
         print("delay = ", model_.params.di, model_.params.signalV, model_.params.de)
         
@@ -101,8 +104,11 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
         model_.params.di = np.around( maxDelay * random.uniform(0., 1.), 1)
         
-        model_.params.ext_exc_current = 4. * random.uniform(0., 1.)
-        model_.params.ext_inh_current = 4. * random.uniform(0., 1.)
+        model_.params.ext_exc_current = random.uniform(1., 4.)
+        model_.params.ext_inh_current = random.uniform(1., 4.)
+        
+        model_.params.sigmae_ext = random.uniform(1., 4.)
+        model_.params.sigmai_ext = random.uniform(1., 4.)
         
         #setParametersALN(model_)
         

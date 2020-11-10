@@ -9,11 +9,11 @@ from neurolib.models.aln_control import Model_ALN_control
 from neurolib.utils import costFunctions as cost
 import test_control_functions as func
 
-assertion_tolerance = 2
+assertion_tolerance = 0.05
         
 controlmin, controlmax = -2., 2.
-algorithm_tolerance = 1e-22
-max_iteration = 5 * int(1e4)
+algorithm_tolerance = 1e-12
+max_iteration = int(1e4)
 start_step = 100.
 
 duration = 0.6
@@ -28,6 +28,7 @@ np.set_printoptions(precision=16)
 class TestA1(unittest.TestCase): 
 # set init vars zero everywhere or nowhere
     
+
     def test_A1PrecisionCostOnly_InhControlExcCost(self):
                         
         print("test_A1PrecisionCostOnly_InhControlExcCost for model ", testcaseind)
@@ -71,11 +72,20 @@ class TestA1(unittest.TestCase):
                             CGVar = None, variables_ = variables)        
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
+        
+        diffMax = 0.
                     
         for n in range(A1_bestControl.shape[0]):
             for v in range(A1_bestControl.shape[1]):
                 for t in range(1, control1.shape[2] - 2):
-                    self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance) 
+                    diff = np.abs( A1_bestControl[n, v, t] - control1[n, v, t] )
+                    print(n, v, t, diff)
+                    if diff > diffMax:
+                        diffMax = diff
+                        
+        print("diff max = ", diffMax)
+        
+        self.assertLessEqual(diffMax, assertion_tolerance)
                     
         for t in range(len(A1_runtime)-1):
             if (A1_runtime[t+1] == 0.):
@@ -83,9 +93,9 @@ class TestA1(unittest.TestCase):
                 self.assertLessEqual(A1_cost[t+1], A1_cost[t])
           
     """      
-    def test_A1PrecisionCostOnly_ExcontrolInhCost(self):
+    def test_A1PrecisionCostOnly_ExcControlInhCost(self):
                         
-        print("test_A1PrecisionCostOnly_ExcontrolInhCost for model ", testcaseind)
+        print("test_A1PrecisionCostOnly_ExcControlInhCost for model ", testcaseind)
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -136,7 +146,7 @@ class TestA1(unittest.TestCase):
             if (A1_runtime[t+1] == 0.):
                 break
                 self.assertLessEqual(A1_cost[t+1], A1_cost[t])
-        """
+    """
 
     
 if __name__ == '__main__':
