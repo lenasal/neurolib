@@ -107,9 +107,13 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
         if (type(model.params[init_vars[iv]]) == np.float64 or type(model.params[init_vars[iv]]) == float):
             model.params[init_vars[iv]] = initial_params_[iv]
         elif model.params[init_vars[iv]].ndim == 2:
-            model.params[init_vars[iv]][0,0] = initial_params_[iv]
+            model.params[init_vars[iv]][0,:] = initial_params_[iv]
+            #print("set initial vars = ", model.params[init_vars[iv]] )
         else:
             model.params[init_vars[iv]][0] = initial_params_[iv]
+            
+    #print("initial params = ", initial_params_)
+    
     
     # no control
     model.run(control=model.getZeroControl())

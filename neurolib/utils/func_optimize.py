@@ -2,11 +2,6 @@ import numpy as np
 import logging
 from . import costFunctions as cost
 
-def printState(model, state_):
-    state_vars = model.state_vars
-    for sv in [0,1,2,3,4,15,16,17,18,19]:
-        print(state_vars[sv], model.state[state_vars[sv]])
-
 def updateState(model, control_):
     # set initial conditions once in other function
     state_ = model.getZeroState()
@@ -17,13 +12,11 @@ def updateState(model, control_):
     #print("update state: ", state_[0,:,:3])
     return state_
 
-def updateFullState(model, control_):
-    state_vars = model.state_vars
+def updateFullState(model, control_, state_vars_):
     state_ = model.getZeroFullState()
-    
     model.run(control=control_)
-    for sv in range(len(state_vars)):
-        state_[:,sv,:] = model.state[state_vars[sv]][:,:]
+    for sv in range(len(state_vars_)):
+        state_[:,sv,:] = model.state[state_vars_[sv]][:,:]
     return state_
 
 def get_output_from_full(model, state_):
@@ -64,12 +57,12 @@ def update_delayed_state(model, delay_state_vars_, state_vars_, init_vars_, star
             logging.error("Initial and state variable labelling does not agree.")
 
 def adjust_shape_init_params(model, init_vars_, startind_):
-        for iv in range(len(init_vars_)):
-            if model.params[init_vars_[iv]].ndim == 2:
-                if (model.params[init_vars_[iv]].shape[1] <= 1):
-                    model.params[init_vars_[iv]] = np.dot( model.params[init_vars_[iv]], np.ones((1, startind_)) )
-            else:
-                model.params[init_vars_[iv]] = model.params[init_vars_[iv]][0] * np.ones((1, startind_))
+    for iv in range(len(init_vars_)):
+        if model.params[init_vars_[iv]].ndim == 2:
+            if (model.params[init_vars_[iv]].shape[1] <= 1):
+                model.params[init_vars_[iv]] = np.dot( model.params[init_vars_[iv]], np.ones((1, startind_)) )
+        else:
+            model.params[init_vars_[iv]] = model.params[init_vars_[iv]][0] * np.ones((1, startind_))
 
 def get_init(model, init_vars_, state_vars_, startind_, delay_state_vars_):
     IC_ = np.zeros( (model.params.N, len(init_vars_), startind_) )
@@ -120,8 +113,6 @@ def update_init_delayed(model, delay_state_vars_, init_vars_, state_vars_, t_pre
                     delay_state_vars_[:, sv, :] = model.state[state_vars_[sv]][:,-startind_:]
             else:
                 model.params[init_vars_[iv]] = model.state[state_vars_[sv]]
-        else:
-            logging.error("Initial and state variable labelling does not agree.")
 
 def test_step(model, state_, target_, control_, dir_, test_step_ = 1e-12, variables_ = [0,1]):
     dt = model.params['dt']
@@ -151,7 +142,7 @@ def setmaxcontrol(control_, max_control_):
     return control_
     
 def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
-              bisec_factor_ = 2., max_control_ = 20., tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1]):
+              bisec_factor_ = 2., max_control_ = 20., tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1"):
     
     dt = model.params['dt']
     #cost0_ = cost.f_cost(state_, target_, control_)
@@ -161,7 +152,7 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
     cost_min_int_ = cost0_int_
     step_ = start_step_
     step_min_ = 0.
-    
+        
     start_step_out_ = start_step_
     
     for i in range(max_it_):
@@ -189,11 +180,10 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
         # return smallest step size before cost is increasing again
         elif (cost1_int_ > cost_min_int_ and cost_min_int_ < cost0_int_):
             
-            
-            if (i == 1):
+            if (i == 1 and alg == "A1"):
                 step_ = 100. * start_step_
                 print("too small start step, increase to ", step_)
-                return step_size(model, state_, target_, control_, dir_, start_step_ = step_, max_it_ = 1000,
+                return step_size(model, state_, target_, control_, dir_, start_step_ = step_, max_it_ = max_it_,
                                  bisec_factor_ = bisec_factor_, max_control_ = max_control_, tolerance_ = tolerance_,
                                  substep_ = substep_, variables_ = variables_)
                 cost_min_int_ = cost0_int_
@@ -203,8 +193,9 @@ def step_size(model, state_, target_, control_, dir_, start_step_ = 20., max_it_
 
             # iterate between step_range[0] and [2] more granularly
             substep = substep_
+            
             step_min_up, cost_min_int_ = scan(model, dt, substep, control_, step_min_, dir_, target_,
-                                              cost_min_int_, max_control_, variables_)
+                                                  cost_min_int_, max_control_, variables_)
 
             substep = - substep_
             step_min_down, cost_min_int_ = scan(model, dt, substep, control_, step_min_, dir_, target_,
@@ -239,7 +230,6 @@ def scan(model_, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int
     #cost_ = cost.f_cost(state_, target_, cntrl_)
     cost_int = cost.f_int(dt_, state_, target_, cntrl_, v_ = variables_)
     step_min1_ = step_min_
-    
     
     while (cost_int < cost_min_int_):
         cost_min_int_ = cost_int

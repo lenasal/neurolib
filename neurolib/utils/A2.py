@@ -51,7 +51,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     if (t_sim_pre_ >= dt):
         model.params['duration'] = t_sim_pre_
         control_pre_ = model.getZeroControl()
-        state_pre_ = fo.updateFullState(model, control_pre_)
+        state_pre_ = fo.updateFullState(model, control_pre_, state_vars)
         
         if startind_ == 1:
             fo.update_init(model, init_vars, state_vars)
@@ -107,7 +107,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
             max_iteration_ = i+1
             break
         
-    state_ = fo.updateFullState(model, best_control_)
+    state_ = fo.updateFullState(model, best_control_, state_vars)
     
     #for i in range(len(output_vars)):
     #    state_[:,i,:] = model[output_vars[i]][:,:]
@@ -138,7 +138,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     
         model.params.duration = t_sim_post_
         control_post_ = model.getZeroControl()
-        state_post_ = fo.updateFullState(model, control_post_)
+        state_post_ = fo.updateFullState(model, control_post_, state_vars)
     
     model.params.duration = t_sim_ + t_sim_pre_ + t_sim_post_
     bc_ = model.getZeroControl()
@@ -231,7 +231,7 @@ def gf_dc(model, control_, target_, include_timestep_, start_step_, test_step_, 
                     start_st_ = fo.adapt_step(control0_, ind_node, ind_var, start_step_, dir_, max_control_) 
                     if not start_st_ == 0.:
                         step_ = fo.step_size(model, state0, target0_, control0_, dir_, start_st_, max_it_ = 1000,
-                                             bisec_factor_ = 2., max_control_=max_control_)
+                                             bisec_factor_ = 2., max_control_=max_control_, alg = "A2")
                 
                         control0_[ind_node, ind_var, 1] += step_[0] * dir_[ind_node, ind_var, 1]
                         delta_c[ind_node, ind_var, ind_time+1] = step_[0] * dir_[ind_node, ind_var, 1]                    

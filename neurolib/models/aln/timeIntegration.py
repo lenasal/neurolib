@@ -115,8 +115,8 @@ def timeIntegration(params, control):
     # division by J ensures that mu = J*s will result in a PSP of exactly c
     # for a single spike!
 
-    cee = cee * tau_se / Jee_max  # ms
-    cie = cie * tau_se / Jie_max  # ms
+    cee = cee * tau_se / abs(Jee_max)  # ms
+    cie = cie * tau_se / abs(Jie_max)  # ms
     cei = cei * tau_si / abs(Jei_max)  # ms
     cii = cii * tau_si / abs(Jii_max)  # ms
     c_gl = c_gl * tau_se / Jee_max  # ms
@@ -352,7 +352,7 @@ def timeIntegration(params, control):
     )
 
 
-#@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64, "idx1": numba.int64, "idy1": numba.int64})
+@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64, "idx1": numba.int64, "idy1": numba.int64})
 def timeIntegration_njit_elementwise(
     dt,
     duration,

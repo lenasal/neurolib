@@ -12,11 +12,11 @@ import test_control_functions as func
 assertion_tolerance = 2
         
 controlmin, controlmax = -2., 2.
-algorithm_tolerance = 1e-18
-max_iteration = int(1e4)
+algorithm_tolerance = 1e-16
+max_iteration = 5 * int(1e4)
 start_step = 100.
 
-duration = 0.6
+duration = 1.
 dur_pre = 0.5
 dur_post = 0.5
 
@@ -44,8 +44,10 @@ class TestA1(unittest.TestCase):
         cntrl_zeros_post = int(dur_post / model.params.dt)
         
         variables = [0]
+        delay_ndt = func.getDelay_ndt(model)
             
-        control1 = func.getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax, variables_ = variables) 
+        control1 = func.getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax, variables_ = variables)
+        control1[:,:,-4-delay_ndt:] = 0.
 
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
@@ -67,21 +69,18 @@ class TestA1(unittest.TestCase):
                             CGVar = None, variables_ = variables)        
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
-        
-        delay_ndt = func.getDelay_ndt(model)
                     
         for n in range(A1_bestControl.shape[0]):
             for v in range(A1_bestControl.shape[1]):
-                for t in range(1, control1.shape[2] - 2 - delay_ndt):
-                    print(n, v, t)
+                for t in range(1, control1.shape[2] - 4 - delay_ndt):
                     self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance) 
                     
         for t in range(len(A1_runtime)-1):
             if (A1_runtime[t+1] == 0.):
                 break
                 self.assertLessEqual(A1_cost[t+1], A1_cost[t])
-    
     """
+    
                 
     def test_A1PrecisionCostOnly_ExcControlInhCost(self):
                         
@@ -98,8 +97,10 @@ class TestA1(unittest.TestCase):
         cntrl_zeros_post = int(dur_post / model.params.dt)
         
         variables = [1]
+        delay_ndt = func.getDelay_ndt(model)
             
         control1 = func.getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax, variables_ = variables) 
+        control1[:,:,-4-delay_ndt:] = 0.
 
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
@@ -122,20 +123,21 @@ class TestA1(unittest.TestCase):
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         
-        delay_ndt = func.getDelay_ndt(model)
                             
+        print("setting control to zero for timesteps before end: ", 4+delay_ndt)
+        print("delays = ", model.params.di, model.params.signalV, model.params.de)
+                    
         for n in range(A1_bestControl.shape[0]):
             for v in range(A1_bestControl.shape[1]):
-                for t in range(1, control1.shape[2] - 2 - delay_ndt):
+                for t in range(1, control1.shape[2] - 4 - delay_ndt):
                     print(n, v, t)
+                    print(A1_bestControl[n, v, t] - control1[n, v, t])
                     self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance) 
                     
         for t in range(len(A1_runtime)-1):
             if (A1_runtime[t+1] == 0.):
                 break
                 self.assertLessEqual(A1_cost[t+1], A1_cost[t])
-
-
     
 if __name__ == '__main__':
     
