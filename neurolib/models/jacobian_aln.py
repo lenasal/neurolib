@@ -2,58 +2,39 @@ import numpy as np
 import numba
 import logging
 
-def interpolate(model, sigma_f, muf, precalc_table):
-    sigmarange = model.params.sigmarange
-    ds = model.params.ds
-    Irange = model.params.Irange
-    dI = model.params.dI
-    C = model.params.C
-            
+@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64, "idx1": numba.int64, "idy1": numba.int64})
+def interpolate(sigma_f, sigmarange, ds, muf, Irange, dI, C, precalc_table):
     xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigma_f, Irange, dI, muf)
     xid1, yid1 = int(xid1), int(yid1)
     result = interpolate_values(precalc_table, xid1, yid1, dxid, dyid)
     return result
 
 # gradient of transfer function wrt changes in sigma
-def der_sigma(model, sigma_f, muf, precalc_table):
-    ds = model.params.ds * 0.01
-    result0 = interpolate(model, sigma_f, muf, precalc_table)
-    result1 = interpolate(model, sigma_f + ds, muf, precalc_table)
+@numba.njit
+def der_sigma(sigma_f, sigmarange, ds, muf, Irange, dI, C, precalc_table):
+    delta_s = ds * 0.01
+    result0 = interpolate(sigma_f, sigmarange, ds, muf, Irange, dI, C, precalc_table)
+    result1 = interpolate(sigma_f + delta_s, sigmarange, ds, muf, Irange, dI, C, precalc_table)
     
-    der = ( result1 - result0) / ds
+    der = ( result1 - result0) / delta_s
             
     return der
 
 # gradient of transfer function wrt changes in mu
-def der_mu_up(model, sigma_f, muf, precalc_table):
-    dI = model.params.dI * 0.01    
-    result0 = interpolate(model, sigma_f, muf, precalc_table)
-    result1 = interpolate(model, sigma_f, muf + dI, precalc_table)
-    result2 = interpolate(model, sigma_f, muf - dI, precalc_table)
+@numba.njit
+def der_mu(sigma_f, sigmarange, ds, muf, Irange, dI, C, precalc_table):
+    delta_I = dI * 0.01    
+    result0 = interpolate(sigma_f, sigmarange, ds, muf, Irange, dI, C, precalc_table)
+    result1 = interpolate(sigma_f, sigmarange, ds, muf + delta_I, Irange, dI, C, precalc_table)
     
-    der1 = ( result1 - result0) / dI
-    der2 = ( result0 - result2) / dI
+    der = ( result1 - result0) / delta_I
     
     #if (np.abs(der1 - der2) > 10-8):    
     #    print("WARNING: Large difference in der : ", der1 - der2)
             
-    return der1
+    return der
 
-def der_mu_down(model, sigma_f, muf, precalc_table):
-    dI = model.params.dI
-    
-    result0 = interpolate(model, sigma_f, muf, precalc_table)
-    result1 = interpolate(model, sigma_f, muf + dI, precalc_table)
-    result2 = interpolate(model, sigma_f, muf - dI, precalc_table)
-        
-    der1 = ( result1 - result0) / dI
-    der2 = -( result2 - result0) / dI
-    
-    #print("difference in der : ", der1 - der2)
-            
-    return der2
-
-
+@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64})
 def interpolate_values(table, xid1, yid1, dxid, dyid):
     output = (
         table[yid1, xid1] * (1 - dxid) * (1 - dyid)
@@ -63,7 +44,7 @@ def interpolate_values(table, xid1, yid1, dxid, dyid):
     )
     return output
 
-
+@numba.njit(locals={"xid1": numba.int64, "yid1": numba.int64, "dxid": numba.float64, "dyid": numba.float64})
 def fast_interp2_opt(x, dx, xi, y, dy, yi):
 
     """
@@ -71,12 +52,10 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
     - bilinear (2D) interpolation within ranges,
     - linear (1D) if "one edge" is crossed,
     - corner value if "two edges" are crossed
-
     x     ... range of the x value
     xi    ... interpolation value on x-axis
     dx    ... grid width of x ( dx = x[1]-x[0] )
     (same for y)
-
     return:   xid1    ... index of the lower interpolation value
               dxid    ... distance of xi to the lower interpolation value
               (same for y)

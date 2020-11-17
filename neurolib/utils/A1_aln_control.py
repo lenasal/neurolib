@@ -594,23 +594,23 @@ def jacobian_numba(state_, control_, t_,
 def jacobian(jac_, model, state_, t_, C,):
     jacobian_ = jac_.copy()
     
-    jacobian_[0,2] = - d_r_func_mu(model, state_[0,2,t_] - state_[0,4,t_] / C, state_[0,15,t_]) * 1e3
-    jacobian_[0,4] = - d_r_func_mu(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1]) * 1e3 * ( - 1. / C ) 
-    jacobian_[0,15] = - d_r_func_sigma(model, state_[0,2,t_-1] - state_[0,4,t_] / C, state_[0,15,t_-1]) * 1e3
+    jacobian_[0,2] = - d_r_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3
+    jacobian_[0,4] = - d_r_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3 * ( - 1. / C ) 
+    jacobian_[0,15] = - d_r_func_sigma(state_[0,2,t_-1] - state_[0,4,t_] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3
     
-    jacobian_[1,3] = - d_r_func_mu(model, state_[0,3,t_], state_[0,16,t_]) * 1e3
-    jacobian_[1,16] = - d_r_func_sigma(model, state_[0,3,t_-1], state_[0,16,t_-1]) * 1e3
+    jacobian_[1,3] = - d_r_func_mu(state_[0,3,t_], model.params.sigmarange, model.params.ds, state_[0,16,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3
+    jacobian_[1,16] = - d_r_func_sigma(state_[0,3,t_-1], model.params.sigmarange, model.params.ds, state_[0,16,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3
     
-    jacobian_[17,2] = - d_V_func_mu(model, state_[0,2,t_] - state_[0,4,t_] / C, state_[0,15,t_])
-    jacobian_[17,4] = - d_V_func_mu(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1]) * ( - 1. / C )
-    jacobian_[17,15] = - d_V_func_sigma(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1])
+    jacobian_[17,2] = - d_V_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_V)
+    jacobian_[17,4] = - d_V_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_V) * ( - 1. / C )
+    jacobian_[17,15] = - d_V_func_sigma(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_V)
     
-    jacobian_[18,2] = - d_tau_func_mu(model, state_[0,2,t_] - state_[0,4,t_] / C, state_[0,15,t_])
-    jacobian_[18,4] = - d_tau_func_mu(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1]) * ( - 1. / C )
-    jacobian_[18,15] = - d_tau_func_sigma(model, state_[0,2,t_-1] - state_[0,4,t_-1] / C, state_[0,15,t_-1])
+    jacobian_[18,2] = - d_tau_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu)
+    jacobian_[18,4] = - d_tau_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1],model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu) * ( - 1. / C )
+    jacobian_[18,15] = - d_tau_func_sigma(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu)
     
-    jacobian_[19,3] = - d_tau_func_mu(model, state_[0,3,t_], state_[0,16,t_])
-    jacobian_[19,16] = - d_tau_func_sigma(model, state_[0,3,t_-1], state_[0,16,t_-1])
+    jacobian_[19,3] = - d_tau_func_mu(state_[0,3,t_], model.params.sigmarange, model.params.ds, state_[0,16,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu)
+    jacobian_[19,16] = - d_tau_func_sigma(state_[0,3,t_-1], model.params.sigmarange, model.params.ds, state_[0,16,t_-1],model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu)
     
     return jacobian_
     
@@ -625,96 +625,102 @@ def D_u_h(state_, t_):
     duh_[3,3] = - 1. / state_[0,19,t_-1]
     return duh_
 
-def d_r_func_mu(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
-        x_shift_mu = - 2.
-        x_scale_mu = 0.6
-        y_scale_mu = 0.1
-        result = y_scale_mu * x_scale_mu / np.cosh(x_scale_mu * mu + x_shift_mu)**2
-    elif model.name == "aln":
-        result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_r)
-    else:
-        print("no drivative of rate implemented")
+@numba.njit
+def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
+    #result = 0.
+    #if model.name == "aln-control":# or model.name == "aln":
+    #    x_shift_mu = - 2.
+    #    x_scale_mu = 0.6
+    #    y_scale_mu = 0.1
+    #    result = y_scale_mu * x_scale_mu / np.cosh(x_scale_mu * mu + x_shift_mu)**2
+    #elif model.name == "aln":
+    result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+    #else:
+    #    print("no drivative of rate implemented")
     #if np.abs(result) < 1e-16:
     #    print("WARNING: vanishing derivative of r wrt mu")
     return result
 
-def d_r_func_sigma(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
-        x_shift_sigma = -1.
-        x_scale_sigma = 0.6
-        y_scale_sigma = 1./2500.
-        result = np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma
-    elif model.name == "aln":
-        result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_r)
-    else:
-        print("no drivative of rate implemented")
-    if np.abs(result) < 1e-16:
-        print("WARNING: vanishing derivative of r wrt sigma")
+@numba.njit
+def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
+    #result = 0.
+    #if model.name == "aln-control":# or model.name == "aln":
+    #    x_shift_sigma = -1.
+    #    x_scale_sigma = 0.6
+    #    y_scale_sigma = 1./2500.
+    #    result = np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma
+    #elif model.name == "aln":
+    result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+    #else:
+    #    print("no drivative of rate implemented")
+    #if np.abs(result) < 1e-16:
+    #    print("WARNING: vanishing derivative of r wrt sigma")
     return result
 
-def d_tau_func_mu(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
-        mu_shift = - 1.1
-        sigma_scale = 0.5
-        mu_scale = - 10
-        mu_scale1 = - 3
-        sigma_shift = 1.4
-        result = sigma_scale * sigma + mu_scale1 + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )
-    elif model.name == "aln":
-        result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_tau_mu)
-    else:
-        print("no drivative of tau implemented")
+@numba.njit
+def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
+    #result = 0.
+    #if model.name == "aln-control":# or model.name == "aln":
+    #    mu_shift = - 1.1
+    #    sigma_scale = 0.5
+    #    mu_scale = - 10
+    #    mu_scale1 = - 3
+    #    sigma_shift = 1.4
+    #    result = sigma_scale * sigma + mu_scale1 + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )
+    #elif model.name == "aln":
+    result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+    #else:
+    #    print("no drivative of tau implemented")
     #if np.abs(result) < 1e-16:
     #    print("WARNING: vanishing derivative of tau wrt mu")
     return result
 
-def d_tau_func_sigma(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
-        mu_shift = - 1.1
-        sigma_scale = 0.5
-        mu_scale = - 10
-        sigma_shift = 1.4
-        result = sigma_scale * ( mu_shift + mu ) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp(
-            mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )  
-    elif model.name == "aln":
-        result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_tau_mu)
-    else:
-        print("no drivative of tau implemented")
+@numba.njit
+def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
+    #result = 0.
+    #if model.name == "aln-control":# or model.name == "aln":
+    #    mu_shift = - 1.1
+    #    sigma_scale = 0.5
+    #    mu_scale = - 10
+    #    sigma_shift = 1.4
+    #    result = sigma_scale * ( mu_shift + mu ) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp(
+    #        mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )  
+    #elif model.name == "aln":
+    result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+    #else:
+    #    print("no drivative of tau implemented")
     #if np.abs(result) < 1e-16:
     #    print("WARNING: vanishing derivative of tau wrt sigma")
     return result
 
-def d_V_func_mu(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
-        y_scale1 = 30.
-        mu_shift1 = 1.
-        y_scale2 = 2.
-        mu_shift2 = 0.5
-        result = y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
-    elif model.name == "aln":
-        result = jac_aln.der_mu_up(model, sigma, mu, model.params.precalc_V)
-    else:
-        print("no drivative of V implemented")
+@numba.njit
+def d_V_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
+    #result = 0.
+    #if model.name == "aln-control":# or model.name == "aln":
+    #    y_scale1 = 30.
+    #    mu_shift1 = 1.
+    #    y_scale2 = 2.
+    #    mu_shift2 = 0.5
+    #    result = y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
+    #elif model.name == "aln":
+    result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+    #else:
+    #    print("no drivative of V implemented")
     #if np.abs(result) < 1e-16:
      #   print("WARNING: vanishing derivative of V wrt mu")
     return result
 
-def d_V_func_sigma(model, mu, sigma):
-    result = 0.
-    if model.name == "aln-control":# or model.name == "aln":
-        y_scale2 = 2.
-        mu_shift2 = 0.5
-        result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2
-    elif model.name == "aln":
-        result = jac_aln.der_sigma(model, sigma, mu, model.params.precalc_V)
-    else:
-        print("no drivative of V implemented")
-    if np.abs(result) < 1e-16:
-        print("WARNING: vanishing derivative of V wrt sigma")
+@numba.njit
+def d_V_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
+    #result = 0.
+    #if model.name == "aln-control":# or model.name == "aln":
+    #    y_scale2 = 2.
+    #    mu_shift2 = 0.5
+    #    result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2
+    #elif model.name == "aln":
+    result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+    #else:
+    #    print("no drivative of V implemented")
+    #if np.abs(result) < 1e-16:
+    #    print("WARNING: vanishing derivative of V wrt sigma")
     return result
