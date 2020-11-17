@@ -147,7 +147,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     i1 = int(round(t_sim_pre_/dt, 1))
     i2 = int(round(t_sim_post_/dt, 1))
         
-    bc_, bs_ = fo.set_pre_post(model, i1, i2, bc_, bs_, best_control_, state_pre_, state_, state_post_, model.state_vars)
+    bc_, bs_ = fo.set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_, state_, state_post_, model.state_vars, model.params.a, model.params.b)
             
     return bc_, bs_, total_cost_, runtime_
 
@@ -230,7 +230,7 @@ def gf_dc(model, control_, target_, include_timestep_, start_step_, test_step_, 
                 if (dir_.any() != 0.):
                     start_st_ = fo.adapt_step(control0_, ind_node, ind_var, start_step_, dir_, max_control_) 
                     if not start_st_ == 0.:
-                        step_ = fo.step_size(model, state0, target0_, control0_, dir_, start_st_, max_it_ = 1000,
+                        step_ = fo.step_size(model, dt, state0, target0_, control0_, dir_, start_st_, max_it_ = 1000,
                                              bisec_factor_ = 2., max_control_=max_control_, alg = "A2")
                 
                         control0_[ind_node, ind_var, 1] += step_[0] * dir_[ind_node, ind_var, 1]

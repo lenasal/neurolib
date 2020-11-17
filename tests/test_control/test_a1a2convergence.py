@@ -18,8 +18,8 @@ start_step = 20.
 test_step = 1e-6
 
 duration = 0.8
-dur_pre = 0.0
-dur_post = 0.0
+dur_pre = 0.5
+dur_post = 0.5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["aln1"]#, "aln-control"]
@@ -58,7 +58,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         testip, testie, testis = random.uniform(0., 1.), random.uniform(0., 1.), random.uniform(0., 1.)
         #cost.setParams(1., 0., 0.)
-        cost.setParams(testip, testie, testis)
+        cost.setParams(testip, testie, 0.)
         
         func.setInitVarsZero(model, init_vars)
         
