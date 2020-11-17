@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import numba
+from numba.typed import List
 
 from timeit import default_timer as timer
 from . import costFunctions as cost
@@ -17,27 +18,76 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
-    variables = variables_    
-       
-    """
-    # run model with dt duration once to set delay matrix
-    model.params['duration'] = dt
-    model.run(control=model.getZeroControl())
     
-    Dmat = model.params.Dmat
-    Dmat_ndt = np.around(Dmat / dt).astype(int)
-        
-    Dmat_ndt = np.around(Dmat / dt).astype(int)
-        
-    if model.name == "aln":
-        ndt_de = np.around(model.params.de / dt).astype(int)
-        ndt_di = np.around(model.params.di / dt).astype(int)
-        max_global_delay = max(np.max(Dmat_ndt), ndt_de, ndt_di)
-    else:
-        max_global_delay = np.max(Dmat_ndt)
-        
-    print(max_global_delay == model.getMaxDelay(), max_global_delay )
-    """
+    variables = List()
+    for v in variables_:
+        variables.append(v)
+       
+    ##############################################
+    # PARAMETERS FOR JACOBIAN
+    # TODO: time dependent exc current
+    ext_exc_current = model.params.ext_exc_current
+    ext_inh_current = model.params.ext_inh_current
+    sigmae_ext = model.params.sigmae_ext
+    sigmai_ext = model.params.sigmai_ext
+    
+    a = model.params["a"]
+    b = model.params["b"]
+    tauA = model.params["tauA"]
+    
+    C = model.params["C"]
+    
+    Ke = model.params["Ke"]
+    Ki = model.params["Ki"]
+    tau_se = model.params["tau_se"] 
+    tau_si = model.params["tau_si"] 
+    cee = model.params["cee"]
+    cei = model.params["cei"]
+    cie = model.params["cie"]
+    cii = model.params["cii"]
+    Jee_max = model.params["Jee_max"]
+    Jei_max = model.params["Jei_max"]
+    Jie_max = model.params["Jie_max"]
+    Jii_max = model.params["Jii_max"]
+    taum = model.params.C / model.params.gL
+    
+    tau_se_sq = tau_se**2
+    tau_si_sq = tau_si**2
+    Jee_sq = Jee_max**2
+    Jei_sq = Jei_max**2
+    Jie_sq = Jie_max**2
+    Jii_sq = Jii_max**2
+    
+    tau_ou = model.params.tau_ou
+    
+    N = model.params.N
+    
+    ndt_de = np.around(model.params.de / dt).astype(int)
+    ndt_di = np.around(model.params.di / dt).astype(int)
+    
+    factor_ee1 = ( cee * Ke * tau_se / np.abs(Jee_max) )
+    factor_ee2 = ( cee**2 * Ke * tau_se_sq / Jee_sq )
+
+    factor_ei1 = ( cei * Ki * tau_si / np.abs(Jei_max) )
+    factor_ei2 = ( cei**2 * Ki * tau_si_sq / Jei_sq )
+    
+    factor_ie1 = ( cie * Ke * tau_se / np.abs(Jie_max) )
+    factor_ie2 = ( cie**2 * Ke * tau_se_sq / Jie_sq )
+   
+    factor_ii1 = ( cii * Ki * tau_si / np.abs(Jii_max) )
+    factor_ii2 = ( cii**2 * Ki * tau_si_sq / Jii_sq )
+    
+    rd_exc = np.zeros(( N,N ))
+    rd_inh = np.zeros(( N ))
+    
+    sigmarange = model.params["sigmarange"]
+    ds = model.params["ds"]
+    Irange = model.params["Irange"]
+    dI = model.params["dI"]
+    precalc_r = model.params["precalc_r"]
+    precalc_tau_mu = model.params["precalc_tau_mu"]
+    precalc_V = model.params["precalc_V"]
+    ##############################################
         
     startind_ = int(model.getMaxDelay() + 1)
         
@@ -81,11 +131,55 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     u_opt0_ = control_.copy()
     best_control_ = control_.copy()
     
-    outstate_ = model.getZeroState()
+    full_cost_grad = np.zeros(( state0_.shape ))   
     
     while( i < max_iteration_ ):
         
-        phi0_ = phi(model, state0_, target_state_, best_control_, variables_ = variables)
+        for ind_time in range(state0_.shape[2]):
+            f_p_grad_t_ = cost.cost_precision_gradient_t(state0_[:,:2,ind_time], target_state_[:,:,ind_time])
+            for v in variables:
+                full_cost_grad[0,v,ind_time] = f_p_grad_t_[0,v] 
+        
+        phi0_ = phi(dt, state0_, target_state_, best_control_, full_cost_grad,
+                    ext_exc_current,
+                    ext_inh_current,
+                    sigmae_ext,
+                    sigmai_ext,
+                    a,
+                    b,
+                    tauA,
+                    C,
+                    Ke,
+                    Ki,
+                    tau_se,
+                    tau_si,
+                    Jee_max,
+                    Jei_max,
+                    Jie_max,
+                    Jii_max,
+                    tau_se_sq,
+                    tau_si_sq,
+                    Jee_sq,
+                    Jei_sq,
+                    Jie_sq,
+                    Jii_sq,
+                    taum,
+                    tau_ou,
+                    ndt_de,
+                    ndt_di,
+                    factor_ee1,
+                    factor_ee2,
+                    factor_ei1,
+                    factor_ei2,
+                    factor_ie1,
+                    factor_ie2,
+                    factor_ii1,
+                    factor_ii2,
+                    rd_exc,
+                    rd_inh,
+                    sigmarange, ds, Irange, dI, 
+                    precalc_r, precalc_tau_mu, precalc_V,
+                    )
         
         if ( total_cost_[i] < tolerance_ ):
             print("Cost negligibly small.")
@@ -94,14 +188,20 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         i += 1   
         
+        g0_min_ = g(dt, phi0_, state1_, best_control_, variables_ = variables)
         
-        #print("phi = ")
-        #print(phi1_[0,:,3:])
-        
-        outstate_[:,0,:] = state1_[:,0,:]
-        outstate_[:,1,:] = state1_[:,1,:]
-    
-        g0_min_ = g(model, phi0_, state1_, best_control_, variables_ = variables)
+        """
+        if 0 not in variables:
+            g0_min_[0,1,:] = 0.
+        elif 1 not in variables:
+            g0_min_[0,0,:] = 0.
+            
+            
+        if 1 not in variables_:
+            g0_min_[:,0,:] = 0.
+        elif 0 not in variables_:
+            g0_min_[:,1,:] = 0.
+        """
 
         dir0_ = - g0_min_.copy()
                 
@@ -109,16 +209,16 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         d_exc = dir0_.copy()
         d_exc[:,1,:] = 0.
         
-        s_exc, tc_exc = fo.step_size(model, dt, outstate_[:,:,:], target_state_,
-                     best_control_, d_exc, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_)
+        s_exc, tc_exc = fo.step_size(model, dt, state1_[:,:2,:], target_state_,
+                     best_control_, d_exc, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size exc = ", s_exc)
         
         d_inh = dir0_.copy()
         d_inh[:,0,:] = 0.
         
-        s_inh, tc_inh = fo.step_size(model, dt, outstate_[:,:,:], target_state_,
-                     best_control_, d_inh, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_)
+        s_inh, tc_inh = fo.step_size(model, dt, state1_[:,:2,:], target_state_,
+                     best_control_, d_inh, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size inh = ", s_inh)
         
@@ -126,14 +226,14 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         joint_dir[:,0,:] = s_exc * dir0_[:,0,:] #/ (s_exc + s_inh)
         joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
         
-        joint_step_, joint_cost = fo.step_size(model, dt, outstate_[:,:,:], target_state_,
-                     best_control_, joint_dir, start_step_ = startStep_, max_control_ = cntrl_max_)
+        joint_step_, joint_cost = fo.step_size(model, dt, state1_[:,:2,:], target_state_,
+                     best_control_, joint_dir, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size = ", joint_step_, joint_cost)
         
         
-        step_, total_cost_[i] = fo.step_size(model, dt, outstate_[:,:,:], target_state_,
-                     best_control_, dir0_, start_step_ = startStep_, max_control_ = cntrl_max_, variables_ = variables)
+        step_, total_cost_[i] = fo.step_size(model, dt, state1_[:,:2,:], target_state_,
+                     best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size = ", step_, total_cost_[i])
         
@@ -235,71 +335,49 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
     return bc_, bs_, total_cost_, runtime_#, phi1_
 
-
-def phi(model, state_, target_state_, control_, variables_ = [0,1]):
-    dt = model.params.dt
-    phi_ = model.getZeroFullState()
-    out_state = model.getZeroState()
-    out_state[:,:2,:] = state_[:,:2,:]
+@numba.njit
+def phi(dt, state_, target_state_, control_, full_cost_grad,
+                    ext_exc_current,
+                    ext_inh_current,
+                    sigmae_ext,
+                    sigmai_ext,
+                    a,
+                    b,
+                    tauA,
+                    C,
+                    Ke,
+                    Ki,
+                    tau_se,
+                    tau_si,
+                    Jee_max,
+                    Jei_max,
+                    Jie_max,
+                    Jii_max,
+                    tau_se_sq,
+                    tau_si_sq,
+                    Jee_sq,
+                    Jei_sq,
+                    Jie_sq,
+                    Jii_sq,
+                    taum,
+                    tau_ou,
+                    ndt_de,
+                    ndt_di,
+                    factor_ee1,
+                    factor_ee2,
+                    factor_ei1,
+                    factor_ei2,
+                    factor_ie1,
+                    factor_ie2,
+                    factor_ii1,
+                    factor_ii2,
+                    rd_exc,
+                    rd_inh,
+                    sigmarange, ds, Irange, dI, 
+                    precalc_r, precalc_tau_mu, precalc_V,
+                    ):
     
-    ##############################################
-    # PARAMETERS FOR JACOBIAN
-    # TODO: time dependent exc current
-    ext_exc_current = model.params.ext_exc_current
-    ext_inh_current = model.params.ext_inh_current
-    sigmae_ext = model.params.sigmae_ext
-    sigmai_ext = model.params.sigmai_ext
-    
-    a = model.params["a"]
-    b = model.params["b"]
-    tauA = model.params["tauA"]
-    
-    C = model.params["C"]
-    
-    Ke = model.params["Ke"]
-    Ki = model.params["Ki"]
-    tau_se = model.params["tau_se"] 
-    tau_si = model.params["tau_si"] 
-    cee = model.params["cee"]
-    cei = model.params["cei"]
-    cie = model.params["cie"]
-    cii = model.params["cii"]
-    Jee_max = model.params["Jee_max"]
-    Jei_max = model.params["Jei_max"]
-    Jie_max = model.params["Jie_max"]
-    Jii_max = model.params["Jii_max"]
-    taum = model.params.C / model.params.gL
-    
-    tau_se_sq = tau_se**2
-    tau_si_sq = tau_si**2
-    Jee_sq = Jee_max**2
-    Jei_sq = Jei_max**2
-    Jie_sq = Jie_max**2
-    Jii_sq = Jii_max**2
-    
-    tau_ou = model.params.tau_ou
-    
-    dt = model.params["dt"]
-    N = model.params.N
-    
-    ndt_de = np.around(model.params.de / dt).astype(int)
-    ndt_di = np.around(model.params.di / dt).astype(int)
-    
-    factor_ee1 = ( cee * Ke * tau_se / np.abs(Jee_max) )
-    factor_ee2 = ( cee**2 * Ke * tau_se_sq / Jee_sq )
-
-    factor_ei1 = ( cei * Ki * tau_si / np.abs(Jei_max) )
-    factor_ei2 = ( cei**2 * Ki * tau_si_sq / Jei_sq )
-    
-    factor_ie1 = ( cie * Ke * tau_se / np.abs(Jie_max) )
-    factor_ie2 = ( cie**2 * Ke * tau_se_sq / Jie_sq )
-   
-    factor_ii1 = ( cii * Ki * tau_si / np.abs(Jii_max) )
-    factor_ii2 = ( cii**2 * Ki * tau_si_sq / Jii_sq )
-    
-    rd_exc = np.zeros(( N,N ))
-    rd_inh = np.zeros(( N ))
-    ##############################################
+    phi_ = np.zeros((state_.shape ))
     
             
     for ind_time in range(phi_.shape[2]-1, 0, -1):
@@ -355,21 +433,19 @@ def phi(model, state_, target_state_, control_, variables_ = [0,1]):
                        factor_ii2,
                        rd_exc,
                        rd_inh,
+                       sigmarange, ds, Irange, dI,
+                       C,
+                       precalc_r, precalc_tau_mu, precalc_V,
                        )
         
-        jac = jacobian(jac, model, state_[:,:,:], ind_time, C)
-        
-        f_p_grad_t_ = cost.cost_precision_gradient_t(out_state[:,:,ind_time], target_state_[:,:,ind_time])
-        full_cost_grad = np.zeros(( state_[0,:,ind_time].shape ))
-        for v in variables_:
-            full_cost_grad[v] = f_p_grad_t_[0,v]    
+        #jac = jacobian(jac, state_[:,:,:], ind_time, C, sigmarange, ds, Irange, dI, precalc_r, precalc_V, precalc_tau_mu)
                     
-        phi_[0,0,ind_time] = - full_cost_grad[0] - np.dot( np.array( [phi_[0,2,ind_time], phi_[0,4,ind_time],
+        phi_[0,0,ind_time] = - full_cost_grad[0,0,ind_time] - np.dot( np.array( [phi_[0,2,ind_time], phi_[0,4,ind_time],
                                 phi_[0,5,ind_time+shift_e], phi_[0,7,ind_time+shift_e], phi_[0,9,ind_time+shift_e],
                                 phi_[0,11,ind_time+shift_e], phi_[0,15,ind_time+shift_e], phi_[0,16,ind_time+shift_e] ] ),
                                 np.array( [jac[2,0], jac[4,0], jac[5,0], jac[7,0], jac[9,0], jac[11,0], jac[15,0], jac[16,0]] ) )
                                 
-        phi_[0,1,ind_time] = - full_cost_grad[1] - np.dot( np.array( [phi_[0,3,ind_time], phi_[0,6,ind_time+shift_i],
+        phi_[0,1,ind_time] = - full_cost_grad[0,1,ind_time] - np.dot( np.array( [phi_[0,3,ind_time], phi_[0,6,ind_time+shift_i],
                                 phi_[0,8,ind_time+shift_i], phi_[0,10,ind_time+shift_i], phi_[0,12,ind_time+shift_i], 
                                 phi_[0,15,ind_time+shift_i], phi_[0,16,ind_time+shift_i] ] ), 
                                 np.array( [jac[3,1], jac[6,1], jac[8,1], jac[10,1], jac[12,1], jac[15,1], jac[16,1]] ) )
@@ -439,11 +515,11 @@ def phi(model, state_, target_state_, control_, variables_ = [0,1]):
                 
     return phi_
 
-def g(model, phi_, state_, control_, variables_ = [0,1]):
-    g_ = model.getZeroControl()
+def g(dt, phi_, state_, control_, variables_ = [0,1]):
+    g_ = np.zeros( (control_.shape) )
     
     grad_cost_e_ = cost.cost_energy_gradient(control_)
-    grad_cost_s_ = cost.cost_sparsity_gradient(model.params.dt, control_)
+    grad_cost_s_ = cost.cost_sparsity_gradient(dt, control_)
     
     # shift if control is applied shifted wrt mu
     phi_shift = np.zeros(( phi_.shape ))
@@ -465,7 +541,7 @@ def g(model, phi_, state_, control_, variables_ = [0,1]):
 
     return g_
 
-@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64, "idx1": numba.int64, "idy1": numba.int64})
+@numba.njit
 def jacobian_numba(state_, control_, t_,
               ext_exc_current,
               ext_inh_current,
@@ -497,7 +573,10 @@ def jacobian_numba(state_, control_, t_,
               factor_ii1,
               factor_ii2,
               rd_exc,
-              rd_inh, 
+              rd_inh,
+              sigmarange, ds, Irange, dI,
+              C,
+              precalc_r, precalc_tau_mu, precalc_V,
               ):
     
     z1ee = factor_ee1 * rd_exc[0,0]
@@ -514,8 +593,13 @@ def jacobian_numba(state_, control_, t_,
     
     jacobian_ = np.zeros((state_.shape[1], state_.shape[1]))
     jacobian_[0,0] = 1.
+    jacobian_[0,2] = - d_r_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
+    jacobian_[0,4] = - d_r_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, sigmarange, ds, state_[0,15,t_-1], Irange, dI, C, precalc_r) * 1e3 * ( - 1. / C ) 
+    jacobian_[0,15] = - d_r_func_sigma(state_[0,2,t_-1] - state_[0,4,t_] / C, sigmarange, ds, state_[0,15,t_-1], Irange, dI, C, precalc_r) * 1e3
     
     jacobian_[1,1] = 1.
+    jacobian_[1,3] = - d_r_func_mu(state_[0,3,t_], sigmarange, ds, state_[0,16,t_], Irange, dI, C, precalc_r) * 1e3
+    jacobian_[1,16] = - d_r_func_sigma(state_[0,3,t_-1],sigmarange, ds, state_[0,16,t_-1], Irange, dI, C, precalc_r) * 1e3
     
     jacobian_[2,2] = 1. / state_[0,18,t_]
     jacobian_[2,5] = - Jee_max / state_[0,18,t_]
@@ -589,36 +673,25 @@ def jacobian_numba(state_, control_, t_,
     jacobian_[16,12] = - 0.5 * ( (1 + z1ii) * taum + tau_si )**(-1) * ( 2. * Jii_sq * tau_si * taum ) * sigma_sqrt_i
     jacobian_[16,16] = 1.
     
-    return jacobian_
-
-def jacobian(jac_, model, state_, t_, C,):
-    jacobian_ = jac_.copy()
+    jacobian_[17,2] = - d_V_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_V)
+    jacobian_[17,4] = - d_V_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, sigmarange, ds, state_[0,15,t_-1], Irange, dI, C, precalc_V) * ( - 1. / C )
+    jacobian_[17,15] = - d_V_func_sigma(state_[0,2,t_-1] - state_[0,4,t_-1] / C, sigmarange, ds, state_[0,15,t_-1], Irange, dI, C, precalc_V)
     
-    jacobian_[0,2] = - d_r_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3
-    jacobian_[0,4] = - d_r_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3 * ( - 1. / C ) 
-    jacobian_[0,15] = - d_r_func_sigma(state_[0,2,t_-1] - state_[0,4,t_] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3
+    jacobian_[18,2] = - d_tau_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_tau_mu)
+    jacobian_[18,4] = - d_tau_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, sigmarange, ds, state_[0,15,t_-1], Irange, dI, C, precalc_tau_mu) * ( - 1. / C )
+    jacobian_[18,15] = - d_tau_func_sigma(state_[0,2,t_-1] - state_[0,4,t_-1] / C, sigmarange, ds, state_[0,15,t_-1], Irange, dI, C, precalc_tau_mu)
     
-    jacobian_[1,3] = - d_r_func_mu(state_[0,3,t_], model.params.sigmarange, model.params.ds, state_[0,16,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3
-    jacobian_[1,16] = - d_r_func_sigma(state_[0,3,t_-1], model.params.sigmarange, model.params.ds, state_[0,16,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_r) * 1e3
-    
-    jacobian_[17,2] = - d_V_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_V)
-    jacobian_[17,4] = - d_V_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_V) * ( - 1. / C )
-    jacobian_[17,15] = - d_V_func_sigma(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_V)
-    
-    jacobian_[18,2] = - d_tau_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu)
-    jacobian_[18,4] = - d_tau_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1],model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu) * ( - 1. / C )
-    jacobian_[18,15] = - d_tau_func_sigma(state_[0,2,t_-1] - state_[0,4,t_-1] / C, model.params.sigmarange, model.params.ds, state_[0,15,t_-1], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu)
-    
-    jacobian_[19,3] = - d_tau_func_mu(state_[0,3,t_], model.params.sigmarange, model.params.ds, state_[0,16,t_], model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu)
-    jacobian_[19,16] = - d_tau_func_sigma(state_[0,3,t_-1], model.params.sigmarange, model.params.ds, state_[0,16,t_-1],model.params.Irange, model.params.dI, model.params.C, model.params.precalc_tau_mu)
+    jacobian_[19,3] = - d_tau_func_mu(state_[0,3,t_], sigmarange, ds, state_[0,16,t_], Irange, dI, C, precalc_tau_mu)
+    jacobian_[19,16] = - d_tau_func_sigma(state_[0,3,t_-1], sigmarange, ds, state_[0,16,t_-1], Irange, dI, C, precalc_tau_mu)
     
     return jacobian_
     
-
+@numba.njit
 def D_xdot(state_t_):
     dxdot_ = np.zeros((state_t_.shape[1], state_t_.shape[1]))
     return dxdot_
 
+@numba.njit
 def D_u_h(state_, t_):
     duh_ = np.zeros(( state_.shape[1], state_.shape[1] ))
     duh_[2,2] = - 1. / state_[0,18,t_-1]
