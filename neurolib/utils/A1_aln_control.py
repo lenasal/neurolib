@@ -90,7 +90,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     ##############################################
         
     startind_ = int(model.getMaxDelay() + 1)
-        
+            
     state_vars = model.state_vars
     init_vars = model.init_vars
     
@@ -116,12 +116,16 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_pre_ndt, startind_)
     
     model.params['duration'] = t_sim_
+    state0_ = fo.updateFullState(model, control_, state_vars)
+    
+    T = int( 1 + t_sim_ / dt )
+    V = state0_.shape[1]
     i=0
         
-    state0_ = fo.updateFullState(model, control_, state_vars)
+    
 
     total_cost_ = np.zeros((max_iteration_+1))
-    total_cost_[i] = cost.f_int(dt, state0_, target_state_, control_, v_ = variables )
+    total_cost_[i] = cost.f_int(N, T, dt, state0_, target_state_, control_, v_ = variables )
     runtime_ = np.zeros(( int(max_iteration_+1) ))
     runtime_start_ = timer()
     
@@ -131,7 +135,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     u_opt0_ = control_.copy()
     best_control_ = control_.copy()
     
-    full_cost_grad = np.zeros(( state0_.shape ))   
+    full_cost_grad = np.zeros(( N, 2, T ))   
     
     while( i < max_iteration_ ):
         
@@ -188,20 +192,20 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         i += 1   
         
-        g0_min_ = g(dt, phi0_, state1_, best_control_, variables_ = variables)
+        phi1_ = phi1(phi0_, state1_)
         
-        """
-        if 0 not in variables:
-            g0_min_[0,1,:] = 0.
-        elif 1 not in variables:
-            g0_min_[0,0,:] = 0.
-            
-            
-        if 1 not in variables_:
-            g0_min_[:,0,:] = 0.
-        elif 0 not in variables_:
-            g0_min_[:,1,:] = 0.
-        """
+        g0_min_ = np.zeros(( best_control_.shape ))
+        
+        grad_cost_e_ = cost.cost_energy_gradient(best_control_)
+        grad_cost_s_ = cost.cost_sparsity_gradient(dt, best_control_)
+        
+        if 0 in variables_ and 1 in variables_:
+            g0_min_ = grad_cost_e_ + grad_cost_s_ + phi1_[:,:2,:]
+            #g0_min_[:,1,:] = grad_cost_e_[0,1,:] + grad_cost_s_[0,1,:] + phi1[0,1,:]
+        elif 1 in variables_:
+            g0_min_[:,0,:] = grad_cost_e_[:,0,:] + grad_cost_s_[:0,:] + phi1_[:,0,:]
+        elif 0 in variables_:
+            g0_min_[:,1,:] = grad_cost_e_[:,1,:] + grad_cost_s_[:,1,:] + phi1_[:,1,:]
 
         dir0_ = - g0_min_.copy()
                 
@@ -307,7 +311,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     """
         
     if (t_sim_pre_ < dt and t_sim_post_ < dt):
-        return best_control_, state1_, total_cost_, runtime_#, phi1_
+        return best_control_, state1_, total_cost_, runtime_#, g0_min_
     
     t_post_ndt = np.around(t_sim_post_ / dt).astype(int)
     
@@ -333,7 +337,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
     fo.set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_, state1_, state_post_, state_vars, model.params.a, model.params.b)
             
-    return bc_, bs_, total_cost_, runtime_#, phi1_
+    return bc_, bs_, total_cost_, runtime_#, g0_min_
 
 @numba.njit
 def phi(dt, state_, target_state_, control_, full_cost_grad,
@@ -401,7 +405,7 @@ def phi(dt, state_, target_state_, control_, full_cost_grad,
         rd_exc[0,0] = state_[0,0,ind_time+shift_e] * 1e-3        
         rd_inh[0] = state_[0,1,ind_time+shift_i] * 1e-3
     
-        jac = jacobian_numba(state_[:,:,:], control_[:,:,:], ind_time,
+        jac = jacobian(state_[:,:,:], control_[:,:,:], ind_time,
                        ext_exc_current,
                        ext_inh_current,
                        sigmae_ext,
@@ -437,9 +441,7 @@ def phi(dt, state_, target_state_, control_, full_cost_grad,
                        C,
                        precalc_r, precalc_tau_mu, precalc_V,
                        )
-        
-        #jac = jacobian(jac, state_[:,:,:], ind_time, C, sigmarange, ds, Irange, dI, precalc_r, precalc_V, precalc_tau_mu)
-                    
+                            
         phi_[0,0,ind_time] = - full_cost_grad[0,0,ind_time] - np.dot( np.array( [phi_[0,2,ind_time], phi_[0,4,ind_time],
                                 phi_[0,5,ind_time+shift_e], phi_[0,7,ind_time+shift_e], phi_[0,9,ind_time+shift_e],
                                 phi_[0,11,ind_time+shift_e], phi_[0,15,ind_time+shift_e], phi_[0,16,ind_time+shift_e] ] ),
@@ -489,8 +491,6 @@ def phi(dt, state_, target_state_, control_, full_cost_grad,
             
             #der = phi_[0,3,ind_time] * jac[3,14] + phi_[0,14,ind_time] * jac[14,14]
             #phi_[0,14,ind_time-1] = phi_[0,14,ind_time] - dt * der
-            
-            
                 
         res = - phi_[0,4,ind_time] * jac[4,17]
         phi_[0,17,ind_time-1] = res
@@ -509,40 +509,23 @@ def phi(dt, state_, target_state_, control_, full_cost_grad,
         
         res = - phi_[0,1,ind_time] * jac[1,16] - phi_[0,19,ind_time-1] * jac[19,16]
         phi_[0,16,ind_time-1] = res
-        
-        #print("t = ", ind_time)
-        #print("phi = ", phi_[0,:,ind_time])
                 
     return phi_
 
-def g(dt, phi_, state_, control_, variables_ = [0,1]):
-    g_ = np.zeros( (control_.shape) )
+@numba.njit
+def phi1(phi_, state_):  
     
-    grad_cost_e_ = cost.cost_energy_gradient(control_)
-    grad_cost_s_ = cost.cost_sparsity_gradient(dt, control_)
+    phi1_ = np.zeros(( state_.shape[0], 2, state_.shape[2] ))
     
-    # shift if control is applied shifted wrt mu
-    phi_shift = np.zeros(( phi_.shape ))
-    phi_shift[:,:,1:] = phi_[:,:,0:-1]    
-    
-    phi1_ = np.zeros(( grad_cost_e_.shape ))
-    for t in range(1,state_.shape[2]):
+    for t in range(1, state_.shape[2]):
         jac_u_ = D_u_h(state_[:,:,:], t)
-        phi1_[0,0,t] = np.dot(phi_shift[0,:,t], jac_u_)[2]
-        phi1_[0,1,t] = np.dot(phi_shift[0,:,t], jac_u_)[3]
-        
-    if 0 in variables_ and 1 in variables_:
-        g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_[0,0,:]
-        g_[:,1,:] = grad_cost_e_[0,1,:] + grad_cost_s_[0,1,:] + phi1_[0,1,:]
-    elif 1 in variables_:
-        g_[:,0,:] = grad_cost_e_[0,0,:] + grad_cost_s_[0,0,:] + phi1_[0,0,:]
-    elif 0 in variables_:
-        g_[:,1,:] = grad_cost_e_[0,1,:] + grad_cost_s_[0,1,:] + phi1_[0,1,:]
+        res = np.dot(phi_[0,:,t-1], jac_u_) # shift if control is applied shifted wrt mu
+        phi1_[0,:2,t] = res[2:4]
 
-    return g_
+    return phi1_
 
 @numba.njit
-def jacobian_numba(state_, control_, t_,
+def jacobian(state_, control_, t_,
               ext_exc_current,
               ext_inh_current,
               sigmae_ext,
@@ -700,100 +683,30 @@ def D_u_h(state_, t_):
 
 @numba.njit
 def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
-    #result = 0.
-    #if model.name == "aln-control":# or model.name == "aln":
-    #    x_shift_mu = - 2.
-    #    x_scale_mu = 0.6
-    #    y_scale_mu = 0.1
-    #    result = y_scale_mu * x_scale_mu / np.cosh(x_scale_mu * mu + x_shift_mu)**2
-    #elif model.name == "aln":
     result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
-    #else:
-    #    print("no drivative of rate implemented")
-    #if np.abs(result) < 1e-16:
-    #    print("WARNING: vanishing derivative of r wrt mu")
     return result
 
 @numba.njit
 def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
-    #result = 0.
-    #if model.name == "aln-control":# or model.name == "aln":
-    #    x_shift_sigma = -1.
-    #    x_scale_sigma = 0.6
-    #    y_scale_sigma = 1./2500.
-    #    result = np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma
-    #elif model.name == "aln":
     result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
-    #else:
-    #    print("no drivative of rate implemented")
-    #if np.abs(result) < 1e-16:
-    #    print("WARNING: vanishing derivative of r wrt sigma")
     return result
 
 @numba.njit
 def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
-    #result = 0.
-    #if model.name == "aln-control":# or model.name == "aln":
-    #    mu_shift = - 1.1
-    #    sigma_scale = 0.5
-    #    mu_scale = - 10
-    #    mu_scale1 = - 3
-    #    sigma_shift = 1.4
-    #    result = sigma_scale * sigma + mu_scale1 + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )
-    #elif model.name == "aln":
     result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
-    #else:
-    #    print("no drivative of tau implemented")
-    #if np.abs(result) < 1e-16:
-    #    print("WARNING: vanishing derivative of tau wrt mu")
     return result
 
 @numba.njit
 def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
-    #result = 0.
-    #if model.name == "aln-control":# or model.name == "aln":
-    #    mu_shift = - 1.1
-    #    sigma_scale = 0.5
-    #    mu_scale = - 10
-    #    sigma_shift = 1.4
-    #    result = sigma_scale * ( mu_shift + mu ) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp(
-    #        mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )  
-    #elif model.name == "aln":
     result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
-    #else:
-    #    print("no drivative of tau implemented")
-    #if np.abs(result) < 1e-16:
-    #    print("WARNING: vanishing derivative of tau wrt sigma")
     return result
 
 @numba.njit
 def d_V_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
-    #result = 0.
-    #if model.name == "aln-control":# or model.name == "aln":
-    #    y_scale1 = 30.
-    #    mu_shift1 = 1.
-    #    y_scale2 = 2.
-    #    mu_shift2 = 0.5
-    #    result = y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
-    #elif model.name == "aln":
     result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
-    #else:
-    #    print("no drivative of V implemented")
-    #if np.abs(result) < 1e-16:
-     #   print("WARNING: vanishing derivative of V wrt mu")
     return result
 
 @numba.njit
 def d_V_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
-    #result = 0.
-    #if model.name == "aln-control":# or model.name == "aln":
-    #    y_scale2 = 2.
-    #    mu_shift2 = 0.5
-    #    result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2
-    #elif model.name == "aln":
     result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
-    #else:
-    #    print("no drivative of V implemented")
-    #if np.abs(result) < 1e-16:
-    #    print("WARNING: vanishing derivative of V wrt sigma")
     return result

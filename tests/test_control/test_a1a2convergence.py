@@ -26,12 +26,9 @@ tests = ["aln1"]#, "aln-control"]
 
 class TestA1A2Conv(unittest.TestCase):
       
-# set init vars zero everywhere or nowhere       
-    def test_A1A2ConvergeForRandomTarget(self):
-        print("test_A1inputControlForPrecisionCostOnly for model ", testcaseind)
-        
-        print("speeds = ", model.params.signalV, model.params.de, model.params.di)
-        
+    def test_A1A2ConvergeForRandomTarget_PE(self):
+        print("test_A1A2ConvergeForRandomTarget_PE for model ", testcaseind)
+                
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
         
@@ -45,6 +42,7 @@ class TestA1A2Conv(unittest.TestCase):
         cntrl_zeros_post = int(dur_post / model.params.dt)
         
         control1 = func.getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax) 
+        
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
             cntrl_zeros_post = 1
@@ -57,7 +55,6 @@ class TestA1A2Conv(unittest.TestCase):
         control2 = func.getRandomControl(model, 0, controlmin, controlmax)
         
         testip, testie, testis = random.uniform(0., 1.), random.uniform(0., 1.), random.uniform(0., 1.)
-        #cost.setParams(1., 0., 0.)
         cost.setParams(testip, testie, 0.)
         
         func.setInitVarsZero(model, init_vars)
@@ -86,8 +83,127 @@ class TestA1A2Conv(unittest.TestCase):
         for n in range(A2_bestControl.shape[0]):
             for v in range(A2_bestControl.shape[1]):
                 for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - 1 - cntrl_zeros_post):
-                    print(n,v,t)
-                    print("difference = ", A2_bestControl[n, v, t] - A1_bestControl[n, v, t])
+                    self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)    
+                    
+                    
+    def test_A1A2ConvergeForRandomTarget_PES_exc(self):
+        print("test_A1A2ConvergeForRandomTarget_PES_exc for model ", testcaseind)
+                
+        target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
+        c_scheme, u_mat, u_scheme = func.getSchemes(model)
+        
+        incl_steps = int(1. + duration/model.params.dt)
+            
+        func.setInitVarsZero(model, init_vars)
+            
+        model.params.duration = duration + dur_pre
+        
+        cntrl_zeros_pre = int(dur_pre / model.params.dt)
+        cntrl_zeros_post = int(dur_post / model.params.dt)
+        
+        control1 = func.getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax) 
+        control1[:,1,:] = 0.
+        
+        cntrl_len = control1.shape[2] + cntrl_zeros_post
+        if cntrl_zeros_post == 0:
+            cntrl_zeros_post = 1
+            
+        func.setInitVarsZero(model, init_vars)
+            
+        target = func.setTargetFromControl(model, control1, output_vars, target_vars)[:,:, cntrl_zeros_pre:]
+            
+        model.params.duration = duration
+        control2 = func.getRandomControl(model, 0, controlmin, controlmax)
+        
+        testip, testie, testis = random.uniform(0., 1.), random.uniform(0., 1.), random.uniform(0., 1.)
+        cost.setParams(testip, testie, testis)
+        
+        func.setInitVarsZero(model, init_vars)
+        
+        A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(control2, target, c_scheme, u_mat, u_scheme, max_iteration,
+                            algorithm_tolerance, start_step, 1e5 * controlmax, duration, dur_pre, dur_post, CGVar = None)
+        
+        func.setInitVarsZero(model, init_vars)
+
+        A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
+                            algorithm_tolerance, incl_steps, start_step, test_step, 1e5 * controlmax, duration, dur_pre, dur_post)
+                
+        self.assertEqual(A1_bestControl.shape[2], cntrl_len)
+        self.assertEqual(A2_bestControl.shape[2], cntrl_len)
+        
+        for t in range(len(A1_runtime)-1):
+            if (A1_runtime[t+1] == 0.):
+                break
+                self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
+                
+        for t in range(len(A2_runtime)-1):
+            if (A2_runtime[t+1] == 0.):
+                break
+                self.assertLessEqual(A2_runtime[t], A2_runtime[t+1])
+        
+        for n in range(A2_bestControl.shape[0]):
+            for v in range(A2_bestControl.shape[1]):
+                for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - 1 - cntrl_zeros_post):
+                    self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)    
+                    
+    def test_A1A2ConvergeForRandomTarget_PES_inh(self):
+        print("test_A1A2ConvergeForRandomTarget_PES_inh for model ", testcaseind)
+                
+        target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
+        c_scheme, u_mat, u_scheme = func.getSchemes(model)
+        
+        incl_steps = int(1. + duration/model.params.dt)
+            
+        func.setInitVarsZero(model, init_vars)
+            
+        model.params.duration = duration + dur_pre
+        
+        cntrl_zeros_pre = int(dur_pre / model.params.dt)
+        cntrl_zeros_post = int(dur_post / model.params.dt)
+        
+        control1 = func.getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax) 
+        control1[:,0,:] = 0.
+        
+        cntrl_len = control1.shape[2] + cntrl_zeros_post
+        if cntrl_zeros_post == 0:
+            cntrl_zeros_post = 1
+            
+        func.setInitVarsZero(model, init_vars)
+            
+        target = func.setTargetFromControl(model, control1, output_vars, target_vars)[:,:, cntrl_zeros_pre:]
+            
+        model.params.duration = duration
+        control2 = func.getRandomControl(model, 0, controlmin, controlmax)
+        
+        testip, testie, testis = random.uniform(0., 1.), random.uniform(0., 1.), random.uniform(0., 1.)
+        cost.setParams(testip, testie, testis)
+        
+        func.setInitVarsZero(model, init_vars)
+        
+        A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(control2, target, c_scheme, u_mat, u_scheme, max_iteration,
+                            algorithm_tolerance, start_step, 1e5 * controlmax, duration, dur_pre, dur_post, CGVar = None)
+        
+        func.setInitVarsZero(model, init_vars)
+
+        A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
+                            algorithm_tolerance, incl_steps, start_step, test_step, 1e5 * controlmax, duration, dur_pre, dur_post)
+                
+        self.assertEqual(A1_bestControl.shape[2], cntrl_len)
+        self.assertEqual(A2_bestControl.shape[2], cntrl_len)
+        
+        for t in range(len(A1_runtime)-1):
+            if (A1_runtime[t+1] == 0.):
+                break
+                self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
+                
+        for t in range(len(A2_runtime)-1):
+            if (A2_runtime[t+1] == 0.):
+                break
+                self.assertLessEqual(A2_runtime[t], A2_runtime[t+1])
+        
+        for n in range(A2_bestControl.shape[0]):
+            for v in range(A2_bestControl.shape[1]):
+                for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - 1 - cntrl_zeros_post):
                     self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)    
     
 

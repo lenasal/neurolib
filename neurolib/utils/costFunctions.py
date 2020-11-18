@@ -56,7 +56,7 @@ def cost_precision_gradient_t(state_t_, target_state_t_):
     cost_gradient_ = numba_precision_gradient_t(i_p, state_t_, target_state_t_)
     return cost_gradient_
 
-#@numba.njit
+@numba.njit
 def numba_precision_gradient_t(i_p, state_t_, target_state_t_):
     cost_gradient_ = np.zeros(( target_state_t_.shape[0], target_state_t_.shape[1] ))
     for ind_node in range(target_state_t_.shape[0]):
@@ -68,15 +68,15 @@ def numba_precision_gradient_t(i_p, state_t_, target_state_t_):
                                                target_state_t_[ind_node, ind_var])
     return cost_gradient_
 
-def cost_precision_int(dt, i_p, state_, target_, va_):
-    cost_int = numba_cost_precision_int(dt, i_p, state_, target_, var_ = va_ )
+def cost_precision_int(N, T, dt, i_p, state_, target_, va_):
+    cost_int = numba_cost_precision_int(N, T, dt, i_p, state_, target_, var_ = va_ )
     return cost_int
 
-#@numba.njit
-def numba_cost_precision_int(dt, i_p, state_, target_state_, var_):
+@numba.njit
+def numba_cost_precision_int(N, T, dt, i_p, state_, target_state_, var_):
     cost =  0.
-    for ind_time in range(target_state_.shape[2]):
-        for ind_node in range(target_state_.shape[0]):
+    for ind_time in range(T):
+        for ind_node in range(N):
             for ind_var in var_:
                 diff = np.abs(state_[ind_node, ind_var, ind_time] - target_state_[ind_node, ind_var, ind_time])
                 if target_state_[ind_node, ind_var, ind_time] == -1000:
@@ -91,24 +91,6 @@ def numba_cost_precision_int(dt, i_p, state_, target_state_, var_):
 ###########################################################
 # cost functions for energy
 ###########################################################    
-    
-# cost function for energy
-def f_cost_energy(i_e, control_, var_ = [0,1]):
-    # control_: [N,dim_Model,t] dimensional array containing control for all nodes, all state variables at all times
-    # return cost: [t] dimensional array containing cost for all times
-    #i_p, i_e, i_s = getParams()
-    #print("ie = ", i_e)
-    cost =  numba_cost_energy(i_e, control_, vari_ = var_)
-    return cost
-
-#@numba.njit
-def numba_cost_energy(i_e, control_, vari_ = [0,1]):
-    cost =  np.zeros((control_.shape[2]))
-    for ind_time in range(control_.shape[2]):
-        for ind_node in range(control_.shape[0]):
-            for ind_var in vari_:
-                cost[ind_time] += 0.5 * i_e * control_[ind_node, ind_var, ind_time]**2
-    return cost
 
 # gradient of cost function for energy
 def cost_energy_gradient(control_):
@@ -122,10 +104,18 @@ def numba_energy_gradient(i_e, control_):
     cost_gradient_ = i_e * control_
     return cost_gradient_
 
-def cost_energy_int(dt, i_e, control_, va_ = [0,1]):
-    cost_ = f_cost_energy(i_e, control_, var_ = va_)
-    #print("cost energy = ", cost_)
-    return sum(cost_) * dt
+def cost_energy_int(N, T, dt, i_e, control_, va_ = [0,1]):
+    cost_ = numba_cost_energy_int(N, T, dt, i_e, control_, var_ = va_)
+    return cost_
+
+@numba.njit
+def numba_cost_energy_int(N, T, dt, i_e, control_, var_ = [0,1]):
+    cost =  0.
+    for ind_time in range(T):
+        for ind_node in range(N):
+            for ind_var in var_:
+                cost += dt * 0.5 * i_e * control_[ind_node, ind_var, ind_time]**2
+    return cost
 
 @numba.njit
 def control_energy_components(dt, control_):
@@ -160,23 +150,23 @@ def numba_cost_sparsity_gradient(i_s, control_, control_energy):
                 cost_grad[ind_node, ind_var, :] = i_s * control_[ind_node, ind_var,:] / control_energy[ind_node, ind_var]
     return cost_grad
 
-def f_cost_sparsity_int(dt, i_s, control_, va_):
-    cost =  numba_cost_sparsity_int(i_s, dt, control_, var_ = va_)
+def f_cost_sparsity_int(N, T, dt, i_s, control_, va_):
+    cost =  numba_cost_sparsity_int(N, T, i_s, dt, control_, var_ = va_)
     return cost
 
 @numba.njit
-def numba_cost_sparsity_int(i_s, dt, control_, var_):
+def numba_cost_sparsity_int(N, T, i_s, dt, control_, var_):
     int_ =  0.
-    for ind_node in range(control_.shape[0]):
+    for ind_node in range(N):
         for ind_var in var_:
             cost = 0.
-            for ind_time in range(control_.shape[2]):
+            for ind_time in range(T):
                 cost += (control_[ind_node, ind_var, ind_time])**2 * dt
             int_ += i_s * np.sqrt(cost)
     return int_
 
 ###########################################################
-# total cost
+# cost functions for sparsity
 ########################################################### 
 
 
@@ -213,7 +203,7 @@ def numba_cost(i_p, i_e, i_s, state_, target_state_, control_):
 
 # integrated cost
 #@numba.njit
-def f_int(dt, state_, target_, control_, v_ = [0,1], start_t_ = -1, stop_t_ = -1):
+def f_int(N, T, dt, state_, target_, control_, v_ = [0,1], start_t_ = -1, stop_t_ = -1):
     # cost_: [t] dimensional array containing cost for all times
     # return cost_int: integrated (total) cost
         
@@ -223,11 +213,11 @@ def f_int(dt, state_, target_, control_, v_ = [0,1], start_t_ = -1, stop_t_ = -1
     cost_prec, cost_energy, cost_sparsity = 0., 0., 0.
             
     if not (i_p == 0.):
-        cost_prec = cost_precision_int(dt, i_p, state_, target_, va_ = var)
+        cost_prec = cost_precision_int(N, T, dt, i_p, state_, target_, va_ = var)
     if not (i_e == 0.):
-        cost_energy = cost_energy_int(dt, i_e, control_, va_ = var)
+        cost_energy = cost_energy_int(N, T, dt, i_e, control_, va_ = var)
     if not (i_s == 0.):
-        cost_sparsity = f_cost_sparsity_int(dt, i_s, control_, va_ = var)
+        cost_sparsity = f_cost_sparsity_int(N, T, dt, i_s, control_, va_ = var)
     
     #print("cost precision = ", cost_prec)
     #print("cost energy = ", cost_energy)

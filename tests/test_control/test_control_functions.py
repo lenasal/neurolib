@@ -22,7 +22,7 @@ def getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax, variables_ 
         
     for n in range(control_.shape[0]):
         for v in cntrl_vars:
-            for t in range(cntrl_zeros_pre+1, control_.shape[2]):
+            for t in range(cntrl_zeros_pre+1, control_.shape[2]-1):
                 control_[n, v, t] = random.uniform(controlmin, controlmax)
     return control_
     
