@@ -90,7 +90,7 @@ def plot_runtime(time_, path_, filename_ = "runtime.png"):
     
     
 # plot uncontrolled dynamics, controlled dynamics
-def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_params_, target_, path_, filename_ = 'control_aln.png'):
+def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_params_, target_, path_, filename_ = '', shading = False):
     
     dt = model.params.dt
     if model.name == "aln" or model.name == "aln-control":
@@ -112,9 +112,7 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
         else:
             model.params[init_vars[iv]][0] = initial_params_[iv]
             
-    #print("initial params = ", initial_params_)
-    
-    
+
     # no control
     model.run(control=model.getZeroControl())
 
@@ -135,8 +133,10 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
                 control_time_inh.append(dt * t)
     
     columns = len(model.output_vars)-1
-    
-    fig, ax = plt.subplots(3, columns, figsize=(16, 12), linewidth=8, edgecolor='grey')
+    rows = 3
+    n_vars = len(control_vars)
+        
+    fig, ax = plt.subplots(rows, columns, figsize=(16, 12), linewidth=8, edgecolor='grey')
     plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.3, hspace=0.3)
     y_labels_rates = ['Rates exc. [Hz]', 'Rates inh. [Hz]', 'Adaptation current [pA]']
     y_labels_control = ['Control exc. [nA]', 'Control inh. [nA]']
@@ -162,7 +162,7 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
             ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_rates[i])
             
         
-        for i in range(len(control_vars)):
+        for i in range(n_vars):
             ax[2,i].plot(model.t, control_[0,i,:] * control_factor) # divide by five to take into account capacitance
             ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[i])
     else:
@@ -176,23 +176,25 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
         ax[2].plot(model.t, control_[0,0,:] * control_factor) # divide by five to take into account capacitance
         ax[2].set(xlabel='t [ms]', ylabel=y_labels_control[1])
         
-
     if len(model.output_vars) > 1:
         
-        for i in range(3):
-            for j in range(len(model.target_output_vars)):
+        for i in range(rows):
+            for j in range(columns):
                 ax[i,j].axvspan(t_sim_pre_, t_sim_pre_ + t_sim_, facecolor='0.4', alpha=0.1, zorder=-2,
-                        label=cntrl_time_legend[1])
-            for times in control_time_exc:
-                if (times == control_time_exc[0]):
-                    ax[i,0].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1, label=cntrl_time_legend[0])
-                else:
-                    ax[i,0].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1)
-            for times in control_time_inh:
-                if (times == control_time_inh[0]):
-                    ax[i,1].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1, label=cntrl_time_legend[0])
-                else:
-                    ax[i,1].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1)
+                            label=cntrl_time_legend[1])
+        
+        if shading:
+            for i in range(rows):
+                for times in control_time_exc:
+                    if (times == control_time_exc[0]):
+                        ax[i,0].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1, label=cntrl_time_legend[0])
+                    else:
+                        ax[i,0].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1)
+                for times in control_time_inh:
+                    if (times == control_time_inh[0]):
+                        ax[i,1].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1, label=cntrl_time_legend[0])
+                    else:
+                        ax[i,1].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1)
     
     
         if (i2 == 0):
@@ -218,19 +220,6 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
             ax[0].plot(model.t[i1:-i2], target_[0,0,:], '--', label=target_legend[0])
             ax[1].plot(model.t[i1:-i2], target_[0,0,:], '--', label=target_legend[0])
         
-        
-        #state = aln.getZeroState()
-        #for i in range(len(output_vars)):
-        #    state[:,i,:] = aln[output_vars[i]][:,:]
-        #cost = aln.cost(state, target_, control_)
-        
-        #ax[2,2].plot(aln.t, cost)
-        #ax[2,2].set(xlabel='t [ms]', ylabel='Cost')
-        
-        #ax[2,2].plot([-2.75, 1.01], [1.03, 1.03], transform=ax[2,2].transAxes, clip_on=False, c='grey', linewidth = 3)
-        #ax[2,2].plot([-0.2, -0.2], [3.45, -0.15], transform=ax[2,2].transAxes, clip_on=False, c='grey', linewidth = 3)
-    
-
     for i in range(2):
         for j in range(columns):
             ax[i,j].legend(loc='upper right')
@@ -248,4 +237,6 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
                    size=20, ha='center', va='baseline', weight='bold')
     
     plt.tight_layout()
-    plt.savefig(os.path.join(path_, filename_))
+    
+    if not filename_ == '':
+        plt.savefig(os.path.join(path_, filename_))

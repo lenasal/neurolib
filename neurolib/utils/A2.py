@@ -58,7 +58,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     state0_ = state_.copy()
     
     N = model.params.N
-    T = t_sim_ * dt
+    T = int(1 + t_sim_ / dt)
     V = state_.shape[1]
     
     for i in range( int(max_iteration_) ):

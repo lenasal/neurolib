@@ -213,7 +213,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         d_exc = dir0_.copy()
         d_exc[:,1,:] = 0.
         
-        s_exc, tc_exc = fo.step_size(model, dt, state1_[:,:2,:], target_state_,
+        s_exc, tc_exc = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, d_exc, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size exc = ", s_exc)
@@ -221,7 +221,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         d_inh = dir0_.copy()
         d_inh[:,0,:] = 0.
         
-        s_inh, tc_inh = fo.step_size(model, dt, state1_[:,:2,:], target_state_,
+        s_inh, tc_inh = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, d_inh, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size inh = ", s_inh)
@@ -230,13 +230,13 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         joint_dir[:,0,:] = s_exc * dir0_[:,0,:] #/ (s_exc + s_inh)
         joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
         
-        joint_step_, joint_cost = fo.step_size(model, dt, state1_[:,:2,:], target_state_,
+        joint_step_, joint_cost = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, joint_dir, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size = ", joint_step_, joint_cost)
         
         
-        step_, total_cost_[i] = fo.step_size(model, dt, state1_[:,:2,:], target_state_,
+        step_, total_cost_[i] = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size = ", step_, total_cost_[i])
