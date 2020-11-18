@@ -139,12 +139,12 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
     while( i < max_iteration_ ):
         
-        for ind_time in range(state0_.shape[2]):
+        for ind_time in range(T):
             f_p_grad_t_ = cost.cost_precision_gradient_t(state0_[:,:2,ind_time], target_state_[:,:,ind_time])
             for v in variables:
                 full_cost_grad[0,v,ind_time] = f_p_grad_t_[0,v] 
         
-        phi0_ = phi(dt, state0_, target_state_, best_control_, full_cost_grad,
+        phi0_ = phi(N, V, T, dt, state0_, target_state_, best_control_, full_cost_grad,
                     ext_exc_current,
                     ext_inh_current,
                     sigmae_ext,
@@ -192,9 +192,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         i += 1   
         
-        phi1_ = phi1(phi0_, state1_)
+        phi1_ = phi1(N, V, T, phi0_, state1_)
         
-        g0_min_ = np.zeros(( best_control_.shape ))
+        g0_min_ = np.zeros(( N, 2, T ))
         
         grad_cost_e_ = cost.cost_energy_gradient(best_control_)
         grad_cost_s_ = cost.cost_sparsity_gradient(dt, best_control_)
@@ -340,7 +340,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     return bc_, bs_, total_cost_, runtime_#, g0_min_
 
 @numba.njit
-def phi(dt, state_, target_state_, control_, full_cost_grad,
+def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
                     ext_exc_current,
                     ext_inh_current,
                     sigmae_ext,
@@ -381,20 +381,20 @@ def phi(dt, state_, target_state_, control_, full_cost_grad,
                     precalc_r, precalc_tau_mu, precalc_V,
                     ):
     
-    phi_ = np.zeros((state_.shape ))
+    phi_ = np.zeros(( N, V, T ))
     
             
-    for ind_time in range(phi_.shape[2]-1, 0, -1):
+    for ind_time in range(T-1, 0, -1):
         
         #if (ind_time == 0):
         #    break
     
-        if ind_time + ndt_de < state_.shape[2]:
+        if ind_time + ndt_de < T:
             shift_e = ndt_de
         else:
             shift_e = 0
     
-        if ind_time + ndt_di < state_.shape[2]:
+        if ind_time + ndt_di < T:
             shift_i = ndt_di
         else:
             shift_i = 0
@@ -405,7 +405,7 @@ def phi(dt, state_, target_state_, control_, full_cost_grad,
         rd_exc[0,0] = state_[0,0,ind_time+shift_e] * 1e-3        
         rd_inh[0] = state_[0,1,ind_time+shift_i] * 1e-3
     
-        jac = jacobian(state_[:,:,:], control_[:,:,:], ind_time,
+        jac = jacobian(V, state_[:,:,:], control_[:,:,:], ind_time,
                        ext_exc_current,
                        ext_inh_current,
                        sigmae_ext,
@@ -454,7 +454,7 @@ def phi(dt, state_, target_state_, control_, full_cost_grad,
         
     
         
-        if (ind_time != phi_.shape[2]-1):
+        if (ind_time != T-1):
             der = phi_[0,0,ind_time+1] * jac[0,2] + phi_[0,2,ind_time] * jac[2,2] + phi_[0,17,ind_time] * jac[17,2] + phi_[0,18,ind_time] * jac[18,2]
             phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
             
@@ -513,19 +513,19 @@ def phi(dt, state_, target_state_, control_, full_cost_grad,
     return phi_
 
 @numba.njit
-def phi1(phi_, state_):  
+def phi1(N, V, T, phi_, state_):  
     
-    phi1_ = np.zeros(( state_.shape[0], 2, state_.shape[2] ))
+    phi1_ = np.zeros(( N, 2, T ))
     
-    for t in range(1, state_.shape[2]):
-        jac_u_ = D_u_h(state_[:,:,:], t)
-        res = np.dot(phi_[0,:,t-1], jac_u_) # shift if control is applied shifted wrt mu
-        phi1_[0,:2,t] = res[2:4]
+    for ind_t in range(1, T):
+        jac_u_ = D_u_h(V, state_[:,:,:], ind_t)
+        res = np.dot(phi_[0,:,ind_t-1], jac_u_) # shift if control is applied shifted wrt mu
+        phi1_[0,:2,ind_t] = res[2:4]
 
     return phi1_
 
 @numba.njit
-def jacobian(state_, control_, t_,
+def jacobian(V, state_, control_, t_,
               ext_exc_current,
               ext_inh_current,
               sigmae_ext,
@@ -574,7 +574,7 @@ def jacobian(state_, control_, t_,
     z1ii = factor_ii1 * rd_inh[0]
     z2ii = factor_ii2 * rd_inh[0]
     
-    jacobian_ = np.zeros((state_.shape[1], state_.shape[1]))
+    jacobian_ = np.zeros(( V, V ))
     jacobian_[0,0] = 1.
     jacobian_[0,2] = - d_r_func_mu(state_[0,2,t_] - state_[0,4,t_] / C, sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
     jacobian_[0,4] = - d_r_func_mu(state_[0,2,t_-1] - state_[0,4,t_-1] / C, sigmarange, ds, state_[0,15,t_-1], Irange, dI, C, precalc_r) * 1e3 * ( - 1. / C ) 
@@ -670,13 +670,13 @@ def jacobian(state_, control_, t_,
     return jacobian_
     
 @numba.njit
-def D_xdot(state_t_):
-    dxdot_ = np.zeros((state_t_.shape[1], state_t_.shape[1]))
+def D_xdot(V, state_t_):
+    dxdot_ = np.zeros(( V, V ))
     return dxdot_
 
 @numba.njit
-def D_u_h(state_, t_):
-    duh_ = np.zeros(( state_.shape[1], state_.shape[1] ))
+def D_u_h(V, state_, t_):
+    duh_ = np.zeros(( V, V ))
     duh_[2,2] = - 1. / state_[0,18,t_-1]
     duh_[3,3] = - 1. / state_[0,19,t_-1]
     return duh_
