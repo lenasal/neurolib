@@ -59,7 +59,7 @@ class TestA1(unittest.TestCase):
             
         func.setInitVarsZero(model, init_vars)
                
-        A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(control2, target, c_scheme, u_mat,
+        A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat,
                             u_scheme, max_iteration_ = max_iteration, tolerance_ = algorithm_tolerance, startStep_ = start_step,
                             max_control_ = 1e5 * controlmax, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post,
                             CGVar = None)        
@@ -107,7 +107,7 @@ class TestA1(unittest.TestCase):
         
         func.setInitVarsZero(model, init_vars)
         
-        A1_bestControl, A1_bestState, A1_cost, A1_runtime = model.A1(control2, target, c_scheme, u_mat,
+        A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat,
                         u_scheme, max_iteration, algorithm_tolerance, start_step, 1e5 * controlmax, duration,
                         dur_pre, dur_post, CGVar = None)
         

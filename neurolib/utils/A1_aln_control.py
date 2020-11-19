@@ -118,7 +118,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     model.params['duration'] = t_sim_
     state0_ = fo.updateFullState(model, control_, state_vars)
     
-    T = int( 1 + t_sim_ / dt )
+    T = int( 1 + np.around(t_sim_ / dt, 1) )
     V = state0_.shape[1]
     i=0
         
@@ -194,21 +194,23 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         phi1_ = phi1(N, V, T, phi0_, state1_)
         
-        g0_min_ = np.zeros(( N, 2, T ))
+        grad_ = np.zeros(( N, 2, T ))
         
         grad_cost_e_ = cost.cost_energy_gradient(best_control_)
         grad_cost_s_ = cost.cost_sparsity_gradient(dt, best_control_)
         
+        #print("sparsity gradient inh = ", grad_cost_s_[0,1,:])
+        #print("adjoint gradient inh = ", phi1_[0,1,:])
+        
         if 0 in variables_ and 1 in variables_:
-            g0_min_ = grad_cost_e_ + grad_cost_s_ + phi1_[:,:2,:]
-            #g0_min_[:,1,:] = grad_cost_e_[0,1,:] + grad_cost_s_[0,1,:] + phi1[0,1,:]
+            grad_ = grad_cost_e_ + grad_cost_s_ + phi1_[:,:2,:]
         elif 1 in variables_:
-            g0_min_[:,0,:] = grad_cost_e_[:,0,:] + grad_cost_s_[:0,:] + phi1_[:,0,:]
+            grad_[:,0,:] = grad_cost_e_[:,0,:] + grad_cost_s_[:0,:] + phi1_[:,0,:]
         elif 0 in variables_:
-            g0_min_[:,1,:] = grad_cost_e_[:,1,:] + grad_cost_s_[:,1,:] + phi1_[:,1,:]
-
-        dir0_ = - g0_min_.copy()
-                
+            grad_[:,1,:] = grad_cost_e_[:,1,:] + grad_cost_s_[:,1,:] + phi1_[:,1,:]
+           
+        dir0_ = - grad_.copy()
+        
         # compute stepsize separately and then put together
         d_exc = dir0_.copy()
         d_exc[:,1,:] = 0.
@@ -279,7 +281,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             max_iteration_ = i
             break
         
-        if ( np.amax(np.absolute(g0_min_[:,:,1:])) < tolerance_ ):
+        if ( np.amax(np.absolute(dir0_[:,:,1:])) < tolerance_ ):
             print("Gradient negligibly small.")
             max_iteration_ = i
             break
@@ -311,7 +313,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     """
         
     if (t_sim_pre_ < dt and t_sim_post_ < dt):
-        return best_control_, state1_, total_cost_, runtime_#, g0_min_
+        return best_control_, state1_, total_cost_, runtime_, grad_
     
     t_post_ndt = np.around(t_sim_post_ / dt).astype(int)
     
@@ -337,7 +339,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
     fo.set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_, state1_, state_post_, state_vars, model.params.a, model.params.b)
             
-    return bc_, bs_, total_cost_, runtime_#, g0_min_
+    return bc_, bs_, total_cost_, runtime_, grad_
 
 @numba.njit
 def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
@@ -519,8 +521,15 @@ def phi1(N, V, T, phi_, state_):
     
     for ind_t in range(1, T):
         jac_u_ = D_u_h(V, state_[:,:,:], ind_t)
-        res = np.dot(phi_[0,:,ind_t-1], jac_u_) # shift if control is applied shifted wrt mu
-        phi1_[0,:2,ind_t] = res[2:4]
+        x = np.ascontiguousarray(phi_[0,:,ind_t-1])#, dtype=np.float64)
+        y0 = np.ascontiguousarray(jac_u_[:,2])
+        y1 = np.ascontiguousarray(jac_u_[:,3])
+        #res = np.dot(x, y)
+        #res = np.dot(phi_[0,:,ind_t-1], jac_u_) # shift if control is applied shifted wrt mu
+        phi1_[0,0,ind_t] = np.dot(x, y0)
+        phi1_[0,1,ind_t] = np.dot(x, y1)
+        
+        #print(phi1_[0,0,ind_t] == res1, phi1_[0,1,ind_t] == res2)
 
     return phi1_
 

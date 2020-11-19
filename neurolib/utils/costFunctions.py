@@ -203,7 +203,7 @@ def numba_cost(i_p, i_e, i_s, state_, target_state_, control_):
 
 # integrated cost
 #@numba.njit
-def f_int(N, T, dt, state_, target_, control_, v_ = [0,1], start_t_ = -1, stop_t_ = -1):
+def f_int(N, T, dt, state_, target_, control_, v_ = [0,1]):
     # cost_: [t] dimensional array containing cost for all times
     # return cost_int: integrated (total) cost
         
@@ -212,16 +212,19 @@ def f_int(N, T, dt, state_, target_, control_, v_ = [0,1], start_t_ = -1, stop_t
     i_p, i_e, i_s = getParams()
     cost_prec, cost_energy, cost_sparsity = 0., 0., 0.
             
-    if not (i_p == 0.):
+    if not i_p < 1e-12:
         cost_prec = cost_precision_int(N, T, dt, i_p, state_, target_, va_ = var)
-    if not (i_e == 0.):
+    if not i_e < 1e-12:
         cost_energy = cost_energy_int(N, T, dt, i_e, control_, va_ = var)
-    if not (i_s == 0.):
+    if not i_s < 1e-12:
         cost_sparsity = f_cost_sparsity_int(N, T, dt, i_s, control_, va_ = var)
     
     #print("cost precision = ", cost_prec)
     #print("cost energy = ", cost_energy)
-    #("cost sparsity = ", cost_sparsity)
+    #print("cost sparsity = ", cost_sparsity)
+    
+    #if (cost_energy > 100.):
+    #    print("control = ", control_)
     
     cost_int = cost_prec + cost_energy + cost_sparsity
     

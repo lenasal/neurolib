@@ -58,7 +58,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     state0_ = state_.copy()
     
     N = model.params.N
-    T = int(1 + t_sim_ / dt)
+    T = int(1 + np.around(t_sim_ / dt, 1))
     V = state_.shape[1]
     
     for i in range( int(max_iteration_) ):
@@ -139,11 +139,11 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
 
 def get_dir(model, N, T, ind_node, ind_var, ind_time, state0, target0_, control0_, test_step_):
     dir_ = model.getZeroControl()
+    dir_up_ = dir_.copy()
+    dir_down_ = dir_.copy()
     
-    dir_up_ = model.getZeroControl()
     dir_up_[ind_node, ind_var, ind_time+1] += 1.
     
-    dir_down_ = model.getZeroControl()
     dir_down_[ind_node, ind_var, ind_time+1] -= 1.
     
     counter = 0
@@ -201,11 +201,16 @@ def gf_dc(model, N, T, control_, target_, include_timestep_, start_step_, test_s
         
     ##!!!!! -1 ???
     i_p, i_e, i_s = cost.getParams()
+    #print(i_p, i_e, i_s)
     
-    if i_s == 0.:
+    T_ = T
+    
+    if i_s < 1e-12:
         for ind_time in range(control_.shape[2]-2):
             for ind_node in range(N):
                 for ind_var in range(len(control_input)):
+                    
+                    #print("no sparsity, ", ind_time, ind_node, ind_var)
                     
                     if (change_dur_):
                         change_dur_ = False
@@ -213,12 +218,14 @@ def gf_dc(model, N, T, control_, target_, include_timestep_, start_step_, test_s
                         target0_ = target0_[:,:,1:].copy()
                         
                     state0 = fo.updateState(model, control0_)
-                    dir_ = get_dir(model, N, T, ind_node, ind_var, 0, state0, target0_, control0_, test_step_)
+                    #print("get dir ")
+                    dir_ = get_dir(model, N, T_, ind_node, ind_var, 0, state0, target0_, control0_, test_step_)
                     
                     if (dir_.any() != 0.):
                         start_st_ = fo.adapt_step(control0_, ind_node, ind_var, start_step_, dir_, max_control_) 
                         if not start_st_ == 0.:
-                            step_ = fo.step_size(model, N, T, dt, state0, target0_, control0_, dir_, start_st_, max_it_ = 1000,
+                            #print("get step")
+                            step_ = fo.step_size(model, N, T_, dt, state0, target0_, control0_, dir_, start_st_, max_it_ = 1000,
                                                  bisec_factor_ = 2., max_control_ = max_control_, alg = "A2")
                             
                             #print("step size = ", step_)
@@ -231,13 +238,15 @@ def gf_dc(model, N, T, control_, target_, include_timestep_, start_step_, test_s
             fo.update_delayed_state(model, delay_state_vars0_, state_vars, init_vars, startind_)
             
             duration_sim -= dt
+            T_ -= 1
             model.params['duration'] = duration_sim
-            change_dur_ = True
-          
-    else:
+            change_dur_ = True       
+    else:   
         for ind_time in range(control_.shape[2]-2):
             for ind_node in range(N):
                 for ind_var in range(len(control_input)):
+                    
+                    print(ind_time, ind_node, ind_var)
                         
                     #print("update state with control = ", control0_)
                     state0 = fo.updateState(model, control0_)

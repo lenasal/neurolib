@@ -20,9 +20,11 @@ def getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax, variables_ 
     elif 1 not in variables_:
         cntrl_vars = [1]
         
+    maxDelay_ndt = getDelay_ndt(model)
+        
     for n in range(control_.shape[0]):
         for v in cntrl_vars:
-            for t in range(cntrl_zeros_pre+1, control_.shape[2]-1):
+            for t in range(cntrl_zeros_pre+1, control_.shape[2]-1-maxDelay_ndt):
                 control_[n, v, t] = random.uniform(controlmin, controlmax)
     return control_
     
