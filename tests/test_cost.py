@@ -8,6 +8,7 @@ tolerance_digits = 8
 
 class TestCostFunctions(unittest.TestCase):
 
+    """
     def test_setGetParameters(self):
         testip = 2.0
         testie = 1.0
@@ -27,23 +28,28 @@ class TestCostFunctions(unittest.TestCase):
         self.assertEqual(params[0], testip)
         self.assertNotEqual(params[1], testie)
         self.assertEqual(params[2], testis)
+    """
         
     def test_sparsity(self):
-        T = 10.
+        T = 1.
         dt = 0.1
-        N = 2
+        N = 1
         var = 2
         test_control_value = 2.
-        test_control = np.zeros(( N, var, int(T/dt) ))
+        test_control = np.zeros(( N, var, int(1 + np.around(T/dt) ) ))
         result_cost = N * var * test_control_value * np.sqrt(T)
         result_gradient = test_control_value / np.sqrt( test_control_value**2 * T )
         
-        cost.setParams(0., 0., 1.)
+        i_s_ = 1.
+        
+        cost.setParams(0., 0., i_s_)
         
         for t in range(test_control.shape[2]):
             test_control[:,:,t] = test_control_value
             
-        self.assertAlmostEqual(cost.f_cost_sparsity_int(dt, test_control), result_cost, tolerance_digits)
+        print(cost.f_cost_sparsity_int(N, T, dt, i_s_, test_control, va_ = [0,1]), result_cost)
+            
+        self.assertAlmostEqual(cost.f_cost_sparsity_int(N, T, dt, i_s_, test_control, va_ = [0,1]), result_cost, tolerance_digits)
         
         gradient = cost.f_cost_sparsity_gradient(dt, test_control)
         

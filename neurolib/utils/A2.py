@@ -245,9 +245,7 @@ def gf_dc(model, N, T, control_, target_, include_timestep_, start_step_, test_s
         for ind_time in range(control_.shape[2]-2):
             for ind_node in range(N):
                 for ind_var in range(len(control_input)):
-                    
-                    print(ind_time, ind_node, ind_var)
-                        
+                                            
                     #print("update state with control = ", control0_)
                     state0 = fo.updateState(model, control0_)
                     dir_ = get_dir(model, N, T, ind_node, ind_var, ind_time, state0, target0_, control0_, test_step_)

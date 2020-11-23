@@ -137,6 +137,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
     full_cost_grad = np.zeros(( N, 2, T ))   
     
+    startstep_exc_ = startStep_
+    startstep_inh_ = startStep_
+    startstep_joint_ = startStep_
+    
     while( i < max_iteration_ ):
         
         for ind_time in range(T):
@@ -205,26 +209,26 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         if 0 in variables_ and 1 in variables_:
             grad_ = grad_cost_e_ + grad_cost_s_ + phi1_[:,:2,:]
         elif 1 in variables_:
-            grad_[:,0,:] = grad_cost_e_[:,0,:] + grad_cost_s_[:0,:] + phi1_[:,0,:]
+            grad_[:,0,:] = grad_cost_e_[:,0,:] + grad_cost_s_[:,0,:] + phi1_[:,0,:]
         elif 0 in variables_:
             grad_[:,1,:] = grad_cost_e_[:,1,:] + grad_cost_s_[:,1,:] + phi1_[:,1,:]
            
         dir0_ = - grad_.copy()
-        
+                
         # compute stepsize separately and then put together
         d_exc = dir0_.copy()
         d_exc[:,1,:] = 0.
         
-        s_exc, tc_exc = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, d_exc, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
+        s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
+                     best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size exc = ", s_exc)
         
         d_inh = dir0_.copy()
         d_inh[:,0,:] = 0.
         
-        s_inh, tc_inh = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, d_inh, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
+        s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
+                     best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size inh = ", s_inh)
         
@@ -232,39 +236,43 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         joint_dir[:,0,:] = s_exc * dir0_[:,0,:] #/ (s_exc + s_inh)
         joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
         
-        joint_step_, joint_cost = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, joint_dir, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
+        joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
+                     best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
+    
         
-        #print("step size = ", joint_step_, joint_cost)
-        
-        
-        step_, total_cost_[i] = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
+        step_, total_cost_[i], startStep_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
         
         #print("step size = ", step_, total_cost_[i])
         
         costMin = np.amin( [tc_exc, tc_inh, joint_cost, total_cost_[i]] )
-        
+            
         if (tc_exc ==  costMin):
             #print("choose exc only")
             step_ = s_exc
             total_cost_[i] = tc_exc
             dir0_ = d_exc.copy()
+            #startStep_ = startstep_exc_
             
         elif (tc_inh ==  costMin):
             #print("choose inh only")
             step_ = s_inh
             total_cost_[i] = tc_inh
             dir0_ = d_inh.copy()
+            #startStep_ = startstep_inh_
         
         elif (joint_cost ==  costMin):
             #print("choose exc, inh combination")
             step_ = joint_step_
             total_cost_[i] = joint_cost
             dir0_ = joint_dir.copy()
-            
+            #startStep_ = startstep_joint_ 
         #else:
-        #    print("choose joint computation")
+            #print("choose adjoint")
+            #startStep_ = startstep_adj_
+            
+        #print("found step ", step_)
+        print("continue with start steps ", startstep_exc_, startstep_inh_, startstep_joint_, startStep_)
         
         
         runtime_[i] = timer() - runtime_start_
@@ -401,8 +409,10 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
         else:
             shift_i = 0
             
-        # could leave shift at zero and algorithm would do almost equally well
-        #shift_e, shift_i = 0
+        # could leave shift at zero in jacobian and algorithm would do almost equally well
+        
+        #shift_e = 0
+        #shift_i = 0
         
         rd_exc[0,0] = state_[0,0,ind_time+shift_e] * 1e-3        
         rd_inh[0] = state_[0,1,ind_time+shift_i] * 1e-3

@@ -142,6 +142,7 @@ def setmaxcontrol(control_, max_control_):
 def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
               bisec_factor_ = 2., max_control_ = 20., tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1"):
     
+    
     cost0_int_ = cost.f_int(N, T, dt, state_, target_, control_, v_ = variables_)
     cost_min_int_ = cost0_int_
     step_ = start_step_
@@ -165,7 +166,7 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
         
         if (step_ * np.amax(np.absolute(dir_)) < tolerance_ * 1e-3):
             print("test control change smaller than tolerance, return zero step")
-            return 0., cost0_int_
+            return 0., cost0_int_, start_step_
 
         if (cost1_int_ < cost_min_int_):
             cost_min_int_ = cost1_int_
@@ -175,14 +176,16 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
         elif (cost1_int_ > cost_min_int_ and cost_min_int_ < cost0_int_):
             
             if (i == 1 and alg == "A1"):
-                step_ = 100. * start_step_
+                step_ = 2.**6 * start_step_
                 print("too small start step, increase to ", step_)
-                return step_size(model, dt, state_, target_, control_, dir_, start_step_ = step_, max_it_ = max_it_,
+                return step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = step_, max_it_ = max_it_,
                                  bisec_factor_ = bisec_factor_, max_control_ = max_control_, tolerance_ = tolerance_,
                                  substep_ = substep_, variables_ = variables_)
-                cost_min_int_ = cost0_int_
-                step_min_ = 0.
-                continue
+                #cost_min_int_ = cost0_int_
+                #step_min_ = 0.
+                #continue
+            elif (step_ < start_step_ * 1e-2 and alg == "A1"):
+                start_step_ /= 2.**6
             
 
             # iterate between step_range[0] and [2] more granularly
@@ -194,25 +197,25 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
             substep = - substep_
             step_min_down, cost_min_int_ = scan(model, N, T, dt, substep, control_, step_min_, dir_, target_,
                                                 cost_min_int_, max_control_, variables_)
+
             
             #print("scan done")
             if (step_min_up > step_min_ ):
                 if (step_min_down == step_min_):
-                    result =  step_min_up, cost_min_int_
+                    result = step_min_up, cost_min_int_, start_step_
                 elif (step_min_down < step_min_):
-                    result =  step_min_down, cost_min_int_
+                    result = step_min_down, cost_min_int_, start_step_
             elif (step_min_down < step_min_):
-                result = step_min_down, cost_min_int_
+                result = step_min_down, cost_min_int_, start_step_
             else:
-                result = step_min_, cost_min_int_
+                result = step_min_, cost_min_int_, start_step_
             
-            #print("result step = ", result)
             return result
         
         if (i == max_it_-1):
             if (max_it_ != 1):
                 print(" max iteration reached, step size = ", step_)
-            return step_min_, cost_min_int_
+            return step_min_, cost_min_int_, start_step_
         
         
         step_ /= bisec_factor_
@@ -221,7 +224,6 @@ def scan(model_, N, T, dt_, substep_, control_, step_min_, dir_, target_, cost_m
     cntrl_ = control_ + ( 1. + substep_ ) * step_min_ * dir_
     cntrl_ = setmaxcontrol(cntrl_, max_control_)
     state_ = updateState(model_, cntrl_)
-    #cost_ = cost.f_cost(state_, target_, cntrl_)
     cost_int = cost.f_int(N, T, dt_, state_, target_, cntrl_, v_ = variables_)
     step_min1_ = step_min_
     
@@ -232,7 +234,6 @@ def scan(model_, N, T, dt_, substep_, control_, step_min_, dir_, target_, cost_m
         cntrl_ += substep_ * step_min_ * dir_
         cntrl_ = setmaxcontrol(cntrl_, max_control_)
         state_ = updateState(model_, cntrl_)
-        #cost_ = cost.f_cost(state_, target_, cntrl_)
         cost_int = cost.f_int(N, T, dt_, state_, target_, cntrl_, v_ = variables_)
         
         

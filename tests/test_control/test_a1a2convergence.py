@@ -27,7 +27,6 @@ tests = ["aln1"]#, "aln-control"]
 
 class TestA1A2Conv(unittest.TestCase):
     
-    """
     def test_A1A2ConvergeForRandomTarget_PE(self):
         print("test_A1A2ConvergeForRandomTarget_PE for model ", testcaseind)
                 
@@ -274,6 +273,10 @@ class TestA1A2Conv(unittest.TestCase):
                 for t in range(0, A1_grad.shape[2]):
                     print(n, v, t)
                     self.assertAlmostEqual(A1_grad[n, v, t], 0., assertion_tolerance_grad) 
+                    
+                    
+                    
+    """
     
 
 if __name__ == '__main__':
