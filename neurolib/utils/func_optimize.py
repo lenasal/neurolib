@@ -147,6 +147,8 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
     cost_min_int_ = cost0_int_
     step_ = start_step_
     step_min_ = 0.
+    
+    factor = 2.**7
         
     start_step_out_ = start_step_
     
@@ -165,7 +167,7 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
         
         if (step_ * np.amax(np.absolute(dir_)) < tolerance_ * 1e-3):
-            print("test control change smaller than tolerance, return zero step")
+            #print("test control change smaller than tolerance, return zero step")
             return 0., cost0_int_, start_step_
 
         if (cost1_int_ < cost_min_int_):
@@ -176,16 +178,14 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
         elif (cost1_int_ > cost_min_int_ and cost_min_int_ < cost0_int_):
             
             if (i == 1 and alg == "A1"):
-                step_ = 2.**6 * start_step_
+                step_ = factor * start_step_
                 print("too small start step, increase to ", step_)
                 return step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = step_, max_it_ = max_it_,
                                  bisec_factor_ = bisec_factor_, max_control_ = max_control_, tolerance_ = tolerance_,
                                  substep_ = substep_, variables_ = variables_)
-                #cost_min_int_ = cost0_int_
-                #step_min_ = 0.
-                #continue
-            elif (step_ < start_step_ * 1e-2 and alg == "A1"):
-                start_step_ /= 2.**6
+            elif (step_ < start_step_ / (2. * factor) and alg == "A1"):
+                start_step_ /= factor
+                print("too large start step, decrease to ", start_step_)
             
 
             # iterate between step_range[0] and [2] more granularly
@@ -302,25 +302,63 @@ def adapt_step(control_, ind_node, ind_var, start_step_, dir_, max_control_):
     
     return start_st_
 
-"""
-def adapt_step_adjoint(control_, start_step_, dir_, max_control_):
-    start_st_ = start_step_
-    max_index_node = -1
-    max_index_var = -1
-    max_index_time = -1
-    max_cntrl = max_control_
-    
-    for n in range(control_.shape[0]):
-        for v in range(control_.shape[1]):
-            for k in range(control_.shape[2]):
-                if ( np.abs(control_[n,v,k] + start_step_ * dir_[n,v,k]) > max_cntrl ):
-                    max_index_node = n
-                    max_index_var = v
-                    max_index_time = k
-                    max_cntrl = np.abs(control_[n,v,k] + start_step_ * dir_[n,v,k])
-    if max_index_node != -1:
-        start_st_ = ( max_control_ - np.abs(control_[max_index_node,max_index_var,max_index_time]) 
-                     ) / np.abs(dir_[max_index_node,max_index_var,max_index_time])
-    
-    return start_st_
-"""
+# update rule for conjugate directions according to Hestenes-Stiefel
+def betaHS(N, grad0_, grad1_, dir0_):
+    control_vars = 2
+    betaHS = np.zeros(( N, control_vars ))
+    for n in range(N):
+        for v in range(control_vars):
+            numerator = np.dot( grad1_[n,v,:], ( grad1_[n,v,:] - grad0_[n,v,:] ) )
+            denominator = np.dot( dir0_[n,v,:], ( grad1_[n,v,:] - grad0_[n,v,:] ) )
+            #print("numerator = ", numerator)
+            #print("denominator = ", denominator)
+            if np.abs(denominator) > 1e-6 :
+                betaHS[n,v] = numerator / denominator
+    return betaHS
+
+# update rule for conjugate directions according to Fletcher-Reeves
+def betaFR(N, grad0_, grad1_):
+    control_vars = 2
+    betaFR = np.zeros(( N, control_vars ))
+    for n in range(N):
+        for v in range(control_vars):
+            numerator = np.dot( grad1_[n,v,:], grad1_[n,v,:] )
+            denominator = np.dot( grad0_[n,v,:], grad0_[n,v,:] )
+            if np.abs(denominator) > 1e-6 :
+                betaFR[n,v] = numerator / denominator
+    return betaFR
+
+# update rule for conjugate directions according to Polak-Ribiere
+def betaPR(N, grad0_, grad1_):
+    control_vars = 2
+    betaPR = np.zeros(( N, control_vars ))
+    for n in range(N):
+        for v in range(control_vars):
+            numerator = np.dot( grad1_[n,v,:], ( grad1_[n,v,:] - grad0_[n,v,:] ) )
+            denominator = np.dot( grad0_[n,v,:], grad0_[n,v,:] )
+            if np.abs(denominator) > 1e-6 :
+                betaPR[n,v] = numerator / denominator
+    return betaPR
+
+# update rule for conjugate directions according to Hager-Zhang
+def betaHZ(N, grad0_, grad1_, dir0_):
+    control_vars = 2
+    betaHZ = np.zeros(( N, control_vars ))
+    eta = 0.01
+    for n in range(N):
+        for v in range(control_vars):
+            diff = grad1_[n,v,:] - grad0_[n,v,:]
+            denominator = np.dot( dir0_[n,v,:], diff )
+            if np.abs(denominator) > 1e-6 :
+                beta0 = np.dot( diff - 2. * np.dot( diff, diff ) * dir0_[n,v,:] / denominator,
+                           grad1_[n,v,:] / denominator )
+            else:
+                beta0 = - 1e10
+            numerator = np.dot( grad0_[n,v,:], grad0_[n,v,:] )
+            denominator = np.dot( dir0_[n,v,:], dir0_[n,v,:] )
+            if np.abs(denominator) > 1e-6 :
+                eta0 = - min( eta, np.sqrt( numerator ) ) / np.sqrt( denominator )
+            else:
+                eta0 = 0.
+            betaHZ[n,v] = max(beta0, eta0)
+    return betaHZ

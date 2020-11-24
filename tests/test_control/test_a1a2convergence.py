@@ -15,7 +15,7 @@ assertion_tolerance_grad = 4
 controlmin, controlmax = -2., 2.
 algorithm_tolerance = 1e-32
 max_iteration = int(1e4)
-start_step = 20.
+start_step = 10.
 test_step = 1e-6
 
 duration = 1.
@@ -24,11 +24,12 @@ dur_post = 0.5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["aln1"]#, "aln-control"]
+cg_var = [None, "HS", "FR", "PR", "HZ"]
 
 class TestA1A2Conv(unittest.TestCase):
     
     def test_A1A2ConvergeForRandomTarget_PE(self):
-        print("test_A1A2ConvergeForRandomTarget_PE for model ", testcaseind)
+        print("test_A1A2ConvergeForRandomTarget_PE for model", testcaseind, "with conjugated gradient descent variant", cgv)
                 
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -56,7 +57,7 @@ class TestA1A2Conv(unittest.TestCase):
         control2 = func.getRandomControl(model, 0, controlmin, controlmax)
         
         testip, testie, testis = random.uniform(0., 1.), random.uniform(0., 1.), random.uniform(0., 1.)
-        cost.setParams(testip, testie, 0.)
+        cost.setParams(testip, testie, testis)
         
         func.setInitVarsZero(model, init_vars)
         
@@ -85,10 +86,11 @@ class TestA1A2Conv(unittest.TestCase):
             for v in range(A2_bestControl.shape[1]):
                 for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - 1 - cntrl_zeros_post):
                     self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)    
+      
                     
-                    
+    """                
     def test_A1A2ConvergeForRandomTarget_PES_exc(self):
-        print("test_A1A2ConvergeForRandomTarget_PES_exc for model ", testcaseind)
+        print("test_A1A2ConvergeForRandomTarget_PES_exc for model", testcaseind, "with conjugated gradient descent variant", cgv)
                 
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -148,7 +150,7 @@ class TestA1A2Conv(unittest.TestCase):
                     self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)    
                     
     def test_A1A2ConvergeForRandomTarget_PES_inh(self):
-        print("test_A1A2ConvergeForRandomTarget_PES_inh for model ", testcaseind)
+        print("test_A1A2ConvergeForRandomTarget_PES_inh for model", testcaseind, "with conjugated gradient descent variant", cgv)
                 
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -208,9 +210,11 @@ class TestA1A2Conv(unittest.TestCase):
                     self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)   
     """
          
+
+    """
     # if A1 runs into local minima for sparsity cost, make sure gradient vanishes       
     def test_A1ZeroGradient_PES(self):
-        print("test_A1ZeroGradient_PES for model ", testcaseind)
+        print("test_A1ZeroGradient_PES for model", testcaseind, "with conjugated gradient descent variant", cgv)
                 
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -280,6 +284,7 @@ class TestA1A2Conv(unittest.TestCase):
     
 
 if __name__ == '__main__':
+    
     runs = 0
     errors = 0
     failures = 0
@@ -288,20 +293,19 @@ if __name__ == '__main__':
     failedTests = []
     
     for testcaseind in tests:
-        print(testcaseind)
         model = func.getmodel(testcaseind, dur_pre, dur_post)
-        #model = getmodel(testcaseind)
     
-        suite = unittest.TestLoader().loadTestsFromTestCase(TestA1A2Conv)
-        result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
-        runs += result[-1].testsRun
-        if not result[-1].wasSuccessful():
-            success = False
-            errors += 1
-            failures += 1
-            failedTests.append(testcaseind)
+        for cgv in cg_var:
+            suite = unittest.TestLoader().loadTestsFromTestCase(TestA1A2Conv)
+            result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
+            runs += result[-1].testsRun
+            if not result[-1].wasSuccessful():
+                success = False
+                errors += 1
+                failures += 1
+                failedTests.append(testcaseind)
         
-    print("Run ", runs, " tests with ", errors, " errors and ", failures, "failures.")
+    print("Run", runs, "tests with", errors, "errors and", failures, "failures.")
     if success:
         print("Test OK")
     else:

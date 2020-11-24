@@ -14,7 +14,7 @@ np.set_printoptions(precision=8)
 VALID_VAR = {None, "FR", "HS"}
 
 def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
-       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar, variables_ = [0,1]):
+       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, variables_ = [0,1]):
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
@@ -121,8 +121,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     T = int( 1 + np.around(t_sim_ / dt, 1) )
     V = state0_.shape[1]
     i=0
-        
-    
+
 
     total_cost_ = np.zeros((max_iteration_+1))
     total_cost_[i] = cost.f_int(N, T, dt, state0_, target_state_, control_, v_ = variables )
@@ -140,6 +139,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     startstep_exc_ = startStep_
     startstep_inh_ = startStep_
     startstep_joint_ = startStep_
+    
+    grad0_ = np.zeros(( N, 2, T ))
+    grad1_ = grad0_.copy()
+    dir0_ = grad0_.copy()
     
     while( i < max_iteration_ ):
         
@@ -198,22 +201,44 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         phi1_ = phi1(N, V, T, phi0_, state1_)
         
-        grad_ = np.zeros(( N, 2, T ))
-        
         grad_cost_e_ = cost.cost_energy_gradient(best_control_)
         grad_cost_s_ = cost.cost_sparsity_gradient(dt, best_control_)
         
         #print("sparsity gradient inh = ", grad_cost_s_[0,1,:])
         #print("adjoint gradient inh = ", phi1_[0,1,:])
         
+        grad0_ = grad1_.copy()
+        
         if 0 in variables_ and 1 in variables_:
-            grad_ = grad_cost_e_ + grad_cost_s_ + phi1_[:,:2,:]
+            grad1_ = grad_cost_e_ + grad_cost_s_ + phi1_[:,:2,:]
         elif 1 in variables_:
-            grad_[:,0,:] = grad_cost_e_[:,0,:] + grad_cost_s_[:,0,:] + phi1_[:,0,:]
+            grad1_[:,0,:] = grad_cost_e_[:,0,:] + grad_cost_s_[:,0,:] + phi1_[:,0,:]
         elif 0 in variables_:
-            grad_[:,1,:] = grad_cost_e_[:,1,:] + grad_cost_s_[:,1,:] + phi1_[:,1,:]
-           
-        dir0_ = - grad_.copy()
+            grad1_[:,1,:] = grad_cost_e_[:,1,:] + grad_cost_s_[:,1,:] + phi1_[:,1,:]
+        
+        beta = np.zeros(( N, 2 ))
+        
+        if (i >= 2 and CGVar != None):
+            if CGVar == "HS":        # Hestens-Stiefel
+                beta = fo.betaHS(N, grad0_, grad1_, dir0_)
+            elif CGVar == "FR":        # Fletcher-Reeves
+                beta = fo.betaFR(N, grad0_, grad1_)
+            elif CGVar == "PR":        # Polak-Ribiere
+                beta = fo.betaPR(N, grad0_, grad1_)
+            elif CGVar == "HZ":        # Hager-Zhang
+                beta = fo.betaHZ(N, grad0_, grad1_, dir0_)
+        
+        dir1_ = np.zeros(( N, 2, T ))
+        for n in range(N):
+            for v in range(2):
+                dir1_[n,v,:] = beta[n,v] * dir0_[n,v,:]
+        
+        dir0_ = - grad1_.copy() + dir1_
+        
+        # if this is too close to zero, use beta = 0 instead
+        if (CGVar != None and np.amax(np.absolute(dir0_[:,:,1:])) < tolerance_ ):
+            print("Descent direction vanishing, use standard gradient descent")
+            dir0_ = - grad1_.copy()
                 
         # compute stepsize separately and then put together
         d_exc = dir0_.copy()
@@ -246,6 +271,12 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         #print("step size = ", step_, total_cost_[i])
         
         costMin = np.amin( [tc_exc, tc_inh, joint_cost, total_cost_[i]] )
+        
+        if False:
+           startstep_exc_ = 10.
+           startstep_inh_ = 10.
+           startstep_joint_ = 10.
+           startStep_ = 10.
             
         if (tc_exc ==  costMin):
             #print("choose exc only")
@@ -272,7 +303,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             #startStep_ = startstep_adj_
             
         #print("found step ", step_)
-        print("continue with start steps ", startstep_exc_, startstep_inh_, startstep_joint_, startStep_)
+        #print("continue with start steps ", startstep_exc_, startstep_inh_, startstep_joint_, startStep_)
         
         
         runtime_[i] = timer() - runtime_start_
@@ -289,7 +320,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             max_iteration_ = i
             break
         
-        if ( np.amax(np.absolute(dir0_[:,:,1:])) < tolerance_ ):
+        if ( np.amax(np.absolute(grad1_[:,:,1:])) < tolerance_ ):
             print("Gradient negligibly small.")
             max_iteration_ = i
             break
@@ -321,7 +352,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     """
         
     if (t_sim_pre_ < dt and t_sim_post_ < dt):
-        return best_control_, state1_, total_cost_, runtime_, grad_
+        return best_control_, state1_, total_cost_, runtime_, grad1_
     
     t_post_ndt = np.around(t_sim_post_ / dt).astype(int)
     
@@ -347,7 +378,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
     fo.set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_, state1_, state_post_, state_vars, model.params.a, model.params.b)
             
-    return bc_, bs_, total_cost_, runtime_, grad_
+    return bc_, bs_, total_cost_, runtime_, grad1_
 
 @numba.njit
 def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
