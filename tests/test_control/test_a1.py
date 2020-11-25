@@ -14,7 +14,7 @@ assertion_tolerance = 2
 controlmin, controlmax = -2., 2.
 algorithm_tolerance = 1e-12
 max_iteration = int(1e4)
-start_step = 100.
+start_step = 10.
 test_step = 1e-12
 
 duration = 0.8
@@ -23,15 +23,17 @@ dur_post = 0.5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["aln1"]#, "aln-control"]
+cg_var = [None, "HS", "FR", "PR", "HZ"]
 
 np.set_printoptions(precision=16)
 
 class TestA1(unittest.TestCase): 
 # set init vars zero everywhere or nowhere
     
+    
     def test_A1inputControlForPrecisionCostOnly(self):
                         
-        print("test_A1inputControlForPrecisionCostOnly for model ", testcaseind)
+        print("test_A1inputControlForPrecisionCostOnly for model", testcaseind, "with conjugated gradient descent variant", cgv)
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -62,7 +64,7 @@ class TestA1(unittest.TestCase):
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat,
                             u_scheme, max_iteration_ = max_iteration, tolerance_ = algorithm_tolerance, startStep_ = start_step,
                             max_control_ = 1e5 * controlmax, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post,
-                            CGVar = None)        
+                            CGVar = cgv)        
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
                     
@@ -79,7 +81,7 @@ class TestA1(unittest.TestCase):
     
     def test_A1zeroControlForEnergyAndSparsityCostOnly(self):
         
-        print("test_A1zeroControlForEnergyCostOnly for model ", testcaseind)
+        print("test_A1zeroControlForEnergyCostOnly for model", testcaseind, "with conjugated gradient descent variant", cgv)
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -109,7 +111,7 @@ class TestA1(unittest.TestCase):
         
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat,
                         u_scheme, max_iteration, algorithm_tolerance, start_step, 1e5 * controlmax, duration,
-                        dur_pre, dur_post, CGVar = None)
+                        dur_pre, dur_post, CGVar = cgv)
         
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         
@@ -122,7 +124,6 @@ class TestA1(unittest.TestCase):
             if (A1_runtime[t+1] == 0.):
                 break
                 self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
-    
 
     
 if __name__ == '__main__':
@@ -135,19 +136,19 @@ if __name__ == '__main__':
     failedTests = []
     
     for testcaseind in tests:
-        print(testcaseind)
         model = func.getmodel(testcaseind, dur_pre, dur_post)
-    
-        suite = unittest.TestLoader().loadTestsFromTestCase(TestA1)
-        result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
-        runs += result[-1].testsRun
-        if not result[-1].wasSuccessful():
-            success = False
-            errors += 1
-            failures += 1
-            failedTests.append(testcaseind)
         
-    print("Run ", runs, " tests with ", errors, "errors and ", failures, "failures.")
+        for cgv in cg_var:
+            suite = unittest.TestLoader().loadTestsFromTestCase(TestA1)
+            result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
+            runs += result[-1].testsRun
+            if not result[-1].wasSuccessful():
+                success = False
+                errors += 1
+                failures += 1
+                failedTests.append(testcaseind)
+        
+    print("Run", runs, "tests with", errors, "errors and", failures, "failures.")
     if success:
         print("Test OK")
     else:
