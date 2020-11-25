@@ -2,6 +2,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+plt.rcParams['axes.grid'] = True
+
 def plot_conv_runtime(timeArray_, costArray_, labelArray_, path_, filename_ = "convergence_runtime.png"):
     
     fig, ax1 = plt.subplots(figsize=(12, 6), linewidth=8, edgecolor='grey')    
@@ -133,48 +135,45 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
                 control_time_inh.append(dt * t)
     
     columns = len(model.output_vars)-1
-    rows = 3
+    rows = 2
     n_vars = len(control_vars)
         
-    fig, ax = plt.subplots(rows, columns, figsize=(16, 12), linewidth=8, edgecolor='grey')
+    fig, ax = plt.subplots(rows, columns, figsize=(18, 10), linewidth=8, edgecolor='grey')
     plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.3, hspace=0.3)
     y_labels_rates = ['Rates exc. [Hz]', 'Rates inh. [Hz]', 'Adaptation current [pA]']
-    y_labels_control = ['Control exc. [nA]', 'Control inh. [nA]']
-    sim_legend = ['Rate', 'Rate', 'Adaptation current']
+    y_labels_control = ['Control current exc. [nA]', 'Control current inh. [nA]']
+    sim_legend = ['Uncontrolled rate', 'Controlled rate', 'Control current']
     target_legend = ['Target']
     cntrl_time_legend = ['Control > {} pA'.format(cntrl_limit_scaled * 1000), 'Control active']
     
-    #sim_legend = ['Rate', 'mue', 's', 'sigma_s', 'sigma_e', 'tau_e']
-    #y_labels_rates = ['Rates exc. [Hz]', 'mue', 's', 'sigma_s', 'sigma_e', 'tau_e']
-    #y_labels_control = ['Control exc. [nA]', 'Control inh. [nA]']
-    
     if len(model.output_vars) > 1:
         for i in range(columns):
-            ax[0,i].plot(model.t, model[output_vars[i]][0,:], label=sim_legend[i])
+            ax[0,i].plot(model.t, model[output_vars[i]][0,:], linewidth = 0.5, label=sim_legend[0])
             ax[0,i].set(xlabel='t [ms]', ylabel=y_labels_rates[i])
+            ax[0,i].set_xlim([model.t[0],model.t[-1]])
         #ax[0,0].axvspan(control_time_exc[0], control_time_exc[1], facecolor='0.1', alpha=0.2, zorder=-100)
         #ax[0,0].axvspan(0, 50, facecolor='0.7', alpha=0.2, zorder=-100)
         
         model.run(control=control_)
         
         for i in range(columns):
-            ax[1,i].plot(model.t, model[output_vars[i]][0,:], label=sim_legend[i])
-            ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_rates[i])
-            
-        
+            ax[0,i].plot(model.t, model[output_vars[i]][0,:], label=sim_legend[1])
+            #ax[0,i].set(xlabel='t [ms]', ylabel=y_labels_rates[i])
+
         for i in range(n_vars):
-            ax[2,i].plot(model.t, control_[0,i,:] * control_factor) # divide by five to take into account capacitance
-            ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[i])
+            ax[1,i].plot(model.t, control_[0,i,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
+            ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[i])
+            ax[1,i].set_xlim([model.t[0],model.t[-1]])
     else:
         ax[0].plot(model.t, model[output_vars[0]][0,:], label=sim_legend[1])
         ax[0].set(xlabel='t [ms]', ylabel=y_labels_rates[1])
         
         model.run(control=control_)
         
-        ax[1].plot(model.t, model[output_vars[0]][0,:], label=sim_legend[1])
-        ax[1].set(xlabel='t [ms]', ylabel=y_labels_rates[1])
-        ax[2].plot(model.t, control_[0,0,:] * control_factor) # divide by five to take into account capacitance
-        ax[2].set(xlabel='t [ms]', ylabel=y_labels_control[1])
+        ax[0].plot(model.t, model[output_vars[0]][0,:], label=sim_legend[1])
+        #ax[1].set(xlabel='t [ms]', ylabel=y_labels_rates[1])
+        ax[1].plot(model.t, control_[0,0,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
+        ax[1].set(xlabel='t [ms]', ylabel=y_labels_control[1])
         
     if len(model.output_vars) > 1:
         
@@ -184,27 +183,29 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
                             label=cntrl_time_legend[1])
         
         if shading:
+            facecol = 'grey'
+            al = 0.5
             for i in range(rows):
                 for times in control_time_exc:
                     if (times == control_time_exc[0]):
-                        ax[i,0].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1, label=cntrl_time_legend[0])
+                        ax[i,0].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1, label=cntrl_time_legend[0])
                     else:
-                        ax[i,0].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1)
+                        ax[i,0].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1)
                 for times in control_time_inh:
                     if (times == control_time_inh[0]):
-                        ax[i,1].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1, label=cntrl_time_legend[0])
+                        ax[i,1].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1, label=cntrl_time_legend[0])
                     else:
-                        ax[i,1].axvspan(times, times+dt, facecolor='0.1', alpha=0.2, zorder=-1)
+                        ax[i,1].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1)
     
     
         if (i2 == 0):
             for j in range(len(model.target_output_vars)):
-                ax[0,j].plot(model.t[i1:], target_[0,j,:], '--', label=target_legend[0])
-                ax[1,j].plot(model.t[i1:], target_[0,j,:], '--', label=target_legend[0])
+                ax[0,j].plot(model.t[i1:], target_[0,j,:], '--', linewidth = 2, label=target_legend[0])
+                #ax[1,j].plot(model.t[i1:], target_[0,j,:], '--', label=target_legend[0])
         else:
             for j in range(len(model.target_output_vars)):
-                ax[0,j].plot(model.t[i1:-i2], target_[0,j,:], '--', label=target_legend[0])
-                ax[1,j].plot(model.t[i1:-i2], target_[0,j,:], '--', label=target_legend[0])
+                ax[0,j].plot(model.t[i1:-i2], target_[0,j,:], '--', linewidth = 2, label=target_legend[0])
+                #ax[1,j].plot(model.t[i1:-i2], target_[0,j,:], '--', label=target_legend[0])
     
     else:
         """
@@ -215,28 +216,34 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     
         if (i2 == 0):
             ax[0].plot(model.t[i1:], target_[0,0,:], '--', label=target_legend[0])
-            ax[1].plot(model.t[i1:], target_[0,0,:], '--', label=target_legend[0])
+            #ax[1].plot(model.t[i1:], target_[0,0,:], '--', label=target_legend[0])
         else:
             ax[0].plot(model.t[i1:-i2], target_[0,0,:], '--', label=target_legend[0])
-            ax[1].plot(model.t[i1:-i2], target_[0,0,:], '--', label=target_legend[0])
-        
+            #ax[1].plot(model.t[i1:-i2], target_[0,0,:], '--', label=target_legend[0])
+    
+    """    
     for i in range(2):
         for j in range(columns):
-            ax[i,j].legend(loc='upper right')
+            ax[i,j].legend(loc='upper right', bbox_to_anchor=(0.5, 0.5))
+      
             
-    rows = ['Uncontrolled', 'Controlled']
+    rows_legend = ['Node activity', 'Control']
             
-    for a, row in zip(ax[:,0], rows):
+    for a, row in zip(ax[:,0], rows_legend):
         a.annotate(row, xy=(-0.05, 0.5), xytext=(-a.yaxis.labelpad - 15, 0), rotation = 90,
                 xycoords=a.yaxis.label, textcoords='offset points', size=20, ha='right', va='center', weight='bold')
+    """
         
+    ax[0,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
+    ax[1,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
+
     cols = ['Excitatory', 'Inhibitory']
             
     for a, col in zip(ax[0,:], cols):
         a.annotate(col, xy=(0.5, 1.05), xytext=(0,5), xycoords='axes fraction', textcoords='offset points',
                    size=20, ha='center', va='baseline', weight='bold')
     
-    plt.tight_layout()
+    fig.tight_layout()
     
     if not filename_ == '':
         plt.savefig(os.path.join(path_, filename_))
