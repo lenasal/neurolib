@@ -11,7 +11,7 @@ from ..models import jacobian_aln as jac_aln
 np.set_printoptions(precision=8)
 
 
-VALID_VAR = {None, "FR", "HS"}
+VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
 
 def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
        cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, variables_ = [0,1]):
@@ -227,6 +227,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 beta = fo.betaPR(N, grad0_, grad1_)
             elif CGVar == "HZ":        # Hager-Zhang
                 beta = fo.betaHZ(N, grad0_, grad1_, dir0_)
+            elif CGVar not in VALID_VAR:
+                print("No valid variant of conjugate gradient descent selected, use none instead.")
+                CGVar = None
         
         dir1_ = np.zeros(( N, 2, T ))
         for n in range(N):
