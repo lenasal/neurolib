@@ -423,7 +423,7 @@ class Model:
         assert isinstance(data, np.ndarray), "Output must be a `numpy.ndarray`."
 
         # remove initial conditions from output, start from start index
-        if removeICs and name is not "t":
+        if removeICs and name != "t":
             if data.ndim == 1:
                 data = data[self.startindt :]
             elif data.ndim == 2:
@@ -431,7 +431,7 @@ class Model:
             else:
                 raise ValueError(f"Don't know how to truncate data of shape {data.shape}.")
         # leave initial contidions at start index in output data
-        elif name is not "t":
+        elif name != "t":
             if data.ndim == 1:
                 data = data[self.startindt-1 :]
             elif data.ndim == 2:
@@ -629,6 +629,10 @@ class Model:
             target = np.zeros((self.params["N"], len(self.target_output_vars), int(round(self.params["duration"]/self.params["dt"],1) + 1) ))
         else:
             target = np.zeros((self.params["N"], len(self.target_output_vars), int(round(self.params["duration"]/self.params["dt"], 1) ) ))
+        return target
+    
+    def getZeroTargetOsc(self):
+        target = np.zeros((self.params["N"], len(self.target_output_vars), 3 ))
         return target
     
 #TODO implement correctly

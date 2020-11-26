@@ -86,6 +86,14 @@ def numba_cost_precision_int(N, T, dt, i_p, state_, target_state_, var_):
                 else:
                     cost += dt * 0.5 * i_p * diff**2.
     return cost
+
+
+# oscillation: get mean, amplitude and period
+def get_osc_params(rate):
+    m = np.mean(rate)
+    a = (np.amax(rate) - np.amin(rate)) / 2.
+    p = 0.
+    return m, a, p
         
     
 ###########################################################
