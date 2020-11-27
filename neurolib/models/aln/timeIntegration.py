@@ -517,7 +517,8 @@ def timeIntegration_njit_elementwise(
 
             # z1: weighted sum of delayed rates, weights=c*K
             z1ee = (
-                cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum + c_gl * Ke_gl * ext_exc_rate[no, i]
+                cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum
+                + c_gl * Ke_gl * ( ext_exc_rate[no, i] + control_ext[no, 2, i-startind] )
             )  # rate from other regions + exc_ext_rate
             z1ei = cei * Ki * rd_inh[no]
             z1ie = (
@@ -527,7 +528,8 @@ def timeIntegration_njit_elementwise(
             #print("parameters of calculation: rd_exc[no, no], rd_inh[no]", rd_exc[no, no], rd_inh[no])
             # z2: weighted sum of delayed rates, weights=c^2*K (see thesis last ch.)
             z2ee = (
-                cee ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * rowsumsq + c_gl ** 2 * Ke_gl * ext_exc_rate[no, i]
+                cee ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * rowsumsq
+                + c_gl ** 2 * Ke_gl * ( ext_exc_rate[no, i] + control_ext[no, 2, i-startind] )
             )
             #print("parts of z2ee: ", cee ** 2 * Ke * rd_exc[no, no],  cee ** 2 * Ke, rd_exc[no, no])
             z2ei = cei ** 2 * Ki * rd_inh[no]
@@ -709,7 +711,8 @@ def timeIntegration_njit_elementwise(
 
     # z1: weighted sum of delayed rates, weights=c*K
     z1ee = (
-        cee * Ke * rd_exc[no,no] + c_gl * Ke_gl * rowsum + c_gl * Ke_gl * ext_exc_rate[no,-1]
+        cee * Ke * rd_exc[no,no] + c_gl * Ke_gl * rowsum
+        + c_gl * Ke_gl * ( ext_exc_rate[no,-1] + control_ext[no,2,-1] )
     )  # rate from other regions + exc_ext_rate
     z1ei = cei * Ki * rd_inh[no]
     z1ie = (
@@ -719,7 +722,8 @@ def timeIntegration_njit_elementwise(
     #print("parameters of calculation: rd_exc[no, no], rd_inh[no]", rd_exc[no, no], rd_inh[no])
     # z2: weighted sum of delayed rates, weights=c^2*K (see thesis last ch.)
     z2ee = (
-        cee ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * rowsumsq + c_gl ** 2 * Ke_gl * ext_exc_rate[no,-1]
+        cee ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * rowsumsq
+        + c_gl ** 2 * Ke_gl * ( ext_exc_rate[no,-1] + control_ext[no,2,-1] )
     )
     #print("parts of z2ee: ", cee ** 2 * Ke * rd_exc[no, no],  cee ** 2 * Ke, rd_exc[no, no])
     z2ei = cei ** 2 * Ki * rd_inh[no]

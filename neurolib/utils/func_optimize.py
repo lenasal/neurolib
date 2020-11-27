@@ -179,13 +179,13 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
             
             if (i == 1 and alg == "A1"):
                 step_ = factor * start_step_
-                print("too small start step, increase to ", step_)
+                #print("too small start step, increase to ", step_)
                 return step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = step_, max_it_ = max_it_,
                                  bisec_factor_ = bisec_factor_, max_control_ = max_control_, tolerance_ = tolerance_,
                                  substep_ = substep_, variables_ = variables_)
             elif (step_ < start_step_ / (2. * factor) and alg == "A1"):
                 start_step_ /= factor
-                print("too large start step, decrease to ", start_step_)
+                #print("too large start step, decrease to ", start_step_)
             
 
             # iterate between step_range[0] and [2] more granularly

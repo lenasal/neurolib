@@ -90,6 +90,25 @@ def plot_runtime(time_, path_, filename_ = "runtime.png"):
     
     plt.savefig(os.path.join(path_, filename_))
     
+def plot_traces(model, control_):
+    model.run(control=control_)
+    
+    rows = 3
+    columns = 2
+    fig, ax = plt.subplots(rows, columns, figsize=(12, 8), linewidth=8, edgecolor='grey')
+    
+    ax[0,0].plot(model.t, model.rates_exc[0,:], label ="exc rates")
+    ax[0,1].plot(model.t, model.rates_inh[0,:], label ="inh rates")
+    ax[1,0].plot(model.t, control_[0,0,:], label ="exc current control")
+    ax[1,1].plot(model.t, control_[0,1,:], label ="inh current control")
+    ax[2,0].plot(model.t, control_[0,2,:], label ="exc rate control")
+    ax[2,1].plot(model.t, control_[0,3,:], label ="inh rate control")
+    
+    for r in range(rows):
+        for c in range(columns):
+            ax[r,c].legend()
+    plt.show()
+    
     
 # plot uncontrolled dynamics, controlled dynamics
 def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_params_, target_, path_, filename_ = '', shading = False):
@@ -135,13 +154,13 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
                 control_time_inh.append(dt * t)
     
     columns = len(model.output_vars)-1
-    rows = 2
+    rows = 3
     n_vars = len(control_vars)
         
     fig, ax = plt.subplots(rows, columns, figsize=(18, 10), linewidth=8, edgecolor='grey')
     plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.3, hspace=0.3)
     y_labels_rates = ['Rates exc. [Hz]', 'Rates inh. [Hz]', 'Adaptation current [pA]']
-    y_labels_control = ['Control current exc. [nA]', 'Control current inh. [nA]']
+    y_labels_control = ['Control current exc. [nA]', 'Control current inh. [nA]', 'Control rate exc. [Hz]', 'Control rate inh. [Hz]']
     sim_legend = ['Uncontrolled rate', 'Controlled rate', 'Control current']
     target_legend = ['Target']
     cntrl_time_legend = ['Control > {} pA'.format(cntrl_limit_scaled * 1000), 'Control active']
@@ -160,10 +179,13 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
             ax[0,i].plot(model.t, model[output_vars[i]][0,:], label=sim_legend[1])
             #ax[0,i].set(xlabel='t [ms]', ylabel=y_labels_rates[i])
 
-        for i in range(n_vars):
+        for i in range(columns):
             ax[1,i].plot(model.t, control_[0,i,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
             ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[i])
             ax[1,i].set_xlim([model.t[0],model.t[-1]])
+            ax[2,i].plot(model.t, control_[0,i+2,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
+            ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[i+2])
+            ax[2,i].set_xlim([model.t[0],model.t[-1]])
     else:
         ax[0].plot(model.t, model[output_vars[0]][0,:], label=sim_legend[1])
         ax[0].set(xlabel='t [ms]', ylabel=y_labels_rates[1])

@@ -14,20 +14,29 @@ np.set_printoptions(precision=8)
 VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
 
 def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
-       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, variables_ = [0,1]):
+       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, control_variables_ = [0,1,2,3], prec_variables_ = [0,1]):
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
     
-    variables = List()
-    for v in variables_:
-        variables.append(v)
+    prec_variables = List()
+    for v in prec_variables_:
+        prec_variables.append(v)
+        
+    control_variables = List()
+    for v in control_variables_:
+        control_variables.append(v)
        
     ##############################################
     # PARAMETERS FOR JACOBIAN
     # TODO: time dependent exc current
     ext_exc_current = model.params.ext_exc_current
     ext_inh_current = model.params.ext_inh_current
+    
+    ext_exc_rate = model.params.ext_exc_rate
+    ext_inh_rate = model.params.ext_inh_rate
+    
+    
     sigmae_ext = model.params.sigmae_ext
     sigmai_ext = model.params.sigmai_ext
     
@@ -36,6 +45,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     tauA = model.params["tauA"]
     
     C = model.params["C"]
+    c_gl = model.params["c_gl"]
+    Ke_gl = model.params["Ke_gl"]
     
     Ke = model.params["Ke"]
     Ki = model.params["Ki"]
@@ -93,6 +104,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
     state_vars = model.state_vars
     init_vars = model.init_vars
+    n_control_vars = len(model.control_input_vars)
     
     if (startind_ > 1):
         fo.adjust_shape_init_params(model, init_vars, startind_)
@@ -124,7 +136,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
 
 
     total_cost_ = np.zeros((max_iteration_+1))
-    total_cost_[i] = cost.f_int(N, T, dt, state0_, target_state_, control_, v_ = variables )
+    total_cost_[i] = cost.f_int(N, T, dt, state0_, target_state_, control_, v_ = prec_variables )
     runtime_ = np.zeros(( int(max_iteration_+1) ))
     runtime_start_ = timer()
     
@@ -140,7 +152,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     startstep_inh_ = startStep_
     startstep_joint_ = startStep_
     
-    grad0_ = np.zeros(( N, 2, T ))
+    grad0_ = np.zeros(( N, n_control_vars, T ))
     grad1_ = grad0_.copy()
     dir0_ = grad0_.copy()
     
@@ -148,18 +160,22 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         for ind_time in range(T):
             f_p_grad_t_ = cost.cost_precision_gradient_t(state0_[:,:2,ind_time], target_state_[:,:,ind_time])
-            for v in variables:
+            for v in prec_variables:
                 full_cost_grad[0,v,ind_time] = f_p_grad_t_[0,v] 
         
         phi0_ = phi(N, V, T, dt, state0_, target_state_, best_control_, full_cost_grad,
                     ext_exc_current,
                     ext_inh_current,
+                    ext_exc_rate,
+                    ext_inh_rate,
                     sigmae_ext,
                     sigmai_ext,
                     a,
                     b,
                     tauA,
                     C,
+                    c_gl,
+                    Ke_gl,
                     Ke,
                     Ki,
                     tau_se,
@@ -199,7 +215,11 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         i += 1   
         
-        phi1_ = phi1(N, V, T, phi0_, state1_)
+        phi1_ = phi1(N, V, T, phi0_, state1_,
+                     c_gl,
+                     Ke_gl,
+                     tau_se,
+                     )
         
         grad_cost_e_ = cost.cost_energy_gradient(best_control_)
         grad_cost_s_ = cost.cost_sparsity_gradient(dt, best_control_)
@@ -209,12 +229,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         grad0_ = grad1_.copy()
         
-        if 0 in variables_ and 1 in variables_:
-            grad1_ = grad_cost_e_ + grad_cost_s_ + phi1_[:,:2,:]
-        elif 1 in variables_:
-            grad1_[:,0,:] = grad_cost_e_[:,0,:] + grad_cost_s_[:,0,:] + phi1_[:,0,:]
-        elif 0 in variables_:
-            grad1_[:,1,:] = grad_cost_e_[:,1,:] + grad_cost_s_[:,1,:] + phi1_[:,1,:]
+        for j in range(4):
+            if j in control_variables:
+                grad1_[:,j,:] = grad_cost_e_[:,j,:] + grad_cost_s_[:,j,:] + phi1_[:,j,:]
         
         beta = np.zeros(( N, 2 ))
         
@@ -231,7 +248,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 print("No valid variant of conjugate gradient descent selected, use none instead.")
                 CGVar = None
         
-        dir1_ = np.zeros(( N, 2, T ))
+        dir1_ = np.zeros(( N, 4, T ))
         for n in range(N):
             for v in range(2):
                 dir1_[n,v,:] = beta[n,v] * dir0_[n,v,:]
@@ -248,7 +265,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         d_exc[:,1,:] = 0.
         
         s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
+                     best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_,
+                     variables_ = prec_variables)
         
         #print("step size exc = ", s_exc)
         
@@ -256,7 +274,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         d_inh[:,0,:] = 0.
         
         s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
+                     best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_,
+                     variables_ = prec_variables)
         
         #print("step size inh = ", s_inh)
         
@@ -265,11 +284,13 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
         
         joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
+                     best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000, max_control_ = cntrl_max_,
+                     variables_ = prec_variables)
     
         
         step_, total_cost_[i], startStep_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_, variables_ = variables)
+                     best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_,
+                     variables_ = prec_variables)
         
         #print("step size = ", step_, total_cost_[i])
         
@@ -387,12 +408,16 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
 def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
                     ext_exc_current,
                     ext_inh_current,
+                    ext_exc_rate,
+                    ext_inh_rate,
                     sigmae_ext,
                     sigmai_ext,
                     a,
                     b,
                     tauA,
                     C,
+                    c_gl,
+                    Ke_gl,
                     Ke,
                     Ki,
                     tau_se,
@@ -454,11 +479,15 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
         jac = jacobian(V, state_[:,:,:], control_[:,:,:], ind_time,
                        ext_exc_current,
                        ext_inh_current,
+                       ext_exc_rate,
+                       ext_inh_rate,
                        sigmae_ext,
                        sigmai_ext,
                        a,
                        b,
                        tauA,
+                       c_gl,
+                       Ke_gl,
                        tau_se,
                        tau_si,
                        Jee_max,
@@ -559,19 +588,33 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
     return phi_
 
 @numba.njit
-def phi1(N, V, T, phi_, state_):  
+def phi1(N, V, T, phi_, state_,
+                         c_gl,
+                         Ke_gl,
+                         tau_se,
+                         ):  
     
-    phi1_ = np.zeros(( N, 2, T ))
+    phi1_ = np.zeros(( N, 4, T ))
     
     for ind_t in range(1, T):
-        jac_u_ = D_u_h(V, state_[:,:,:], ind_t)
-        x = np.ascontiguousarray(phi_[0,:,ind_t-1])#, dtype=np.float64)
-        y0 = np.ascontiguousarray(jac_u_[:,2])
-        y1 = np.ascontiguousarray(jac_u_[:,3])
-        #res = np.dot(x, y)
+        jac_u_ = D_u_h(V, state_[:,:,:], ind_t,
+                           c_gl,
+                           Ke_gl,
+                           tau_se,
+                           )
+        phi = np.ascontiguousarray(phi_[0,:,ind_t])
+        phi_shift = np.ascontiguousarray(phi_[0,:,ind_t-1])#, dtype=np.float64)
+        
+        y0 = np.ascontiguousarray(jac_u_[0,:])
+        y1 = np.ascontiguousarray(jac_u_[1,:])
+        y2 = np.ascontiguousarray(jac_u_[2,:])
+        y3 = np.ascontiguousarray(jac_u_[3,:])
+
         #res = np.dot(phi_[0,:,ind_t-1], jac_u_) # shift if control is applied shifted wrt mu
-        phi1_[0,0,ind_t] = np.dot(x, y0)
-        phi1_[0,1,ind_t] = np.dot(x, y1)
+        phi1_[0,0,ind_t] = np.dot(phi_shift, y0)
+        phi1_[0,1,ind_t] = np.dot(phi_shift, y1)
+        phi1_[0,2,ind_t] = np.dot(phi, y2)
+        phi1_[0,3,ind_t] = np.dot(phi, y3)
         
         #print(phi1_[0,0,ind_t] == res1, phi1_[0,1,ind_t] == res2)
 
@@ -581,10 +624,14 @@ def phi1(N, V, T, phi_, state_):
 def jacobian(V, state_, control_, t_,
               ext_exc_current,
               ext_inh_current,
+              ext_exc_rate,
+              ext_inh_rate,
               sigmae_ext,
               sigmai_ext,
               a,
               b,
+              c_gl,
+              Ke_gl,
               tauA,
               tau_se,
               tau_si,
@@ -615,8 +662,8 @@ def jacobian(V, state_, control_, t_,
               precalc_r, precalc_tau_mu, precalc_V,
               ):
     
-    z1ee = factor_ee1 * rd_exc[0,0]
-    z2ee = factor_ee2 * rd_exc[0,0]
+    z1ee = factor_ee1 * rd_exc[0,0] + c_gl * Ke_gl * ( ext_exc_rate + control_[0, 2, t_] )
+    z2ee = factor_ee2 * rd_exc[0,0] + c_gl**2 * Ke_gl * ( ext_exc_rate + control_[0, 2, t_] )
     
     z1ei = factor_ei1 * rd_inh[0]
     z2ei = factor_ei2 * rd_inh[0]
@@ -728,10 +775,19 @@ def D_xdot(V, state_t_):
     return dxdot_
 
 @numba.njit
-def D_u_h(V, state_, t_):
-    duh_ = np.zeros(( V, V ))
-    duh_[2,2] = - 1. / state_[0,18,t_-1]
-    duh_[3,3] = - 1. / state_[0,19,t_-1]
+def D_u_h(V, state_, t_,
+          c_gl,
+          Ke_gl,
+          tau_se,
+          ):
+    duh_ = np.zeros(( 4, V ))
+    duh_[0,2] = - 1. / state_[0,18,t_-1]
+    duh_[1,3] = - 1. / state_[0,19,t_-1]
+    
+    #duh_[2,5] = - ( 1. - state_[0,5,t_]) * c_gl * Ke_gl / tau_se
+    #duh_[2,9] = 
+    #duh_[2,15] = 
+    
     return duh_
 
 @numba.njit
