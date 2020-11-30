@@ -183,7 +183,7 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
             ax[1,i].plot(model.t, control_[0,i,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
             ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[i])
             ax[1,i].set_xlim([model.t[0],model.t[-1]])
-            ax[2,i].plot(model.t, control_[0,i+2,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
+            ax[2,i].plot(model.t, control_[0,i+2,:], label=sim_legend[2]) # divide by five to take into account capacitance
             ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[i+2])
             ax[2,i].set_xlim([model.t[0],model.t[-1]])
     else:

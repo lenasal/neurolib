@@ -14,7 +14,7 @@ np.set_printoptions(precision=8)
 VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
 
 def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
-       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, control_variables_ = [0,1,2,3], prec_variables_ = [0,1]):
+       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1]):
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
@@ -128,15 +128,16 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_pre_ndt, startind_)
     
     model.params['duration'] = t_sim_
+    control_[:,2:,-2:] = 0.
     state0_ = fo.updateFullState(model, control_, state_vars)
     
     T = int( 1 + np.around(t_sim_ / dt, 1) )
     V = state0_.shape[1]
+    V_target = target_state_.shape[1]
     i=0
 
-
     total_cost_ = np.zeros((max_iteration_+1))
-    total_cost_[i] = cost.f_int(N, T, dt, state0_, target_state_, control_, v_ = prec_variables )
+    total_cost_[i] = cost.f_int(N, n_control_vars, T, dt, state0_, target_state_, control_, v_ = prec_variables )
     runtime_ = np.zeros(( int(max_iteration_+1) ))
     runtime_start_ = timer()
     
@@ -159,7 +160,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     while( i < max_iteration_ ):
         
         for ind_time in range(T):
-            f_p_grad_t_ = cost.cost_precision_gradient_t(state0_[:,:2,ind_time], target_state_[:,:,ind_time])
+            f_p_grad_t_ = cost.cost_precision_gradient_t(N, V_target, state0_[:,:2,ind_time], target_state_[:,:,ind_time])
             for v in prec_variables:
                 full_cost_grad[0,v,ind_time] = f_p_grad_t_[0,v] 
         
@@ -215,92 +216,102 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         i += 1   
         
-        phi1_ = phi1(N, V, T, phi0_, state1_,
+        phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_,
                      c_gl,
                      Ke_gl,
                      tau_se,
                      )
         
         grad_cost_e_ = cost.cost_energy_gradient(best_control_)
-        grad_cost_s_ = cost.cost_sparsity_gradient(dt, best_control_)
+        grad_cost_s_ = cost.cost_sparsity_gradient(N, n_control_vars, T, dt, best_control_)
         
-        #print("sparsity gradient inh = ", grad_cost_s_[0,1,:])
+        #print("sparsity gradient = ", grad_cost_s_[0,2,:])
         #print("adjoint gradient inh = ", phi1_[0,1,:])
         
         grad0_ = grad1_.copy()
         
-        for j in range(4):
+        for j in range(n_control_vars):
             if j in control_variables:
                 grad1_[:,j,:] = grad_cost_e_[:,j,:] + grad_cost_s_[:,j,:] + phi1_[:,j,:]
         
-        beta = np.zeros(( N, 2 ))
+        beta = np.zeros(( N, n_control_vars ))
+        
+        if CGVar not in VALID_VAR:
+            print("No valid variant of conjugate gradient descent selected, use none instead.")
+            CGVar = None
         
         if (i >= 2 and CGVar != None):
             if CGVar == "HS":        # Hestens-Stiefel
-                beta = fo.betaHS(N, grad0_, grad1_, dir0_)
+                beta = fo.betaHS(N, n_control_vars, grad0_, grad1_, dir0_)
             elif CGVar == "FR":        # Fletcher-Reeves
-                beta = fo.betaFR(N, grad0_, grad1_)
+                beta = fo.betaFR(N, n_control_vars, grad0_, grad1_)
             elif CGVar == "PR":        # Polak-Ribiere
-                beta = fo.betaPR(N, grad0_, grad1_)
+                beta = fo.betaPR(N, n_control_vars, grad0_, grad1_)
             elif CGVar == "HZ":        # Hager-Zhang
-                beta = fo.betaHZ(N, grad0_, grad1_, dir0_)
-            elif CGVar not in VALID_VAR:
-                print("No valid variant of conjugate gradient descent selected, use none instead.")
-                CGVar = None
-        
-        dir1_ = np.zeros(( N, 4, T ))
+                beta = fo.betaHZ(N, n_control_vars, grad0_, grad1_, dir0_)
+                
+        dir1_ = np.zeros(( N, n_control_vars, T ))
         for n in range(N):
-            for v in range(2):
+            for v in range(n_control_vars):
                 dir1_[n,v,:] = beta[n,v] * dir0_[n,v,:]
         
         dir0_ = - grad1_.copy() + dir1_
         
         # if this is too close to zero, use beta = 0 instead
-        if (CGVar != None and np.amax(np.absolute(dir0_[:,:,1:])) < tolerance_ ):
+        if (CGVar != None and np.amax(np.absolute(dir0_)) < tolerance_ ):
             print("Descent direction vanishing, use standard gradient descent")
             dir0_ = - grad1_.copy()
+        
+        minCost = []
+        tc_exc = -1
+        tc_inh = -1
+        joint_cost = -1
                 
         # compute stepsize separately and then put together
-        d_exc = dir0_.copy()
-        d_exc[:,1,:] = 0.
-        
-        s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_,
-                     variables_ = prec_variables)
+        if 0 in control_variables:
+            d_exc = dir0_.copy()
+            d_exc[:,1:,:] = 0.
+            
+            s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+                         best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_,
+                         variables_ = prec_variables)
+            minCost.append(tc_exc)
         
         #print("step size exc = ", s_exc)
         
-        d_inh = dir0_.copy()
-        d_inh[:,0,:] = 0.
+        if 1 in control_variables:
+            d_inh = dir0_.copy()
+            d_inh[:,0,:] = 0.
+            d_inh[:,2:,:] = 0.
+            
+            s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+                         best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_,
+                         variables_ = prec_variables)
+            minCost.append(tc_inh)
+            
+            #print("step size inh = ", s_inh)
         
-        s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_,
-                     variables_ = prec_variables)
-        
-        #print("step size inh = ", s_inh)
-        
-        joint_dir = dir0_.copy()
-        joint_dir[:,0,:] = s_exc * dir0_[:,0,:] #/ (s_exc + s_inh)
-        joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
-        
-        joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000, max_control_ = cntrl_max_,
-                     variables_ = prec_variables)
+        if 0 in control_variables and 1 in control_variables:
+            joint_dir = dir0_.copy()
+            joint_dir[:,0,:] = s_exc * dir0_[:,0,:] #/ (s_exc + s_inh)
+            joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
+            
+            joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+                         best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000, max_control_ = cntrl_max_,
+                         variables_ = prec_variables)
+            minCost.append(joint_cost)
     
+        #dir0_[0,2,1] /= 2.
         
-        step_, total_cost_[i], startStep_ = fo.step_size(model, N, T, dt, state1_[:,:2,:], target_state_,
+        step_, total_cost_[i], startStep_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_,
                      variables_ = prec_variables)
         
+        minCost.append(total_cost_[i])
+        
         #print("step size = ", step_, total_cost_[i])
         
-        costMin = np.amin( [tc_exc, tc_inh, joint_cost, total_cost_[i]] )
-        
-        if False:
-           startstep_exc_ = 10.
-           startstep_inh_ = 10.
-           startstep_joint_ = 10.
-           startStep_ = 10.
+        costMin = np.amin( minCost )
             
         if (tc_exc ==  costMin):
             #print("choose exc only")
@@ -344,7 +355,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             max_iteration_ = i
             break
         
-        if ( np.amax(np.absolute(grad1_[:,:,1:])) < tolerance_ ):
+        if ( np.amax(np.absolute(grad1_)) < tolerance_ ):
             print("Gradient negligibly small.")
             max_iteration_ = i
             break
@@ -453,11 +464,8 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
     phi_ = np.zeros(( N, V, T ))
     
             
-    for ind_time in range(T-1, 0, -1):
-        
-        #if (ind_time == 0):
-        #    break
-    
+    for ind_time in range(T-1, -1, -1):
+            
         if ind_time + ndt_de < T:
             shift_e = ndt_de
         else:
@@ -527,7 +535,8 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
                                 phi_[0,15,ind_time+shift_i], phi_[0,16,ind_time+shift_i] ] ), 
                                 np.array( [jac[3,1], jac[6,1], jac[8,1], jac[10,1], jac[12,1], jac[15,1], jac[16,1]] ) )
         
-    
+        if (ind_time == 0):
+                break
         
         if (ind_time != T-1):
             der = phi_[0,0,ind_time+1] * jac[0,2] + phi_[0,2,ind_time] * jac[2,2] + phi_[0,17,ind_time] * jac[17,2] + phi_[0,18,ind_time] * jac[18,2]
@@ -540,25 +549,25 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
             phi_[0,5,ind_time-1] = phi_[0,5,ind_time] - dt * der
             
             der = phi_[0,2,ind_time] * jac[2,6] + phi_[0,6,ind_time] * jac[6,6] + phi_[0,10,ind_time] * jac[10,6]
-            phi_[0,6,ind_time-1] = phi_[0,6,ind_time] - dt * der
+            #phi_[0,6,ind_time-1] = phi_[0,6,ind_time] - dt * der
             
             der = phi_[0,3,ind_time] * jac[3,7] + phi_[0,7,ind_time] * jac[7,7] + phi_[0,11,ind_time] * jac[11,7]
-            phi_[0,7,ind_time-1] = phi_[0,7,ind_time] - dt * der
+            #phi_[0,7,ind_time-1] = phi_[0,7,ind_time] - dt * der
             
             der = phi_[0,3,ind_time] * jac[3,8] + phi_[0,8,ind_time] * jac[8,8] + phi_[0,12,ind_time] * jac[12,8]
-            phi_[0,8,ind_time-1] = phi_[0,8,ind_time] - dt * der
+            #phi_[0,8,ind_time-1] = phi_[0,8,ind_time] - dt * der
             
             der = phi_[0,9,ind_time] * jac[9,9] + phi_[0,15,ind_time] * jac[15,9]
-            phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
+            #phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
             
             der = phi_[0,10,ind_time] * jac[10,10] + phi_[0,15,ind_time] * jac[15,10]
-            phi_[0,10,ind_time-1] = phi_[0,10,ind_time] - dt * der
+            #phi_[0,10,ind_time-1] = phi_[0,10,ind_time] - dt * der
             
             der = phi_[0,11,ind_time] * jac[11,11] + phi_[0,16,ind_time] * jac[16,11]
-            phi_[0,11,ind_time-1] = phi_[0,11,ind_time] - dt * der
+            #phi_[0,11,ind_time-1] = phi_[0,11,ind_time] - dt * der
             
             der = phi_[0,12,ind_time] * jac[12,12] + phi_[0,16,ind_time] * jac[16,12]
-            phi_[0,12,ind_time-1] = phi_[0,12,ind_time] - dt * der
+            #phi_[0,12,ind_time-1] = phi_[0,12,ind_time] - dt * der
             
             # do not impact anything else, could be left out
             #der = phi_[0,2,ind_time] * jac[2,13] + phi_[0,13,ind_time] * jac[13,13]
@@ -588,13 +597,29 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
     return phi_
 
 @numba.njit
-def phi1(N, V, T, phi_, state_,
+def phi1(N, V, T, n_control_vars, phi_, state_,
                          c_gl,
                          Ke_gl,
                          tau_se,
                          ):  
     
-    phi1_ = np.zeros(( N, 4, T ))
+    phi1_ = np.zeros(( N, n_control_vars, T ))
+
+    jac_u_ = D_u_h(V, state_[:,:,:], 0,
+                           c_gl,
+                           Ke_gl,
+                           tau_se,
+                           )
+    phi = np.ascontiguousarray(phi_[0,:,0])
+
+    y2 = np.ascontiguousarray(jac_u_[2,:])
+    y3 = np.ascontiguousarray(jac_u_[3,:])
+    
+    #print("phi = ", phi)
+    #print("y2 = ", y2)
+
+    phi1_[0,2,0] = np.dot(phi, y2)
+    phi1_[0,3,0] = np.dot(phi, y3)
     
     for ind_t in range(1, T):
         jac_u_ = D_u_h(V, state_[:,:,:], ind_t,
@@ -609,6 +634,9 @@ def phi1(N, V, T, phi_, state_,
         y1 = np.ascontiguousarray(jac_u_[1,:])
         y2 = np.ascontiguousarray(jac_u_[2,:])
         y3 = np.ascontiguousarray(jac_u_[3,:])
+        
+        #print("phi = ", phi)
+        #print("y2 = ", y2)
 
         #res = np.dot(phi_[0,:,ind_t-1], jac_u_) # shift if control is applied shifted wrt mu
         phi1_[0,0,ind_t] = np.dot(phi_shift, y0)
@@ -619,6 +647,30 @@ def phi1(N, V, T, phi_, state_,
         #print(phi1_[0,0,ind_t] == res1, phi1_[0,1,ind_t] == res2)
 
     return phi1_
+
+@numba.njit
+def D_xdot(V, state_t_):
+    dxdot_ = np.zeros(( V, V ))
+    return dxdot_
+
+@numba.njit
+def D_u_h(V, state_, t_,
+          c_gl,
+          Ke_gl,
+          tau_se,
+          ):
+    duh_ = np.zeros(( 4, V ))
+    duh_[0,2] = - 1. / state_[0,18,t_-1]
+    duh_[1,3] = - 1. / state_[0,19,t_-1]
+    
+    if t_ == 0:
+        duh_[2,5] = - ( 1. - state_[0,5,t_]) * c_gl * Ke_gl / tau_se
+    else:
+        duh_[2,5] = - ( 1. - state_[0,5,t_-1]) * c_gl * Ke_gl / tau_se
+    #duh_[2,9] = 
+    #duh_[2,15] = 
+    
+    return duh_
 
 @numba.njit
 def jacobian(V, state_, control_, t_,
@@ -768,54 +820,61 @@ def jacobian(V, state_, control_, t_,
     jacobian_[19,16] = - d_tau_func_sigma(state_[0,3,t_-1], sigmarange, ds, state_[0,16,t_-1], Irange, dI, C, precalc_tau_mu)
     
     return jacobian_
-    
-@numba.njit
-def D_xdot(V, state_t_):
-    dxdot_ = np.zeros(( V, V ))
-    return dxdot_
-
-@numba.njit
-def D_u_h(V, state_, t_,
-          c_gl,
-          Ke_gl,
-          tau_se,
-          ):
-    duh_ = np.zeros(( 4, V ))
-    duh_[0,2] = - 1. / state_[0,18,t_-1]
-    duh_[1,3] = - 1. / state_[0,19,t_-1]
-    
-    #duh_[2,5] = - ( 1. - state_[0,5,t_]) * c_gl * Ke_gl / tau_se
-    #duh_[2,9] = 
-    #duh_[2,15] = 
-    
-    return duh_
 
 @numba.njit
 def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
     result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+    x_shift_mu = - 2.
+    x_scale_mu = 0.6
+    y_scale_mu = 0.1
+    result = y_scale_mu * x_scale_mu / np.cosh(x_scale_mu * mu + x_shift_mu)**2
     return result
 
 @numba.njit
 def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
     result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+    x_shift_sigma = -1.
+    x_scale_sigma = 0.6
+    y_scale_sigma = 1./2500.
+    result = np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma
     return result
 
 @numba.njit
 def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
     result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+    mu_shift = - 1.1
+    sigma_scale = 0.5
+    mu_scale = - 10
+    mu_scale1 = - 3
+    sigma_shift = 1.4
+    result = sigma_scale * sigma + mu_scale1 + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )
     return result
 
 @numba.njit
 def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
     result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+    mu_shift = - 1.1
+    sigma_scale = 0.5
+    mu_scale = - 10
+    sigma_shift = 1.4
+    result = sigma_scale * ( mu_shift + mu ) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp(
+        mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )  
     return result
 
 @numba.njit
 def d_V_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
     result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+    y_scale1 = 30.
+    mu_shift1 = 1.
+    y_scale2 = 2.
+    mu_shift2 = 0.5
+    result = y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
     return result
 
 @numba.njit
 def d_V_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
     result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+    y_scale2 = 2.
+    mu_shift2 = 0.5
+    result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2
     return result

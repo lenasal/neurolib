@@ -51,7 +51,7 @@ class TestCostFunctions(unittest.TestCase):
             
         self.assertAlmostEqual(cost.f_cost_sparsity_int(N, T, dt, i_s_, test_control, va_ = [0,1]), result_cost, tolerance_digits)
         
-        gradient = cost.f_cost_sparsity_gradient(dt, test_control)
+        gradient = cost.f_cost_sparsity_gradient(N, var, dt, test_control)
         
         for n in range(test_control.shape[0]):
             for v in range(test_control.shape[1]):

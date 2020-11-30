@@ -23,7 +23,7 @@ dur_post = 0.5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["aln1"]#, "aln-control"]
-cg_var = [None, "HS", "FR", "PR", "HZ"]
+cg_var = [None]#, "HS", "FR", "PR", "HZ"]
 
 np.set_printoptions(precision=16)
 

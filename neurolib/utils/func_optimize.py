@@ -115,13 +115,13 @@ def update_init_delayed(model, delay_state_vars_, init_vars_, state_vars_, t_pre
             else:
                 model.params[init_vars_[iv]] = model.state[state_vars_[sv]]
 
-def test_step(model, N, T, state_, target_, control_, dir_, test_step_ = 1e-12, variables_ = [0,1]):
+def test_step(model, N, V, T, state_, target_, control_, dir_, test_step_ = 1e-12, variables_ = [0,1]):
     dt = model.params['dt']
-    cost0_int_ = cost.f_int(N, T, dt, state_, target_, control_, v_ = variables_)
+    cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
     
     test_control_ = control_ + test_step_ * dir_
     state1_ = updateState(model, test_control_)
-    cost1_int_ = cost.f_int(N, T, dt, state1_, target_, test_control_, v_ = variables_)
+    cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = variables_)
     #print("test step size computation : ------ step size, cost1, cost0 : ", test_step_, cost1_int_, cost0_int_)
         
     if (cost1_int_ < cost0_int_):
@@ -139,11 +139,11 @@ def setmaxcontrol(control_, max_control_):
                 control_[0,v,j] = - max_control_
     return control_
     
-def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
+def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
               bisec_factor_ = 2., max_control_ = 20., tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1"):
     
     
-    cost0_int_ = cost.f_int(N, T, dt, state_, target_, control_, v_ = variables_)
+    cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
     cost_min_int_ = cost0_int_
     step_ = start_step_
     step_min_ = 0.
@@ -162,7 +162,7 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
         state1_ = updateState(model, test_control_)
         
         
-        cost1_int_ = cost.f_int(N, T, dt, state1_, target_, test_control_, v_ = variables_)
+        cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = variables_)
         
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
         
@@ -180,7 +180,7 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
             if (i == 1 and alg == "A1"):
                 step_ = factor * start_step_
                 #print("too small start step, increase to ", step_)
-                return step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = step_, max_it_ = max_it_,
+                return step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = step_, max_it_ = max_it_,
                                  bisec_factor_ = bisec_factor_, max_control_ = max_control_, tolerance_ = tolerance_,
                                  substep_ = substep_, variables_ = variables_)
             elif (step_ < start_step_ / (2. * factor) and alg == "A1"):
@@ -191,11 +191,11 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
             # iterate between step_range[0] and [2] more granularly
             substep = substep_
             
-            step_min_up, cost_min_int_ = scan(model, N, T, dt, substep, control_, step_min_, dir_, target_,
+            step_min_up, cost_min_int_ = scan(model, N, V, T, dt, substep, control_, step_min_, dir_, target_,
                                                   cost_min_int_, max_control_, variables_)
 
             substep = - substep_
-            step_min_down, cost_min_int_ = scan(model, N, T, dt, substep, control_, step_min_, dir_, target_,
+            step_min_down, cost_min_int_ = scan(model, N, V, T, dt, substep, control_, step_min_, dir_, target_,
                                                 cost_min_int_, max_control_, variables_)
 
             
@@ -220,11 +220,11 @@ def step_size(model, N, T, dt, state_, target_, control_, dir_, start_step_ = 20
         
         step_ /= bisec_factor_
         
-def scan(model_, N, T, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_, variables_ = [0,1]):
+def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_, variables_ = [0,1]):
     cntrl_ = control_ + ( 1. + substep_ ) * step_min_ * dir_
     cntrl_ = setmaxcontrol(cntrl_, max_control_)
     state_ = updateState(model_, cntrl_)
-    cost_int = cost.f_int(N, T, dt_, state_, target_, cntrl_, v_ = variables_)
+    cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
     step_min1_ = step_min_
     
     while (cost_int < cost_min_int_):
@@ -234,7 +234,7 @@ def scan(model_, N, T, dt_, substep_, control_, step_min_, dir_, target_, cost_m
         cntrl_ += substep_ * step_min_ * dir_
         cntrl_ = setmaxcontrol(cntrl_, max_control_)
         state_ = updateState(model_, cntrl_)
-        cost_int = cost.f_int(N, T, dt_, state_, target_, cntrl_, v_ = variables_)
+        cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
         
         
     return step_min1_, cost_min_int_
@@ -303,11 +303,10 @@ def adapt_step(control_, ind_node, ind_var, start_step_, dir_, max_control_):
     return start_st_
 
 # update rule for conjugate directions according to Hestenes-Stiefel
-def betaHS(N, grad0_, grad1_, dir0_):
-    control_vars = 2
-    betaHS = np.zeros(( N, control_vars ))
+def betaHS(N, n_control_vars, grad0_, grad1_, dir0_):
+    betaHS = np.zeros(( N, n_control_vars ))
     for n in range(N):
-        for v in range(control_vars):
+        for v in range(n_control_vars):
             numerator = np.dot( grad1_[n,v,:], ( grad1_[n,v,:] - grad0_[n,v,:] ) )
             denominator = np.dot( dir0_[n,v,:], ( grad1_[n,v,:] - grad0_[n,v,:] ) )
             #print("numerator = ", numerator)
@@ -317,11 +316,10 @@ def betaHS(N, grad0_, grad1_, dir0_):
     return betaHS
 
 # update rule for conjugate directions according to Fletcher-Reeves
-def betaFR(N, grad0_, grad1_):
-    control_vars = 2
-    betaFR = np.zeros(( N, control_vars ))
+def betaFR(N, n_control_vars, grad0_, grad1_):
+    betaFR = np.zeros(( N, n_control_vars ))
     for n in range(N):
-        for v in range(control_vars):
+        for v in range(n_control_vars):
             numerator = np.dot( grad1_[n,v,:], grad1_[n,v,:] )
             denominator = np.dot( grad0_[n,v,:], grad0_[n,v,:] )
             if np.abs(denominator) > 1e-6 :
@@ -329,11 +327,10 @@ def betaFR(N, grad0_, grad1_):
     return betaFR
 
 # update rule for conjugate directions according to Polak-Ribiere
-def betaPR(N, grad0_, grad1_):
-    control_vars = 2
-    betaPR = np.zeros(( N, control_vars ))
+def betaPR(N, n_control_vars, grad0_, grad1_):
+    betaPR = np.zeros(( N, n_control_vars ))
     for n in range(N):
-        for v in range(control_vars):
+        for v in range(n_control_vars):
             numerator = np.dot( grad1_[n,v,:], ( grad1_[n,v,:] - grad0_[n,v,:] ) )
             denominator = np.dot( grad0_[n,v,:], grad0_[n,v,:] )
             if np.abs(denominator) > 1e-6 :
@@ -341,12 +338,11 @@ def betaPR(N, grad0_, grad1_):
     return betaPR
 
 # update rule for conjugate directions according to Hager-Zhang
-def betaHZ(N, grad0_, grad1_, dir0_):
-    control_vars = 2
-    betaHZ = np.zeros(( N, control_vars ))
+def betaHZ(N, n_control_vars, grad0_, grad1_, dir0_):
+    betaHZ = np.zeros(( N, n_control_vars ))
     eta = 0.01
     for n in range(N):
-        for v in range(control_vars):
+        for v in range(n_control_vars):
             diff = grad1_[n,v,:] - grad0_[n,v,:]
             denominator = np.dot( dir0_[n,v,:], diff )
             if np.abs(denominator) > 1e-6 :
