@@ -18,7 +18,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
-    
+        
     prec_variables = List()
     for v in prec_variables_:
         prec_variables.append(v)
@@ -736,12 +736,12 @@ def jacobian(V, state_, control_, t_,
     jacobian_[1,3] = - d_r_func_mu(state_[0,3,t_], sigmarange, ds, state_[0,16,t_], Irange, dI, C, precalc_r) * 1e3
     jacobian_[1,16] = - d_r_func_sigma(state_[0,3,t_-1],sigmarange, ds, state_[0,16,t_-1], Irange, dI, C, precalc_r) * 1e3
     
-    jacobian_[2,2] = 1. / state_[0,18,t_]
+    #jacobian_[2,2] = 1. / state_[0,18,t_]
     jacobian_[2,5] = - Jee_max / state_[0,18,t_]
-    jacobian_[2,6] = - Jei_max / state_[0,18,t_]
-    jacobian_[2,13] = - 1. / state_[0,18,t_]
-    jacobian_[2,18] = ( Jee_max * state_[0,5,t_-1] + Jei_max * state_[0,6,t_-1] + control_[0,0,t_] + ext_exc_current
-                       + state_[0,13,t_-1] - state_[0,2,t_-1] ) / state_[0,18,t_-1]**2
+    #jacobian_[2,6] = - Jei_max / state_[0,18,t_]
+    #jacobian_[2,13] = - 1. / state_[0,18,t_]
+    #jacobian_[2,18] = ( Jee_max * state_[0,5,t_-1] + Jei_max * state_[0,6,t_-1] + control_[0,0,t_] + ext_exc_current
+    #                   + state_[0,13,t_-1] - state_[0,2,t_-1] ) / state_[0,18,t_-1]**2
     
     jacobian_[3,3] = 1. / state_[0,19,t_]
     jacobian_[3,7] = - Jie_max / state_[0,19,t_]
@@ -824,29 +824,57 @@ def jacobian(V, state_, control_, t_,
 @numba.njit
 def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
     result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+    x_shift_mu = - 2.
+    x_scale_mu = 0.6
+    y_scale_mu = 0.1
+    result = y_scale_mu * x_scale_mu / np.cosh(x_scale_mu * mu + x_shift_mu)**2
     return result
 
 @numba.njit
 def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
     result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+    x_shift_sigma = -1.
+    x_scale_sigma = 0.6
+    y_scale_sigma = 1./2500.
+    result = np.sinh(x_scale_sigma * sigma + x_shift_sigma) * y_scale_sigma * x_scale_sigma
     return result
 
 @numba.njit
 def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
     result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+    mu_shift = - 1.1
+    sigma_scale = 0.5
+    mu_scale = - 10
+    mu_scale1 = - 3
+    sigma_shift = 1.4
+    result = sigma_scale * sigma + mu_scale1 + ( mu_scale / (sigma + sigma_shift) ) * np.exp( mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )
     return result
 
 @numba.njit
 def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
     result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+    mu_shift = - 1.1
+    sigma_scale = 0.5
+    mu_scale = - 10
+    sigma_shift = 1.4
+    result = sigma_scale * ( mu_shift + mu ) - (mu_scale * (mu_shift + mu) / (sigma + sigma_shift)**2) * np.exp(
+        mu_scale * ( mu_shift + mu ) / ( sigma + sigma_shift ) )  
     return result
 
 @numba.njit
 def d_V_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
     result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+    y_scale1 = 30.
+    mu_shift1 = 1.
+    y_scale2 = 2.
+    mu_shift2 = 0.5
+    result = y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
     return result
 
 @numba.njit
 def d_V_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
     result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+    y_scale2 = 2.
+    mu_shift2 = 0.5
+    result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2
     return result
