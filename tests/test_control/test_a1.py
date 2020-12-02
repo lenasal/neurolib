@@ -15,7 +15,7 @@ assertion_tolerance = 2
 c_controlmin, c_controlmax = -2., 2.
 r_controlmin, r_controlmax = -0.2, 0.2
 algorithm_tolerance = 1e-12
-max_iteration = 100#int(1e4)
+max_iteration = int(1e4)
 start_step = 10.
 test_step = 1e-12
 
@@ -26,7 +26,7 @@ dur_post = 0.5
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control"], "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [0,1]#, [ [0,1], [2,3] ]
+cntrl_var = [2]#, [ [0,1], [2,3] ]
 
 np.set_printoptions(precision=16)
 

@@ -51,17 +51,6 @@ class TestA1A2Conv(unittest.TestCase):
         print("n zeros pre = ", cntrl_zeros_pre)
         
         control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var) 
-        #control1[:,1,:] = 0.
-        #control1 = model.getZeroControl()
-        #control1[0,0,7] = 1.
-        #control1[0,0,8] = 0.
-        #control1[0,0,9] = 0.
-        #control1[0,0,10] = 0.
-        #control1[0,0,11] = 0.
-        #control1[0,0,12] = 0.
-        #control1[0,0,13] = 0.
-        #control1[0,0,14] = 0.
-       # control1[0,0,15] = 0.
         
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:

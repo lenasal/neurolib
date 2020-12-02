@@ -645,7 +645,7 @@ def timeIntegration_njit_elementwise(
                 sigmae_f[no,i] = sigmae_f[no,i-1] + dt * sigmae_f_rhs
                 sigmai_f[no,i] = sigmai_f[no,i-1] + dt * sigmai_f_rhs
 
-            #seem[no,i] = seem[no,i-1] + dt * seem_rhs
+            seem[no,i] = seem[no,i-1] + dt * seem_rhs
             #seim[no,i] = seim[no,i-1] + dt * seim_rhs
             #siem[no,i] = siem[no,i-1] + dt * siem_rhs
             #siim[no,i] = siim[no,i-1] + dt * siim_rhs
