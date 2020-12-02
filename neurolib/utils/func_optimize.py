@@ -162,6 +162,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         state1_ = updateState(model, test_control_)
         
         
+        #print(N, V, T, dt, state1_, target_, test_control_, variables_)
         cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = variables_)
         
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)

@@ -111,8 +111,8 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.mue_ext_mean = 0.#random.uniform(0., 4.)
         model_.params.mui_ext_mean = 0.#random.uniform(0., 4.)
         
-        model_.params.sigmae_ext = 0.#model_.params.mue_ext_mean * random.uniform(0.5, 1.)
-        model_.params.sigmai_ext = 0.#model_.params.mui_ext_mean * random.uniform(0.5, 1.)
+        model_.params.sigmae_ext = 0.1#model_.params.mue_ext_mean * random.uniform(0.5, 1.)
+        model_.params.sigmai_ext = 0.1#model_.params.mui_ext_mean * random.uniform(0.5, 1.)
         
         model_.params.a = 0.
         model_.params.b = 0.

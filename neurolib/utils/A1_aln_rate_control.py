@@ -131,14 +131,15 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_pre_ndt, startind_)
     
     model.params['duration'] = t_sim_
-    control_[:,2:,-2:] = 0.
+    #control_[:,2:,-2:] = 0.
     state0_ = fo.updateFullState(model, control_, state_vars)
+    #print("state0 = ", state0_)
     
     T = int( 1 + np.around(t_sim_ / dt, 1) )
     V = state0_.shape[1]
     V_target = target_state_.shape[1]
     i=0
-
+    
     total_cost_ = np.zeros((max_iteration_+1))
     total_cost_[i] = cost.f_int(N, n_control_vars, T, dt, state0_, target_state_, control_, v_ = prec_variables )
     runtime_ = np.zeros(( int(max_iteration_+1) ))
@@ -166,6 +167,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             f_p_grad_t_ = cost.cost_precision_gradient_t(N, V_target, state0_[:,:2,ind_time], target_state_[:,:,ind_time])
             for v in prec_variables:
                 full_cost_grad[0,v,ind_time] = f_p_grad_t_[0,v] 
+                
+        #print("1")
         
         phi0_ = phi(N, V, T, dt, state0_, target_state_, best_control_, full_cost_grad,
                     ext_exc_current,
@@ -218,17 +221,35 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             break
             
         i += 1   
+        #print("2")
         
-        phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_,
-                     c_gl,
-                     Ke_gl,
-                     tau_se,
-                     factor_eec1,
-                     factor_eec2,
+        phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_, control_,
+                          sigmae_ext,
+                          ext_exc_rate,
+                          tau_se,
+                          tau_si,
+                          tau_se_sq,
+                          Jee_sq,
+                          Jei_sq,
+                          taum,
+                          factor_ee1,
+                          factor_ee2,
+                          factor_ei1,
+                          factor_ei2,
+                          factor_eec1,
+                          factor_eec2,
+                          rd_exc,
+                          rd_inh,
+                          ndt_de,
+                          ndt_di,
                      )
+        
+        #print("3")
                 
         grad_cost_e_ = cost.cost_energy_gradient(best_control_)
         grad_cost_s_ = cost.cost_sparsity_gradient(N, n_control_vars, T, dt, best_control_)
+        
+        #print("4")
         
         #print("adj mu = ", phi0_[0,2,:])
         #print("sparsity gradient = ", grad_cost_s_[0,2,:])
@@ -268,12 +289,14 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             print("Descent direction vanishing, use standard gradient descent")
             dir0_ = - grad1_.copy()
         
-        dir0_[:,2:,-2] = 0. #pre-last rate control does not impact anything
+        #dir0_[:,2:,-2] = 0. #pre-last rate control does not impact anything
         
         minCost = []
         tc_exc = -1
         tc_inh = -1
         joint_cost = -1
+        
+        #print("5")
                 
         # compute stepsize separately and then put together
         if 0 in control_variables:
@@ -309,6 +332,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                          variables_ = prec_variables)
             minCost.append(joint_cost)
             
+        #print(state1_[:,:2,:])
+        
         step_, total_cost_[i], startStep_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_,
                      variables_ = prec_variables)
@@ -379,9 +404,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 
     state1_ = fo.updateFullState(model, best_control_, state_vars)
     
-    for j in [5,6,7,8]:
+    for j in [5,6,7,8,9,10,11,12]:
         if any(state1_[0,j,:]) < 0. or any(state1_[0,j,:]) > 1.:
-            print("WARNING: s-parameter not in proper range")
+            print("WARNING: s-parameter or sigma not in proper range")
     
     improvement = 100.
     if total_cost_[0] != 0.:
@@ -570,7 +595,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
             #phi_[0,8,ind_time-1] = phi_[0,8,ind_time] - dt * der
             
             der = phi_[0,9,ind_time] * jac[9,9] + phi_[0,15,ind_time] * jac[15,9]
-            #phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
+            phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
             
             der = phi_[0,10,ind_time] * jac[10,10] + phi_[0,15,ind_time] * jac[15,10]
             #phi_[0,10,ind_time-1] = phi_[0,10,ind_time] - dt * der
@@ -609,23 +634,57 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
     return phi_
 
 @numba.njit
-def phi1(N, V, T, n_control_vars, phi_, state_,
-                         c_gl,
-                         Ke_gl,
-                         tau_se,
-                         factor_eec1,
-                         factor_eec2,
+def phi1(N, V, T, n_control_vars, phi_, state_, control_,
+                          sigmae_ext,
+                          ext_exc_rate,
+                          tau_se,
+                          tau_si,
+                          tau_se_sq,
+                          Jee_sq,
+                          Jei_sq,
+                          taum,
+                          factor_ee1,
+                          factor_ee2,
+                          factor_ei1,
+                          factor_ei2,
+                          factor_eec1,
+                          factor_eec2,
+                          rd_exc,
+                          rd_inh,
+                          ndt_de,
+                          ndt_di,
                          ):  
     
     phi1_ = np.zeros(( N, n_control_vars, T ))
     
+    ind_t = 0
+            
+        # could leave shift at zero in jacobian and algorithm would do almost equally well
+        
+    shift_e = 0
+    shift_i = 0
+        
+    rd_exc[0,0] = state_[0,0,ind_t-shift_e] * 1e-3        
+    rd_inh[0] = state_[0,1,ind_t-shift_i] * 1e-3
+    
 
-    jac_u_ = D_u_h(V, state_[:,:,:], 0,
-                           c_gl,
-                           Ke_gl,
-                           tau_se,
-                           factor_eec1,
-                           factor_eec2,
+    jac_u_ = D_u_h(V, state_, control_, ind_t,
+                          sigmae_ext,
+                          ext_exc_rate,
+                          tau_se,
+                          tau_si,
+                          tau_se_sq,
+                          Jee_sq,
+                          Jei_sq,
+                          taum,
+                          factor_ee1,
+                          factor_ee2,
+                          factor_ei1,
+                          factor_ei2,
+                          factor_eec1,
+                          factor_eec2,
+                          rd_exc,
+                          rd_inh,
                            )
     phi = np.ascontiguousarray(phi_[0,:,0])
 
@@ -639,12 +698,42 @@ def phi1(N, V, T, n_control_vars, phi_, state_,
     phi1_[0,3,0] = np.dot(phi, y3)
     
     for ind_t in range(1, T):
-        jac_u_ = D_u_h(V, state_[:,:,:], ind_t,
-                           c_gl,
-                           Ke_gl,
-                           tau_se,
-                           factor_eec1,
-                           factor_eec2,
+        
+        if ind_t - ndt_de > 0:
+            shift_e = ndt_de
+        else:
+            shift_e = 0
+    
+        if ind_t - ndt_di > 0:
+            shift_i = ndt_di
+        else:
+            shift_i = 0
+            
+        # could leave shift at zero in jacobian and algorithm would do almost equally well
+        
+        #shift_e = 0
+        #shift_i = 0
+        
+        rd_exc[0,0] = state_[0,0,ind_t-shift_e] * 1e-3        
+        rd_inh[0] = state_[0,1,ind_t-shift_i] * 1e-3
+        
+        jac_u_ = D_u_h(V, state_, control_, ind_t,
+                          sigmae_ext,
+                          ext_exc_rate,
+                          tau_se,
+                          tau_si,
+                          tau_se_sq,
+                          Jee_sq,
+                          Jei_sq,
+                          taum,
+                          factor_ee1,
+                          factor_ee2,
+                          factor_ei1,
+                          factor_ei2,
+                          factor_eec1,
+                          factor_eec2,
+                          rd_exc,
+                          rd_inh,
                            )
         phi = np.ascontiguousarray(phi_[0,:,ind_t])
         phi_shift = np.ascontiguousarray(phi_[0,:,ind_t-1])#, dtype=np.float64)
@@ -673,26 +762,49 @@ def D_xdot(V, state_t_):
     return dxdot_
 
 @numba.njit
-def D_u_h(V, state_, t_,
-          c_gl,
-          Ke_gl,
+def D_u_h(V, state_, control_, t_, 
+          sigmae_ext,
+          ext_exc_rate,
           tau_se,
+          tau_si,
+          tau_se_sq,
+          Jee_sq,
+          Jei_sq,
+          taum,
+          factor_ee1,
+          factor_ee2,
+          factor_ei1,
+          factor_ei2,
           factor_eec1,
           factor_eec2,
+          rd_exc,
+          rd_inh,
           ):
     duh_ = np.zeros(( 4, V ))
     duh_[0,2] = - 1. / state_[0,18,t_-1]
     duh_[1,3] = - 1. / state_[0,19,t_-1]
     
-    #duh_[2,5] = factor_eec1 / tau_se
     duh_[2,5] = - ( 1. - state_[0,5,t_]) * factor_eec1 / tau_se
-    # no shift in time index: tested by forcing seem to vary significantly
-    #if t_ == 0:
-    #    duh_[2,5] = - ( 1. - state_[0,5,t_]) * factor_eec1 / tau_se
-    #else:
-    #    duh_[2,5] = - ( 1. - state_[0,5,t_]) * factor_eec1 / tau_se
-    #duh_[2,9] = 
-    #duh_[2,15] = 
+        
+    z1ee = factor_ee1 * rd_exc[0,0] + factor_eec1 * ( ext_exc_rate + control_[0, 2, t_] )
+    z2ee = factor_ee2 * rd_exc[0,0] + factor_eec2 * ( ext_exc_rate + control_[0, 2, t_] )
+    
+    z1ei = factor_ei1 * rd_inh[0]
+    z2ei = factor_ei2 * rd_inh[0]     
+
+    #duh_[2,9] = - ( (1. - state_[0,5,t_])**2 * factor_eec2 + state_[0,9,t_] * ( factor_eec2
+                #- ( tau_se + tau_se ) *  factor_eec1 ) ) / tau_se_sq      
+        
+    sig_ee = state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
+    sig_ei = state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * ( (1 + z1ei) * taum + tau_si )**(-1)
+    
+    if sig_ee + sig_ei + sigmae_ext**2 > 0.:
+        sigma_sqrt_e = ( sig_ee + sig_ei + sigmae_ext**2 )**(-1./2.)
+    else:
+        sigma_sqrt_e = 0.
+    
+    duh_[2,15] = - factor_eec1
+    #duh_[2,15] = 0.5 * factor_eec1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
     
     return duh_
 
@@ -821,11 +933,11 @@ def jacobian(V, state_, control_, t_,
     else:
         sigma_sqrt_e = 0.
     
-    jacobian_[15,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
-    jacobian_[15,1] = 0.5 * (1e-3) * factor_ei1 * taum * ( (1 + z1ei) * taum + tau_si )**(-2) * state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
-    jacobian_[15,9] = - 0.5 * ( (1 + z1ee) * taum + tau_se )**(-1) * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
-    jacobian_[15,10] = - 0.5 * ( (1 + z1ei) * taum + tau_si )**(-1) * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
-    jacobian_[15,15] = 1.
+    #jacobian_[15,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
+    #jacobian_[15,1] = 0.5 * (1e-3) * factor_ei1 * taum * ( (1 + z1ei) * taum + tau_si )**(-2) * state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
+    #jacobian_[15,9] = - 0.5 * ( (1 + z1ee) * taum + tau_se )**(-1) * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
+    #jacobian_[15,10] = - 0.5 * ( (1 + z1ei) * taum + tau_si )**(-1) * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
+    #jacobian_[15,15] = 1.
     
     sig_ii = state_[0,12,t_] * ( 2. * Jii_sq * tau_si * taum ) * ( (1 + z1ii) * taum + tau_si )**(-1)
     sig_ie = state_[0,11,t_] * ( 2. * Jie_sq * tau_se * taum ) * ( (1 + z1ie) * taum + tau_se )**(-1)

@@ -13,7 +13,7 @@ import test_control_functions as func
 assertion_tolerance = 2
         
 c_controlmin, c_controlmax = -2., 2.
-r_controlmin, r_controlmax = -0.1, 0.1
+r_controlmin, r_controlmax = 0., 0.1
 algorithm_tolerance = 1e-12
 max_iteration = int(1e4)
 start_step = 10.
@@ -26,7 +26,7 @@ dur_post = 0.5
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control"], "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [2]#, [ [0,1], [2,3] ]
+cntrl_var = [0]#, [ [0,1], [2,3] ]
 
 np.set_printoptions(precision=16)
 
@@ -51,6 +51,7 @@ class TestA1(unittest.TestCase):
         cntrl_zeros_post = int(dur_post / model.params.dt)
             
         control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var)  
+        #control1 = model.getZeroControl()
 
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
@@ -60,19 +61,26 @@ class TestA1(unittest.TestCase):
             
         model.params.duration = duration
         control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var)  
+        #control2 = model.getZeroControl()
             
         testip, testie, testis = 1., 0., 0.
         cost.setParams(testip, testie, testis)
             
         func.setInitVarsZero(model, init_vars)
-               
+        
+        if c_var in [0,1,[0,1]]:
+            c_max = 1e4 * c_controlmax
+        else:
+            c_max = 2. * r_controlmax
+                           
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat,
                             u_scheme, max_iteration_ = max_iteration, tolerance_ = algorithm_tolerance, startStep_ = start_step,
-                            max_control_ = 1e5 * c_controlmax, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post,
+                            max_control_ = c_max, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post,
                             CGVar = cgv, control_variables_ = cntrl_var)        
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         
+        print("target = ", target)
         print("control1 = ", control1[0,cntrl_var,:])
         print("best control a1 = ", A1_bestControl[0,cntrl_var,:])
         print("grad = ", A1_grad[0,cntrl_var,:])
@@ -88,7 +96,7 @@ class TestA1(unittest.TestCase):
                 break
                 self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
                     
-    
+
     def test_A1zeroControlForEnergyAndSparsityCostOnly(self):
         
         print("test_A1zeroControlForEnergyCostOnly for model", testcaseind,
@@ -121,8 +129,13 @@ class TestA1(unittest.TestCase):
         
         func.setInitVarsZero(model, init_vars)
         
+        if c_var in [0,1,[0,1]]:
+            c_max = 1e4 * c_controlmax
+        else:
+            c_max = 2. * r_controlmax
+        
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat,
-                        u_scheme, max_iteration, algorithm_tolerance, start_step, 1e5 * c_controlmax, duration,
+                        u_scheme, max_iteration, algorithm_tolerance, start_step, c_max, duration,
                         dur_pre, dur_post, CGVar = cgv, control_variables_ = cntrl_var)
         
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
@@ -137,7 +150,7 @@ class TestA1(unittest.TestCase):
             if (A1_runtime[t+1] == 0.):
                 break
                 self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
-
+    
     
 if __name__ == '__main__':
     

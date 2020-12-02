@@ -14,7 +14,7 @@ assertion_tolerance = 2
 assertion_tolerance_grad = 6
         
 c_controlmin, c_controlmax = -2., 2.
-r_controlmin, r_controlmax = -0.1, 0.1
+r_controlmin, r_controlmax = 0., 0.1
 algorithm_tolerance = 1e-32
 max_iteration = int(1e4)
 start_step = 10.
@@ -27,7 +27,7 @@ dur_post = 0.5
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control", "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [ 0 ]#, [ [0,1], [2,3] ]
+cntrl_var = [ 2 ]#, [ [0,1], [2,3] ]
 
 class TestA1A2Conv(unittest.TestCase):
     
@@ -47,9 +47,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         cntrl_zeros_pre = int(dur_pre / model.params.dt)
         cntrl_zeros_post = int(dur_post / model.params.dt)
-        
-        print("n zeros pre = ", cntrl_zeros_pre)
-        
+                
         control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var) 
         
         cntrl_len = control1.shape[2] + cntrl_zeros_post
@@ -69,13 +67,19 @@ class TestA1A2Conv(unittest.TestCase):
         
         func.setInitVarsZero(model, init_vars)
         
+        if c_var in [0,1,[0,1]]:
+            c_max = 1e4 * c_controlmax
+        else:
+            c_max = 2. * r_controlmax
+        
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat, u_scheme, max_iteration,
-                           algorithm_tolerance, start_step, 1e5 * c_controlmax, duration, dur_pre, dur_post, CGVar = None, control_variables_ = cntrl_var)
+                           algorithm_tolerance, start_step, c_max, duration, dur_pre, dur_post, CGVar = None, control_variables_ = cntrl_var)
         
         func.setInitVarsZero(model, init_vars)
 
         A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
-                            algorithm_tolerance, incl_steps, start_step, test_step, 1e5 * c_controlmax, duration, dur_pre, dur_post, control_variables_ = cntrl_var)
+                            algorithm_tolerance, incl_steps, start_step, test_step, c_max, duration, dur_pre, dur_post,
+                            control_variables_ = cntrl_var)
         
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         self.assertEqual(A2_bestControl.shape[2], cntrl_len)
