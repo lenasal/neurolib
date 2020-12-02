@@ -3,6 +3,7 @@ import random
 
 from neurolib.models.fhn import FHNModel
 from neurolib.models.aln import ALNModel
+from neurolib.models.rate_control import RateModel
 from neurolib.models.aln_control import Model_ALN_control
 
 def setInitVarsZero(model, init_vars):
@@ -12,20 +13,17 @@ def setInitVarsZero(model, init_vars):
     else:
        setParametersALN(model)
         
-def getRandomControl(model, cntrl_zeros_pre, controlmin, controlmax, variables_ = [0,1]):
-    control_ = model.getZeroControl()
-    cntrl_vars = [0,1]
-    if 0 not in variables_:
-        cntrl_vars = [0]
-    elif 1 not in variables_:
-        cntrl_vars = [1]
-        
+def getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = [0,1]):
+    control_ = model.getZeroControl()        
     maxDelay_ndt = getDelay_ndt(model)
         
     for n in range(control_.shape[0]):
-        for v in cntrl_vars:
+        for v in control_variables_:
             for t in range(cntrl_zeros_pre+1, control_.shape[2]-1-maxDelay_ndt):
-                control_[n, v, t] = random.uniform(controlmin, controlmax)
+                if v in [0,1]:
+                    control_[n, v, t] = random.uniform(c_controlmin, c_controlmax)
+                elif v in [2,3]:
+                    control_[n, v, t] = random.uniform(r_controlmin, r_controlmax)
     return control_
     
 def updateState(model, control_, output_vars):
@@ -80,6 +78,25 @@ def getmodel(i, dur_pre, dur_post):
         
     elif i == "aln1":
         model_ = ALNModel()
+        dt = model_.params.dt
+        maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
+    
+        model_.params.signalV = np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.di = np.around( maxDelay * random.uniform(0., 1.), 1)
+                        
+        # should not have too big impact
+        model_.params.ext_exc_current = random.uniform(0., 1.2)
+        model_.params.ext_inh_current = random.uniform(0., 1.2)
+        
+        model_.params.mue_ext_mean = random.uniform(0., 4.)
+        model_.params.mui_ext_mean = random.uniform(0., 4.)
+        
+        model_.params.sigmae_ext = model_.params.mue_ext_mean * random.uniform(0.5, 1.)
+        model_.params.sigmai_ext = model_.params.mui_ext_mean * random.uniform(0.5, 1.)
+        
+    elif i == "rate_control":
+        model_ = RateModel()
         dt = model_.params.dt
         maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
     

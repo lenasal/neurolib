@@ -645,13 +645,13 @@ def timeIntegration_njit_elementwise(
                 sigmai_f[no,i] = sigmai_f[no,i-1] + dt * sigmai_f_rhs
 
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
-            #seim[no,i] = seim[no,i-1] + dt * seim_rhs
-            #siem[no,i] = siem[no,i-1] + dt * siem_rhs
-            #siim[no,i] = siim[no,i-1] + dt * siim_rhs
-            #seev[no,i] = seev[no,i-1] + dt * seev_rhs
-            #seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
-            #siev[no,i] = siev[no,i-1] + dt * siev_rhs
-            #siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
+            seim[no,i] = seim[no,i-1] + dt * seim_rhs
+            siem[no,i] = siem[no,i-1] + dt * siem_rhs
+            siim[no,i] = siim[no,i-1] + dt * siim_rhs
+            seev[no,i] = seev[no,i-1] + dt * seev_rhs
+            seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
+            siev[no,i] = siev[no,i-1] + dt * siev_rhs
+            siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
 
             # Ensure the variance does not get negative for low activity
             if seev[no,i] < 0:

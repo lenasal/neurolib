@@ -235,19 +235,19 @@ def generateRandomICs(N, seed=None):
     """
     np.random.seed(seed)
 
-    mufe_init = 3 * np.random.uniform(0, 1, (N,))  # mV/ms
-    mufi_init = 3 * np.random.uniform(0, 1, (N,))  # mV/ms
-    seem_init = 0.5 * np.random.uniform(0, 1, (N,))
-    seim_init = 0.5 * np.random.uniform(0, 1, (N,))
-    seev_init = 0.001 * np.random.uniform(0, 1, (N,))
-    seiv_init = 0.001 * np.random.uniform(0, 1, (N,))
-    siim_init = 0.5 * np.random.uniform(0, 1, (N,))
-    siem_init = 0.5 * np.random.uniform(0, 1, (N,))
-    siiv_init = 0.01 * np.random.uniform(0, 1, (N,))
-    siev_init = 0.01 * np.random.uniform(0, 1, (N,))
-    rates_exc_init = 0.01 * np.random.uniform(0, 1, (N, 1))
-    rates_inh_init = 0.01 * np.random.uniform(0, 1, (N, 1))
-    IA_init = 200.0 * np.random.uniform(0, 1, (N, 1))  # pA
+    mufe_init = 0.* 3 * np.random.uniform(0, 1, (N,))  # mV/ms
+    mufi_init = 0.* 3 * np.random.uniform(0, 1, (N,))  # mV/ms
+    seem_init = 0.* 0.5 * np.random.uniform(0, 1, (N,))
+    seim_init = 0.* 0.5 * np.random.uniform(0, 1, (N,))
+    seev_init = 0.* 0.001 * np.random.uniform(0, 1, (N,))
+    seiv_init = 0.* 0.001 * np.random.uniform(0, 1, (N,))
+    siim_init = 0.* 0.5 * np.random.uniform(0, 1, (N,))
+    siem_init = 0.* 0.5 * np.random.uniform(0, 1, (N,))
+    siiv_init = 0.* 0.01 * np.random.uniform(0, 1, (N,))
+    siev_init = 0.* 0.01 * np.random.uniform(0, 1, (N,))
+    rates_exc_init = 0.* 0.01 * np.random.uniform(0, 1, (N, 1))
+    rates_inh_init =0.*  0.01 * np.random.uniform(0, 1, (N, 1))
+    IA_init = 0.* 200.0 * np.random.uniform(0, 1, (N, 1))  # pA
 
     return (
         mufe_init,

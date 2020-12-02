@@ -130,9 +130,9 @@ def test_step(model, N, V, T, state_, target_, control_, dir_, test_step_ = 1e-1
         return 0., cost0_int_
    
 @numba.njit
-def setmaxcontrol(control_, max_control_):
+def setmaxcontrol(n_control_vars, control_, max_control_):
     for j in range(len(control_[0,0,:])):
-        for v in range(2):
+        for v in range(n_control_vars):
             if control_[0,v,j] > max_control_:
                 control_[0,v,j] = max_control_
             elif control_[0,v,j] < - max_control_:
@@ -157,7 +157,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         
         # include maximum control value to assure no divergence
         if ( np.amax(np.absolute(test_control_)) > max_control_):
-            test_control_ = setmaxcontrol(test_control_, max_control_)
+            test_control_ = setmaxcontrol(V, test_control_, max_control_)
             
         state1_ = updateState(model, test_control_)
         
@@ -222,7 +222,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         
 def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_, variables_ = [0,1]):
     cntrl_ = control_ + ( 1. + substep_ ) * step_min_ * dir_
-    cntrl_ = setmaxcontrol(cntrl_, max_control_)
+    cntrl_ = setmaxcontrol(V, cntrl_, max_control_)
     state_ = updateState(model_, cntrl_)
     cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
     step_min1_ = step_min_
@@ -232,7 +232,7 @@ def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cos
         step_min1_ += substep_ * step_min_
         
         cntrl_ += substep_ * step_min_ * dir_
-        cntrl_ = setmaxcontrol(cntrl_, max_control_)
+        cntrl_ = setmaxcontrol(V, cntrl_, max_control_)
         state_ = updateState(model_, cntrl_)
         cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
         

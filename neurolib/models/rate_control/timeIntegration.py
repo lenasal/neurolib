@@ -599,7 +599,7 @@ def timeIntegration_njit_elementwise(
 
             # now everything available for r.h.s:
 
-            mufe_rhs = (mue - mufe[no,i-1] 
+            mufe_rhs = (mue #- mufe[no,i-1] 
                         #+ control_ext[no, 0, i-startind+1]
                         ) / tau_exc[no,i-1]
             
@@ -622,6 +622,7 @@ def timeIntegration_njit_elementwise(
             # integration of synaptic input (eq. 4.36)
             
             seem_rhs = ((1 - seem[no,i-1]) * z1ee - seem[no,i-1]) / tau_se
+            seem_rhs = - z1ee / tau_se
             seim_rhs = ((1 - seim[no,i-1]) * z1ei - seim[no,i-1]) / tau_si
             siem_rhs = ((1 - siem[no,i-1]) * z1ie - siem[no,i-1]) / tau_se
             siim_rhs = ((1 - siim[no,i-1]) * z1ii - siim[no,i-1]) / tau_si
@@ -644,7 +645,7 @@ def timeIntegration_njit_elementwise(
                 sigmae_f[no,i] = sigmae_f[no,i-1] + dt * sigmae_f_rhs
                 sigmai_f[no,i] = sigmai_f[no,i-1] + dt * sigmai_f_rhs
 
-            seem[no,i] = seem[no,i-1] + dt * seem_rhs
+            #seem[no,i] = seem[no,i-1] + dt * seem_rhs
             #seim[no,i] = seim[no,i-1] + dt * seim_rhs
             #siem[no,i] = siem[no,i-1] + dt * siem_rhs
             #siim[no,i] = siim[no,i-1] + dt * siim_rhs
@@ -943,6 +944,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
 
 @numba.njit
 def r_func(mu, sigma):
+    return (mu + sigma) * 1e-3
     x_shift_mu = - 2.
     x_shift_sigma = -1.
     x_scale_mu = 0.6
@@ -954,6 +956,7 @@ def r_func(mu, sigma):
 
 @numba.njit
 def tau_func(mu, sigma):
+    return 1.
     mu_shift = - 1.1
     sigma_scale = 0.5
     mu_scale = - 10
@@ -964,6 +967,7 @@ def tau_func(mu, sigma):
    
 @numba.njit
 def V_func(mu, sigma):
+    return 1.
     y_scale1 = 30.
     mu_shift1 = 1.
     y_shift = - 85.
