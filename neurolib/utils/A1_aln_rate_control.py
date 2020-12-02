@@ -268,6 +268,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             print("Descent direction vanishing, use standard gradient descent")
             dir0_ = - grad1_.copy()
         
+        dir0_[:,2:,-2] = 0. #pre-last rate control does not impact anything
+        
         minCost = []
         tc_exc = -1
         tc_inh = -1
@@ -376,6 +378,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         state0_ = state1_.copy() 
                 
     state1_ = fo.updateFullState(model, best_control_, state_vars)
+    
+    for j in [5,6,7,8]:
+        if any(state1_[0,j,:]) < 0. or any(state1_[0,j,:]) > 1.:
+            print("WARNING: s-parameter not in proper range")
     
     improvement = 100.
     if total_cost_[0] != 0.:
@@ -678,7 +684,8 @@ def D_u_h(V, state_, t_,
     duh_[0,2] = - 1. / state_[0,18,t_-1]
     duh_[1,3] = - 1. / state_[0,19,t_-1]
     
-    duh_[2,5] = factor_eec1 / tau_se
+    #duh_[2,5] = factor_eec1 / tau_se
+    duh_[2,5] = - ( 1. - state_[0,5,t_]) * factor_eec1 / tau_se
     # no shift in time index: tested by forcing seem to vary significantly
     #if t_ == 0:
     #    duh_[2,5] = - ( 1. - state_[0,5,t_]) * factor_eec1 / tau_se
@@ -772,9 +779,10 @@ def jacobian(V, state_, control_, t_,
     jacobian_[4,4] = 1. / tauA
     jacobian_[4,17] = - a / tauA
     
-    #jacobian_[5,0] = - (1. - state_[0,5,t_]) * factor_ee1 * 1e-3 / tau_se
+    jacobian_[5,0] = - (1. - state_[0,5,t_]) * factor_ee1 * 1e-3 / tau_se
     #jacobian_[5,0] = factor_ee1 * 1e-3 / tau_se
-    #jacobian_[5,5] = ( 1. + z1ee ) / tau_se
+    jacobian_[5,5] = ( 1. + z1ee ) / tau_se
+    #jacobian_[5,5] = ( 1. + factor_eec1 * control_[0,2,t_] ) / tau_se
     
     #jacobian_[6,1] = - (1. - state_[0,6,t_]) * factor_ei1 * 1e-3 / tau_si
     #jacobian_[6,6] = ( 1. + z1ei ) / tau_si

@@ -11,10 +11,10 @@ from neurolib.utils import costFunctions as cost
 import test_control_functions as func
 
 assertion_tolerance = 2
-assertion_tolerance_grad = 4
+assertion_tolerance_grad = 6
         
 c_controlmin, c_controlmax = -2., 2.
-r_controlmin, r_controlmax = -0.2, 0.2
+r_controlmin, r_controlmax = -0.1, 0.1
 algorithm_tolerance = 1e-32
 max_iteration = int(1e4)
 start_step = 10.
@@ -80,10 +80,10 @@ class TestA1A2Conv(unittest.TestCase):
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         self.assertEqual(A2_bestControl.shape[2], cntrl_len)
         
-        print("control1 = ", control1[0,:1,:])
-        print("best control a1 = ", A1_bestControl[0,:1,:])
-        print("best control a2 = ", A2_bestControl[0,:1,:])
-        print("grad = ", A1_grad.shape, A1_grad)
+        print("control1 = ", control1[0,cntrl_var,:])
+        print("best control a1 = ", A1_bestControl[0,cntrl_var,:])
+        print("best control a2 = ", A2_bestControl[0,cntrl_var,:])
+        print("grad = ", A1_grad[0,cntrl_var,:])
         print("test weights ", testip, testie, testis)
         
         

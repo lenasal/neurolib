@@ -517,7 +517,7 @@ def timeIntegration_njit_elementwise(
 
             # z1: weighted sum of delayed rates, weights=c*K
             z1ee = (
-                #cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum
+                cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum
                 + c_gl * Ke_gl * ( ext_exc_rate[no, i] + control_ext[no, 2, i-startind] )
             )  # rate from other regions + exc_ext_rate
             z1ei = cei * Ki * rd_inh[no]
@@ -622,7 +622,7 @@ def timeIntegration_njit_elementwise(
             # integration of synaptic input (eq. 4.36)
             
             seem_rhs = ((1 - seem[no,i-1]) * z1ee - seem[no,i-1]) / tau_se
-            seem_rhs = - z1ee / tau_se
+            #seem_rhs = - z1ee / tau_se
             seim_rhs = ((1 - seim[no,i-1]) * z1ei - seim[no,i-1]) / tau_si
             siem_rhs = ((1 - siem[no,i-1]) * z1ie - siem[no,i-1]) / tau_se
             siim_rhs = ((1 - siim[no,i-1]) * z1ii - siim[no,i-1]) / tau_si
