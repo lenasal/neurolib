@@ -517,7 +517,7 @@ def timeIntegration_njit_elementwise(
 
             # z1: weighted sum of delayed rates, weights=c*K
             z1ee = (
-                cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum
+                #cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum
                 + c_gl * Ke_gl * ( ext_exc_rate[no, i] + control_ext[no, 2, i-startind] )
             )  # rate from other regions + exc_ext_rate
             z1ei = cei * Ki * rd_inh[no]

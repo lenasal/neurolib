@@ -27,11 +27,11 @@ dur_post = 0.5
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control", "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [2]#, [ [0,1], [2,3] ]
+cntrl_var = [ 0 ]#, [ [0,1], [2,3] ]
 
 class TestA1A2Conv(unittest.TestCase):
     
-    def test_A1A2ConvergeForRandomTarget_PE(self):
+    def test_A1A2ConvergeForRandomTarget_PSE(self):
         print("test_A1A2ConvergeForRandomTarget_PE for model", testcaseind,
               "\n with conjugated gradient descent variant", cgv,
               "\n for control variables", c_var)
@@ -48,7 +48,20 @@ class TestA1A2Conv(unittest.TestCase):
         cntrl_zeros_pre = int(dur_pre / model.params.dt)
         cntrl_zeros_post = int(dur_post / model.params.dt)
         
+        print("n zeros pre = ", cntrl_zeros_pre)
+        
         control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var) 
+        #control1[:,1,:] = 0.
+        #control1 = model.getZeroControl()
+        #control1[0,0,7] = 1.
+        #control1[0,0,8] = 0.
+        #control1[0,0,9] = 0.
+        #control1[0,0,10] = 0.
+        #control1[0,0,11] = 0.
+        #control1[0,0,12] = 0.
+        #control1[0,0,13] = 0.
+        #control1[0,0,14] = 0.
+       # control1[0,0,15] = 0.
         
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
@@ -60,14 +73,15 @@ class TestA1A2Conv(unittest.TestCase):
             
         model.params.duration = duration
         control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var) 
+        #control2 = model.getZeroControl()
         
-        testip, testie, testis = random.uniform(0., 1.), random.uniform(0., 1.), random.uniform(0., 1.)
-        cost.setParams(testip, testie, testis)
+        testip, testie, testis = random.uniform(1., 10.), random.uniform(0., 1.), random.uniform(0., 1.)
+        cost.setParams(10.*testip, testie, testis)
         
         func.setInitVarsZero(model, init_vars)
         
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat, u_scheme, max_iteration,
-                            algorithm_tolerance, start_step, 1e5 * c_controlmax, duration, dur_pre, dur_post, CGVar = None, control_variables_ = cntrl_var)
+                           algorithm_tolerance, start_step, 1e5 * c_controlmax, duration, dur_pre, dur_post, CGVar = None, control_variables_ = cntrl_var)
         
         func.setInitVarsZero(model, init_vars)
 
@@ -77,9 +91,12 @@ class TestA1A2Conv(unittest.TestCase):
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         self.assertEqual(A2_bestControl.shape[2], cntrl_len)
         
-        print("control1 = ", control1[0,2,:])
-        print("best control a1 = ", A1_bestControl[0,2,:])
-        print("best control a2 = ", A2_bestControl[0,2,:])
+        print("control1 = ", control1[0,:1,:])
+        print("best control a1 = ", A1_bestControl[0,:1,:])
+        print("best control a2 = ", A2_bestControl[0,:1,:])
+        print("grad = ", A1_grad.shape, A1_grad)
+        print("test weights ", testip, testie, testis)
+        
         
         for t in range(len(A1_runtime)-1):
             if (A1_runtime[t+1] == 0.):
@@ -92,9 +109,18 @@ class TestA1A2Conv(unittest.TestCase):
                 self.assertLessEqual(A2_runtime[t], A2_runtime[t+1])
         
         for n in range(A2_bestControl.shape[0]):
-            for v in range(A2_bestControl.shape[1]):
+            for v in cntrl_var:
                 for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - 1 - cntrl_zeros_post):
-                    self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)    
+                    self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)   
+                    
+        for n in range(A2_bestControl.shape[0]):
+            for v in cntrl_var:
+                for t in range(0, A1_grad.shape[2]):
+                    print(n, v, t, A1_grad[n, v, t])
+                    if ( np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre]) < 1e-10):
+                        print("gradient could be nonvanishing because of absolute value.")
+                    else:
+                        self.assertAlmostEqual(A1_grad[n, v, t], 0., assertion_tolerance_grad) 
       
                     
     """                

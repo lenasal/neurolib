@@ -159,7 +159,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     grad0_ = np.zeros(( N, n_control_vars, T ))
     grad1_ = grad0_.copy()
     dir0_ = grad0_.copy()
-    
+        
     while( i < max_iteration_ ):
         
         for ind_time in range(T):
@@ -226,11 +226,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                      factor_eec1,
                      factor_eec2,
                      )
-        
+                
         grad_cost_e_ = cost.cost_energy_gradient(best_control_)
         grad_cost_s_ = cost.cost_sparsity_gradient(N, n_control_vars, T, dt, best_control_)
         
-        #print("adj rate = ", phi0_[0,0,:])
         #print("adj mu = ", phi0_[0,2,:])
         #print("sparsity gradient = ", grad_cost_s_[0,2,:])
         #print("adjoint gradient exc rate = ", phi1_[0,2,:])
@@ -375,7 +374,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         #    break
         
         state0_ = state1_.copy() 
-        
+                
     state1_ = fo.updateFullState(model, best_control_, state_vars)
     
     improvement = 100.
@@ -420,7 +419,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
     return bc_, bs_, total_cost_, runtime_, grad1_
 
-@numba.njit
+#@numba.njit
 def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
                     ext_exc_current,
                     ext_inh_current,
@@ -470,7 +469,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
     
             
     for ind_time in range(T-1, -1, -1):
-            
+                    
         if ind_time + ndt_de < T:
             shift_e = ndt_de
         else:
@@ -613,6 +612,7 @@ def phi1(N, V, T, n_control_vars, phi_, state_,
                          ):  
     
     phi1_ = np.zeros(( N, n_control_vars, T ))
+    
 
     jac_u_ = D_u_h(V, state_[:,:,:], 0,
                            c_gl,
@@ -822,7 +822,10 @@ def jacobian(V, state_, control_, t_,
     sig_ii = state_[0,12,t_] * ( 2. * Jii_sq * tau_si * taum ) * ( (1 + z1ii) * taum + tau_si )**(-1)
     sig_ie = state_[0,11,t_] * ( 2. * Jie_sq * tau_se * taum ) * ( (1 + z1ie) * taum + tau_se )**(-1)
     
-    sigma_sqrt_i = ( sig_ii + sig_ie + sigmai_ext**2 )**(-1./2.)
+    if sig_ii + sig_ie + sigmai_ext**2 > 0.:
+        sigma_sqrt_i = ( sig_ii + sig_ie + sigmai_ext**2 )**(-1./2.)
+    else:
+        sigma_sqrt_i = 0.
     
     jacobian_[16,0] = 0.5 * (1e-3) * factor_ie1 * taum * ( (1 + z1ie) * taum + tau_se )**(-2) * state_[0,11,t_] * ( 2. * Jie_sq * tau_se * taum ) * sigma_sqrt_i
     jacobian_[16,1] = 0.5 * (1e-3) * factor_ii1 * taum * ( (1 + z1ii) * taum + tau_si )**(-2) * state_[0,12,t_] * ( 2. * Jii_sq * tau_si * taum ) * sigma_sqrt_i

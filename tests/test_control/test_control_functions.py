@@ -44,21 +44,21 @@ def setTargetFromControl(model, control_, output_vars, target_vars):
     return target_
 
 def setParametersALN(model):
-    model.params.rates_exc_init = np.array( [[0.01 * 0.5 ]] )
-    model.params.rates_inh_init = np.array( [[0.01 * 0.5 ]] )
-    model.params.mufe_init = np.array( [[3. * 0.5 ]] )  # mV/ms
-    model.params.mufi_init = np.array( [[3. * 0.5 ]] )  # mV/ms
-    model.params.IA_init = np.array( [[200. * 0.5 ]] )  # pA
-    model.params.seem_init = np.array( [[0.5 * 0.5 ]] )
-    model.params.seim_init = np.array( [[0.5 * 0.5 ]] )   
-    model.params.seev_init = np.array( [[0.01 * 0.5 ]] )
-    model.params.seiv_init = np.array( [[0.01 * 0.5 ]] )
-    model.params.siim_init = np.array( [[0.5 * 0.5 ]] )
-    model.params.siem_init = np.array( [[0.5 * 0.5 ]] )
-    model.params.siiv_init = np.array( [[0.01 * 0.5 ]] )
-    model.params.siev_init = np.array( [[0.01 * 0.5 ]] )
-    model.params.mue_ou = np.array( [[0.4]] ) #* np.ones((model.params.N,))
-    model.params.mui_ou = np.array( [[0.3]] ) #* np.ones((model.params.N,))
+    model.params.rates_exc_init = np.array( [[0. * 0.01 * 0.5 ]] )
+    model.params.rates_inh_init = np.array( [[0. * 0.01 * 0.5 ]] )
+    model.params.mufe_init = np.array( [[0. * 3. * 0.5 ]] )  # mV/ms
+    model.params.mufi_init = np.array( [[0. * 3. * 0.5 ]] )  # mV/ms
+    model.params.IA_init = np.array( [[0. * 200. * 0.5 ]] )  # pA
+    model.params.seem_init = np.array( [[0. * 0.5 * 0.5 ]] )
+    model.params.seim_init = np.array( [[0. * 0.5 * 0.5 ]] )   
+    model.params.seev_init = np.array( [[0. * 0.01 * 0.5 ]] )
+    model.params.seiv_init = np.array( [[0. * 0.01 * 0.5 ]] )
+    model.params.siim_init = np.array( [[0. * 0.5 * 0.5 ]] )
+    model.params.siem_init = np.array( [[0. * 0.5 * 0.5 ]] )
+    model.params.siiv_init = np.array( [[0. * 0.01 * 0.5 ]] )
+    model.params.siev_init = np.array( [[0. * 0.01 * 0.5 ]] )
+    model.params.mue_ou = np.array( [[0. * 0.4]] ) #* np.ones((model.params.N,))
+    model.params.mui_ou = np.array( [[0. * 0.3]] ) #* np.ones((model.params.N,))
     
 def getSchemes(model):
     c_scheme = np.zeros((len(model.output_vars), len(model.output_vars) ))
@@ -100,19 +100,22 @@ def getmodel(i, dur_pre, dur_post):
         dt = model_.params.dt
         maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
     
-        model_.params.signalV = np.around( maxDelay * random.uniform(0., 1.), 1)
-        model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
-        model_.params.di = np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.signalV = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.de = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.di = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)
                         
         # should not have too big impact
-        model_.params.ext_exc_current = random.uniform(0., 1.2)
-        model_.params.ext_inh_current = random.uniform(0., 1.2)
+        model_.params.ext_exc_current = 0.#random.uniform(0., 1.2)
+        model_.params.ext_inh_current = 0.#random.uniform(0., 1.2)
         
-        model_.params.mue_ext_mean = random.uniform(0., 4.)
-        model_.params.mui_ext_mean = random.uniform(0., 4.)
+        model_.params.mue_ext_mean = 0.#random.uniform(0., 4.)
+        model_.params.mui_ext_mean = 0.#random.uniform(0., 4.)
         
-        model_.params.sigmae_ext = model_.params.mue_ext_mean * random.uniform(0.5, 1.)
-        model_.params.sigmai_ext = model_.params.mui_ext_mean * random.uniform(0.5, 1.)
+        model_.params.sigmae_ext = 0.#model_.params.mue_ext_mean * random.uniform(0.5, 1.)
+        model_.params.sigmai_ext = 0.#model_.params.mui_ext_mean * random.uniform(0.5, 1.)
+        
+        model_.params.a = 0.
+        model_.params.b = 0.
         
         #setParametersALN(model_)
         
