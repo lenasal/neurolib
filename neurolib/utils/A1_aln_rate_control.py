@@ -547,7 +547,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
             phi_[0,3,ind_time-1] = phi_[0,3,ind_time] - dt * der
             
             der = phi_[0,2,ind_time] * jac[2,5] + phi_[0,5,ind_time] * jac[5,5] + phi_[0,9,ind_time] * jac[9,5]
-            #phi_[0,5,ind_time-1] = phi_[0,5,ind_time] - dt * der
+            phi_[0,5,ind_time-1] = phi_[0,5,ind_time] - dt * der
             
             der = phi_[0,2,ind_time] * jac[2,6] + phi_[0,6,ind_time] * jac[6,6] + phi_[0,10,ind_time] * jac[10,6]
             #phi_[0,6,ind_time-1] = phi_[0,6,ind_time] - dt * der
@@ -559,7 +559,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
             #phi_[0,8,ind_time-1] = phi_[0,8,ind_time] - dt * der
             
             der = phi_[0,9,ind_time] * jac[9,9] + phi_[0,15,ind_time] * jac[15,9]
-            phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
+            #phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
             
             der = phi_[0,10,ind_time] * jac[10,10] + phi_[0,15,ind_time] * jac[15,10]
             #phi_[0,10,ind_time-1] = phi_[0,10,ind_time] - dt * der
@@ -748,9 +748,10 @@ def D_u_h(V, state_, control_, t_,
     duh_[0,2] = - 1. / state_[0,18,t_-1]
     duh_[1,3] = - 1. / state_[0,19,t_-1]
     
-    duh_[2,5] = - ( 1. - state_[0,5,t_]) * factor_eec1 / tau_se
+    #duh_[2,5] = - (1. - state_[0,5,t_]) * factor_eec1 / tau_se
+    duh_[2,5] = - 0.1 * (1. - state_[0,5,t_]) * factor_eec1 / tau_se
         
-    z1ee = factor_ee1 * rd_exc[0,0] + factor_eec1 * ( ext_exc_rate + control_[0, 2, t_] )
+    z1ee = factor_ee1 * rd_exc[0,0] + factor_eec1 * ( ext_exc_rate + control_[0,2,t_] )
     z2ee = factor_ee2 * rd_exc[0,0] + factor_eec2 * ( ext_exc_rate + control_[0, 2, t_] )
     
     z1ei = factor_ei1 * rd_inh[0]
@@ -857,9 +858,9 @@ def jacobian(V, state_, control_, t_,
     jacobian_[4,4] = 1. / tauA
     jacobian_[4,17] = - a / tauA
     
-    jacobian_[5,0] = - (1. - state_[0,5,t_]) * factor_ee1 * 1e-3 / tau_se
-    #jacobian_[5,0] = factor_ee1 * 1e-3 / tau_se
-    jacobian_[5,5] = ( 1. + z1ee ) / tau_se
+    jacobian_[5,0] = - 0.1 * (1. - state_[0,5,t_]) * factor_ee1 * 1e-3 / tau_se
+    jacobian_[5,5] = 0.1 * ( 1. + ( factor_ee1 * rd_exc[0,0] + factor_eec1 * control_[0,2,t_]) ) / tau_se
+    #jacobian_[5,5] = 0.1 * ( 1. + z1ee ) / tau_se
     #jacobian_[5,5] = ( 1. + factor_eec1 * control_[0,2,t_] ) / tau_se
     
     #jacobian_[6,1] = - (1. - state_[0,6,t_]) * factor_ei1 * 1e-3 / tau_si
