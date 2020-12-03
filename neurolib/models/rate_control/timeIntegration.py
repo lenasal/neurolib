@@ -544,7 +544,7 @@ def timeIntegration_njit_elementwise(
                 + sigmae_ext ** 2
             )  # mV/sqrt(ms)
             
-            sigmae = 1. / ((1 + z1ee) * taum + tau_se)
+            sigmae = np.sqrt( 1. / ((1 + z1ee) * taum + tau_se)  + sigmae_ext ** 2  )
             
             sigmai = np.sqrt(
                 2 * sq_Jie_max * siev[no,i-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
