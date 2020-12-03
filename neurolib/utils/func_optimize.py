@@ -359,3 +359,43 @@ def betaHZ(N, n_control_vars, grad0_, grad1_, dir0_):
                 eta0 = 0.
             betaHZ[n,v] = max(beta0, eta0)
     return betaHZ
+
+def compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables):
+    grad_cost_e_ = cost.cost_energy_gradient(best_control_)
+    grad_cost_s_ = cost.cost_sparsity_gradient(N, n_control_vars, T, dt, best_control_)
+        
+    for j in range(n_control_vars):
+        if j in control_variables:
+            grad1_[:,j,:] = grad_cost_e_[:,j,:] + grad_cost_s_[:,j,:] + phi1_[:,j,:]
+    return grad1_
+
+def set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, VALID_VAR, tolerance_):
+    if CGVar not in VALID_VAR:
+        print("No valid variant of conjugate gradient descent selected, use none instead.")
+        CGVar = None
+        
+    beta = np.zeros(( N, n_control_vars ))
+    
+    if (i >= 2 and CGVar != None):
+        if CGVar == "HS":        # Hestens-Stiefel
+            beta = betaHS(N, n_control_vars, grad0_, grad1_, dir0_)
+        elif CGVar == "FR":        # Fletcher-Reeves
+            beta = betaFR(N, n_control_vars, grad0_, grad1_)
+        elif CGVar == "PR":        # Polak-Ribiere
+            beta = betaPR(N, n_control_vars, grad0_, grad1_)
+        elif CGVar == "HZ":        # Hager-Zhang
+            beta = betaHZ(N, n_control_vars, grad0_, grad1_, dir0_)
+            
+    dir1_ = np.zeros(( N, n_control_vars, T ))
+    for n in range(N):
+        for v in range(n_control_vars):
+            dir1_[n,v,:] = beta[n,v] * dir0_[n,v,:]
+    
+    dir0_ = - grad1_.copy() + dir1_
+    
+    # if this is too close to zero, use beta = 0 instead
+    if (CGVar != None and np.amax(np.absolute(dir0_)) < tolerance_ ):
+        print("Descent direction vanishing, use standard gradient descent")
+        dir0_ = - grad1_.copy()
+        
+    return dir0_

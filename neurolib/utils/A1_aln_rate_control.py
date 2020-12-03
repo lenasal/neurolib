@@ -221,9 +221,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             break
             
         i += 1   
-        #print("2")
         
-        phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_, control_,
+        grad0_ = grad1_.copy()
+        
+        phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_, best_control_,
                           sigmae_ext,
                           ext_exc_rate,
                           tau_se,
@@ -244,50 +245,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                           ndt_di,
                      )
         
-        #print("3")
-                
-        grad_cost_e_ = cost.cost_energy_gradient(best_control_)
-        grad_cost_s_ = cost.cost_sparsity_gradient(N, n_control_vars, T, dt, best_control_)
+            
+        grad1_ = fo.compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables)
         
-        #print("4")
-        
-        #print("adj mu = ", phi0_[0,2,:])
-        #print("sparsity gradient = ", grad_cost_s_[0,2,:])
-        #print("adjoint gradient exc rate = ", phi1_[0,2,:])
-        
-        grad0_ = grad1_.copy()
-        
-        for j in range(n_control_vars):
-            if j in control_variables:
-                grad1_[:,j,:] = grad_cost_e_[:,j,:] + grad_cost_s_[:,j,:] + phi1_[:,j,:]
-        
-        beta = np.zeros(( N, n_control_vars ))
-        
-        if CGVar not in VALID_VAR:
-            print("No valid variant of conjugate gradient descent selected, use none instead.")
-            CGVar = None
-        
-        if (i >= 2 and CGVar != None):
-            if CGVar == "HS":        # Hestens-Stiefel
-                beta = fo.betaHS(N, n_control_vars, grad0_, grad1_, dir0_)
-            elif CGVar == "FR":        # Fletcher-Reeves
-                beta = fo.betaFR(N, n_control_vars, grad0_, grad1_)
-            elif CGVar == "PR":        # Polak-Ribiere
-                beta = fo.betaPR(N, n_control_vars, grad0_, grad1_)
-            elif CGVar == "HZ":        # Hager-Zhang
-                beta = fo.betaHZ(N, n_control_vars, grad0_, grad1_, dir0_)
-                
-        dir1_ = np.zeros(( N, n_control_vars, T ))
-        for n in range(N):
-            for v in range(n_control_vars):
-                dir1_[n,v,:] = beta[n,v] * dir0_[n,v,:]
-        
-        dir0_ = - grad1_.copy() + dir1_
-        
-        # if this is too close to zero, use beta = 0 instead
-        if (CGVar != None and np.amax(np.absolute(dir0_)) < tolerance_ ):
-            print("Descent direction vanishing, use standard gradient descent")
-            dir0_ = - grad1_.copy()
+        dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, VALID_VAR, tolerance_)
         
         #dir0_[:,2:,-2] = 0. #pre-last rate control does not impact anything
         
@@ -371,6 +332,12 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         #print("found step ", step_)
         #print("continue with start steps ", startstep_exc_, startstep_inh_, startstep_joint_, startStep_)
         
+        print("repeat gradient computation")
+        best_control_ = u_opt0_ + step_ * dir0_
+        
+        
+        
+        
         
         runtime_[i] = timer() - runtime_start_
         
@@ -404,9 +371,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 
     state1_ = fo.updateFullState(model, best_control_, state_vars)
     
-    for j in [5,6,7,8,9,10,11,12]:
-        if any(state1_[0,j,:]) < 0. or any(state1_[0,j,:]) > 1.:
-            print("WARNING: s-parameter or sigma not in proper range")
+    for j in [5,6,7,8]:
+        if np.amin(state1_[0,j,:]) < 0. or np.amax(state1_[0,j,:]) > 1.:
+            print("WARNING: s-parameter not in proper range")
     
     improvement = 100.
     if total_cost_[0] != 0.:
@@ -583,7 +550,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
             phi_[0,3,ind_time-1] = phi_[0,3,ind_time] - dt * der
             
             der = phi_[0,2,ind_time] * jac[2,5] + phi_[0,5,ind_time] * jac[5,5] + phi_[0,9,ind_time] * jac[9,5]
-            phi_[0,5,ind_time-1] = phi_[0,5,ind_time] - dt * der
+            #phi_[0,5,ind_time-1] = phi_[0,5,ind_time] - dt * der
             
             der = phi_[0,2,ind_time] * jac[2,6] + phi_[0,6,ind_time] * jac[6,6] + phi_[0,10,ind_time] * jac[10,6]
             #phi_[0,6,ind_time-1] = phi_[0,6,ind_time] - dt * der
@@ -803,7 +770,7 @@ def D_u_h(V, state_, control_, t_,
     else:
         sigma_sqrt_e = 0.
     
-    duh_[2,15] = - 1e-3 * taum * factor_eec1
+    duh_[2,15] = - 2. * (0.1 + control_[0,2,t_])
     #duh_[2,15] = 0.5 * factor_eec1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
     
     return duh_
@@ -934,7 +901,7 @@ def jacobian(V, state_, control_, t_,
         sigma_sqrt_e = 0.
     
     jacobian_[15,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
-    jacobian_[15,0] = - 1e-3 * (1e-3) * factor_ee1 * taum
+    jacobian_[15,0] = -  (1e-3)
     #jacobian_[15,1] = 0.5 * (1e-3) * factor_ei1 * taum * ( (1 + z1ei) * taum + tau_si )**(-2) * state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
     #jacobian_[15,9] = - 0.5 * ( (1 + z1ee) * taum + tau_se )**(-1) * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
     #jacobian_[15,10] = - 0.5 * ( (1 + z1ei) * taum + tau_si )**(-1) * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
