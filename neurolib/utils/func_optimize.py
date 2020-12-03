@@ -130,17 +130,17 @@ def test_step(model, N, V, T, state_, target_, control_, dir_, test_step_ = 1e-1
         return 0., cost0_int_
    
 @numba.njit
-def setmaxcontrol(n_control_vars, control_, max_control_):
+def setmaxcontrol(n_control_vars, control_, max_control_, min_control_):
     for j in range(len(control_[0,0,:])):
         for v in range(n_control_vars):
             if control_[0,v,j] > max_control_:
                 control_[0,v,j] = max_control_
-            elif control_[0,v,j] < - max_control_:
-                control_[0,v,j] = - max_control_
+            elif control_[0,v,j] < min_control_:
+                control_[0,v,j] = min_control_
     return control_
     
 def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
-              bisec_factor_ = 2., max_control_ = 20., tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1"):
+              bisec_factor_ = 2., max_control_ = 20., min_control_ = -20., tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1"):
     
     
     cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
@@ -156,13 +156,12 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         test_control_ = control_ + step_ * dir_
         
         # include maximum control value to assure no divergence
-        if ( np.amax(np.absolute(test_control_)) > max_control_):
-            test_control_ = setmaxcontrol(V, test_control_, max_control_)
-            
+        if ( np.amax(test_control_) > max_control_ or np.amin(test_control_) < min_control_):
+            test_control_ = setmaxcontrol(V, test_control_, max_control_, min_control_)
+        
         state1_ = updateState(model, test_control_)
+                
         
-        
-        #print(N, V, T, dt, state1_, target_, test_control_, variables_)
         cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = variables_)
         
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
@@ -182,8 +181,8 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
                 step_ = factor * start_step_
                 #print("too small start step, increase to ", step_)
                 return step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = step_, max_it_ = max_it_,
-                                 bisec_factor_ = bisec_factor_, max_control_ = max_control_, tolerance_ = tolerance_,
-                                 substep_ = substep_, variables_ = variables_)
+                                 bisec_factor_ = bisec_factor_, max_control_ = max_control_, min_control_ = min_control_,
+                                 tolerance_ = tolerance_, substep_ = substep_, variables_ = variables_)
             elif (step_ < start_step_ / (2. * factor) and alg == "A1"):
                 start_step_ /= factor
                 #print("too large start step, decrease to ", start_step_)
@@ -193,11 +192,11 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
             substep = substep_
             
             step_min_up, cost_min_int_ = scan(model, N, V, T, dt, substep, control_, step_min_, dir_, target_,
-                                                  cost_min_int_, max_control_, variables_)
+                                                  cost_min_int_, max_control_, min_control_, variables_)
 
             substep = - substep_
             step_min_down, cost_min_int_ = scan(model, N, V, T, dt, substep, control_, step_min_, dir_, target_,
-                                                cost_min_int_, max_control_, variables_)
+                                                cost_min_int_, max_control_, min_control_, variables_)
 
             
             #print("scan done")
@@ -221,9 +220,10 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         
         step_ /= bisec_factor_
         
-def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_, variables_ = [0,1]):
+def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_,
+         min_control_, variables_ = [0,1]):
     cntrl_ = control_ + ( 1. + substep_ ) * step_min_ * dir_
-    cntrl_ = setmaxcontrol(V, cntrl_, max_control_)
+    cntrl_ = setmaxcontrol(V, cntrl_, max_control_, min_control_)
     state_ = updateState(model_, cntrl_)
     cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
     step_min1_ = step_min_
@@ -233,7 +233,7 @@ def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cos
         step_min1_ += substep_ * step_min_
         
         cntrl_ += substep_ * step_min_ * dir_
-        cntrl_ = setmaxcontrol(V, cntrl_, max_control_)
+        cntrl_ = setmaxcontrol(V, cntrl_, max_control_, min_control_)
         state_ = updateState(model_, cntrl_)
         cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
         

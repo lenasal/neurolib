@@ -14,7 +14,7 @@ np.set_printoptions(precision=8)
 VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
 
 def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
-       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1]):
+       cntrl_max_, cntrl_min_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1]):
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
@@ -270,7 +270,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
             s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                          best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_,
-                         variables_ = prec_variables)
+                         min_control_ = cntrl_min_, variables_ = prec_variables)
             minCost.append(tc_exc)
         
         #print("step size exc = ", s_exc)
@@ -282,7 +282,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
             s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                          best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_,
-                         variables_ = prec_variables)
+                         min_control_ = cntrl_min_, variables_ = prec_variables)
             minCost.append(tc_inh)
             
             #print("step size inh = ", s_inh)
@@ -294,14 +294,14 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
             joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                          best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000, max_control_ = cntrl_max_,
-                         variables_ = prec_variables)
+                         min_control_ = cntrl_min_, variables_ = prec_variables)
             minCost.append(joint_cost)
             
         #print(state1_[:,:2,:])
         
         step_, total_cost_[i], startStep_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_,
-                     variables_ = prec_variables)
+                         min_control_ = cntrl_min_, variables_ = prec_variables)
         
         minCost.append(total_cost_[i])
         
@@ -342,7 +342,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         best_control_ = u_opt0_ + step_ * dir0_
         
         # why is this needed?
-        best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_)
+        
+        best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)
         
         u_diff_ = ( np.absolute(best_control_ - u_opt0_) < tolerance_ )
         if ( u_diff_.all() ):
@@ -758,7 +759,8 @@ def D_u_h(V, state_, control_, t_,
     z2ei = factor_ei2 * rd_inh[0]     
 
     #duh_[2,9] = - ( (1. - state_[0,5,t_])**2 * factor_eec2 + state_[0,9,t_] * ( factor_eec2
-                #- ( tau_se + tau_se ) *  factor_eec1 ) ) / tau_se_sq      
+    #            - ( tau_se + tau_se ) *  factor_eec1 ) ) / tau_se_sq   
+    duh_[2,9] = - 0.1 * factor_eec1 / tau_se_sq 
         
     sig_ee = state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
     #sig_ee = ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
@@ -768,6 +770,7 @@ def D_u_h(V, state_, control_, t_,
     if sig_ee + sig_ei + sigmae_ext**2 > 0.:
         sigma_sqrt_e = ( sig_ee + sig_ei + sigmae_ext**2 )**(-1./2.)
     else:
+       # print("WARNING: sigma sqrt e not positive")
         sigma_sqrt_e = 0.
     
     #duh_[2,15] = 0.5 * factor_eec1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2.) * sigma_sqrt_e * state_[0,9,t_]
@@ -873,6 +876,7 @@ def jacobian(V, state_, control_, t_,
     #jacobian_[8,8] = ( 1. + z1ii ) / tau_si
     
     #jacobian_[9,0] = - ( (1. - state_[0,5,t_])**2 * factor_ee2 + state_[0,9,t_] * ( factor_ee2 - ( tau_se + tau_se ) *  factor_ee1 ) ) * 1e-3 / tau_se_sq
+    #jacobian_[9,0] = - factor_ee1 * 1e-3 / tau_se_sq
     #jacobian_[9,5] = 2. * (1. - state_[0,5,t_]) * z2ee / tau_se_sq
     #jacobian_[9,9] = - (z2ee - ( tau_se + tau_se ) * ( z1ee + 1.) ) / tau_se_sq
     
@@ -900,6 +904,7 @@ def jacobian(V, state_, control_, t_,
     if sig_ee + sig_ei + sigmae_ext**2 > 0.:
         sigma_sqrt_e = ( sig_ee + sig_ei + sigmae_ext**2 )**(-1./2.)
     else:
+        #print("WARNING: sigma sqrt e not positive")
         sigma_sqrt_e = 0.
     
     jacobian_[15,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
@@ -915,6 +920,7 @@ def jacobian(V, state_, control_, t_,
     if sig_ii + sig_ie + sigmai_ext**2 > 0.:
         sigma_sqrt_i = ( sig_ii + sig_ie + sigmai_ext**2 )**(-1./2.)
     else:
+        #print("WARNING: sigma sqrt i not positive")
         sigma_sqrt_i = 0.
     
     jacobian_[16,0] = 0.5 * (1e-3) * factor_ie1 * taum * ( (1 + z1ie) * taum + tau_se )**(-2) * state_[0,11,t_] * ( 2. * Jie_sq * tau_se * taum ) * sigma_sqrt_i

@@ -644,23 +644,25 @@ class Model:
     def costPrecisionGradientT(self, N, V_target, state_t_, target_state_t_):
         return cost.cost_precision_gradient_t(N, V_target, state_t_, target_state_t_)
     
-    def A2(self, cntrl_, target_, max_iteration_ = 10, tolerance_ = 1e-12, include_timestep_ = 100, start_step_ = 10, test_step_ = 1e-8, max_control_ = 20.,
-       t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, control_variables_ = [0,1]):
-        return opti2.A2(self, cntrl_, target_,  max_iteration_, tolerance_, include_timestep_, start_step_, test_step_, max_control_,
-       t_sim_, t_sim_pre_, t_sim_post_, control_variables_)
+    def A2(self, cntrl_, target_, max_iteration_ = 10, tolerance_ = 1e-12, include_timestep_ = 100, start_step_ = 10,
+           test_step_ = 1e-8, max_control_ = 20., min_control_ = -20., t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50,
+           control_variables_ = [0,1]):
+        return opti2.A2(self, cntrl_, target_,  max_iteration_, tolerance_, include_timestep_, start_step_, test_step_,
+                        max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, control_variables_)
     
-    def A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10., max_control_ = 20.,
-           t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1]):
+    def A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10.,
+           max_control_ = 20., min_control_ = -20., t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, CGVar = None,
+           control_variables_ = [0,1], prec_variables_ = [0,1]):
         if self.name == "fhn":
             return opti1_fhn.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
         elif self.name == "aln":
             return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
-                                        tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar,
+                                        tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar,
                                         control_variables_, prec_variables_)
         elif self.name == "aln-control":
             return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
-                                    tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
+                                    tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
         elif self.name == "rate_control":
             return opti1_rate_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
-                                        tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar,
+                                        tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar,
                                         control_variables_, prec_variables_)

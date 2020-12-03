@@ -27,7 +27,7 @@ dur_post = 0.5
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control", "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [ 2 ] #, [ [0,1], [2,3] ]
+cntrl_var = [ 0, 2 ] #, [ [0,1], [2,3] ]
 
 class TestA1A2Conv(unittest.TestCase):
     
@@ -69,16 +69,18 @@ class TestA1A2Conv(unittest.TestCase):
         
         if c_var in [0,1,[0,1]]:
             c_max = 1e4 * c_controlmax
+            c_min = 1e4 * c_controlmin
         else:
             c_max = 2. * r_controlmax
+            c_min = 2. * r_controlmin
         
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat, u_scheme, max_iteration,
-                           algorithm_tolerance, start_step, c_max, duration, dur_pre, dur_post, CGVar = None, control_variables_ = cntrl_var)
+                           algorithm_tolerance, start_step, c_max, c_min, duration, dur_pre, dur_post, CGVar = None, control_variables_ = cntrl_var)
         
         func.setInitVarsZero(model, init_vars)
 
         A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
-                            algorithm_tolerance, incl_steps, start_step, test_step, c_max, duration, dur_pre, dur_post,
+                            algorithm_tolerance, incl_steps, start_step, test_step, c_max, c_min, duration, dur_pre, dur_post,
                             control_variables_ = cntrl_var)
         
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
@@ -110,8 +112,10 @@ class TestA1A2Conv(unittest.TestCase):
             for v in cntrl_var:
                 for t in range(0, A1_grad.shape[2]):
                     print(n, v, t, A1_grad[n, v, t])
-                    if ( np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre]) < 1e-10):
-                        print("gradient could be nonvanishing because of absolute value.")
+                    if ( np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre]) < 1e-10
+                        or np.abs(np.amax(A1_bestControl[n,v,t+cntrl_zeros_pre]) - c_max) < 1e-4
+                        or np.abs(np.amin(A1_bestControl[n,v,t+cntrl_zeros_pre]) - c_min) < 1e-4):
+                        print("gradient could be nonvanishing because of absolute value, or because operating at boundary.")
                     else:
                         self.assertAlmostEqual(A1_grad[n, v, t], 0., assertion_tolerance_grad) 
       
