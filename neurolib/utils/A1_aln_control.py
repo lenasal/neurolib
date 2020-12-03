@@ -219,7 +219,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         i += 1   
         
-        phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_, control_,
+        phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_, best_control_,
                           sigmae_ext,
                           ext_exc_rate,
                           tau_se,
