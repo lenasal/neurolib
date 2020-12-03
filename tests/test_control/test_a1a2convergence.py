@@ -11,7 +11,7 @@ from neurolib.utils import costFunctions as cost
 import test_control_functions as func
 
 assertion_tolerance = 2
-assertion_tolerance_grad = 6
+assertion_tolerance_grad = 5
         
 c_controlmin, c_controlmax = -2., 2.
 r_controlmin, r_controlmax = 0., 0.1

@@ -369,10 +369,7 @@ def compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, con
             grad1_[:,j,:] = grad_cost_e_[:,j,:] + grad_cost_s_[:,j,:] + phi1_[:,j,:]
     return grad1_
 
-def set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, VALID_VAR, tolerance_):
-    if CGVar not in VALID_VAR:
-        print("No valid variant of conjugate gradient descent selected, use none instead.")
-        CGVar = None
+def set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, tolerance_):
         
     beta = np.zeros(( N, n_control_vars ))
     

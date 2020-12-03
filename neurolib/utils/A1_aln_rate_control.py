@@ -146,6 +146,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     runtime_start_ = timer()
     
     print("RUN ", i, ", total integrated cost = ", total_cost_[i])
+    
+    if CGVar not in VALID_VAR:
+        print("No valid variant of conjugate gradient descent selected, use none instead.")
+        CGVar = None
 
     state1_ = state0_.copy()
     u_opt0_ = control_.copy()
@@ -248,7 +252,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         grad1_ = fo.compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables)
         
-        dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, VALID_VAR, tolerance_)
+        dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, tolerance_)
         
         #dir0_[:,2:,-2] = 0. #pre-last rate control does not impact anything
         
@@ -330,14 +334,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             #startStep_ = startstep_adj_
             
         #print("found step ", step_)
-        #print("continue with start steps ", startstep_exc_, startstep_inh_, startstep_joint_, startStep_)
-        
-        print("repeat gradient computation")
-        best_control_ = u_opt0_ + step_ * dir0_
-        
-        
-        
-        
+        #print("continue with start steps ", startstep_exc_, startstep_inh_, startstep_joint_, startStep_)        
         
         runtime_[i] = timer() - runtime_start_
         
@@ -770,7 +767,7 @@ def D_u_h(V, state_, control_, t_,
     else:
         sigma_sqrt_e = 0.
     
-    duh_[2,15] = - 2. * (0.1 + control_[0,2,t_])
+    duh_[2,15] = factor_eec1 * (1. + z1ee)**(-2.)
     #duh_[2,15] = 0.5 * factor_eec1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
     
     return duh_
@@ -901,7 +898,7 @@ def jacobian(V, state_, control_, t_,
         sigma_sqrt_e = 0.
     
     jacobian_[15,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
-    jacobian_[15,0] = -  (1e-3)
+    jacobian_[15,0] = (1e-3) * factor_ee1 * (1. + z1ee)**(-2.)
     #jacobian_[15,1] = 0.5 * (1e-3) * factor_ei1 * taum * ( (1 + z1ei) * taum + tau_si )**(-2) * state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
     #jacobian_[15,9] = - 0.5 * ( (1 + z1ee) * taum + tau_se )**(-1) * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
     #jacobian_[15,10] = - 0.5 * ( (1 + z1ei) * taum + tau_si )**(-1) * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
