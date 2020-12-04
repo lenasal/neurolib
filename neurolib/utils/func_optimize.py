@@ -140,7 +140,8 @@ def setmaxcontrol(n_control_vars, control_, max_control_, min_control_):
     return control_
     
 def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
-              bisec_factor_ = 2., max_control_ = 20., min_control_ = -20., tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1"):
+              bisec_factor_ = 2., max_control_ = 20., min_control_ = -20., tolerance_ = 1e-16, substep_ = 0.1,
+              variables_ = [0,1], alg = "A1"):
     
     
     cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
@@ -264,7 +265,10 @@ def set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_, state_, state_post
         bs_[:,:,:i1+1] = state_pre_[:,:,:]
         check_pre(i1, bs_, state_, state_vars, a, b)
         bs_[:,:,i1:-i2] = state_[:,:,:]
-        bs_[:,:,-i2:] = state_post_[:,:,1:]
+        if i2 == 1:
+            bs_[:,:,-i2] = state_post_[:,:,1]
+        else:
+            bs_[:,:,-i2:] = state_post_[:,:,1:]
         check_post(i2, bs_, state_post_, state_vars, a, b)
         
     elif (i2 == 0 and i1 != 0):

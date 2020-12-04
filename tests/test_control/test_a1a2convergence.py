@@ -27,7 +27,8 @@ dur_post = 0.5
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control", "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [ 2 ] #, [ [0,1], [2,3] ]
+cntrl_var = [ 0 ] #, [ [0,1], [2,3] ]
+prec_var = [ 0 ]
 
 class TestA1A2Conv(unittest.TestCase):
     
@@ -48,7 +49,8 @@ class TestA1A2Conv(unittest.TestCase):
         cntrl_zeros_pre = int(dur_pre / model.params.dt)
         cntrl_zeros_post = int(dur_post / model.params.dt)
                 
-        control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var) 
+        control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
+                                         control_variables_ = cntrl_var) 
         
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
@@ -59,7 +61,8 @@ class TestA1A2Conv(unittest.TestCase):
         target = func.setTargetFromControl(model, control1, output_vars, target_vars)[:,:, cntrl_zeros_pre:]
             
         model.params.duration = duration
-        control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var) 
+        control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
+                                         control_variables_ = cntrl_var) 
         #control2 = model.getZeroControl()
         
         testip, testie, testis = random.uniform(1., 10.), random.uniform(0., 1.), random.uniform(0., 1.)
@@ -74,14 +77,15 @@ class TestA1A2Conv(unittest.TestCase):
             c_max = 2. * r_controlmax
             c_min = 2. * r_controlmin
         
-        A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat, u_scheme, max_iteration,
-                           algorithm_tolerance, start_step, c_max, c_min, duration, dur_pre, dur_post, CGVar = None, control_variables_ = cntrl_var)
+        A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat, u_scheme,
+                        max_iteration, algorithm_tolerance, start_step, c_max, c_min, duration, dur_pre, dur_post,
+                        CGVar = None, control_variables_ = cntrl_var, prec_variables_ = prec_var)
         
         func.setInitVarsZero(model, init_vars)
 
         A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
                             algorithm_tolerance, incl_steps, start_step, test_step, c_max, c_min, duration, dur_pre, dur_post,
-                            control_variables_ = cntrl_var)
+                            control_variables_ = cntrl_var, prec_variables_ = prec_var)
         
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         self.assertEqual(A2_bestControl.shape[2], cntrl_len)

@@ -514,8 +514,6 @@ def timeIntegration_njit_elementwise(
                 rowsum = rowsum + Cmat[no, col] * rd_exc[no, col]
                 rowsumsq = rowsumsq + Cmat[no, col] ** 2 * rd_exc[no, col]
                 
-            #print("input via coupling: time, node, rowsum = ", i, no, rowsum)
-
             # z1: weighted sum of delayed rates, weights=c*K
             z1ee = (
                 cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum
@@ -663,12 +661,12 @@ def timeIntegration_njit_elementwise(
 
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
             seim[no,i] = seim[no,i-1] + dt * seim_rhs
-            #siem[no,i] = siem[no,i-1] + dt * siem_rhs
+            siem[no,i] = siem[no,i-1] + dt * siem_rhs
             siim[no,i] = siim[no,i-1] + dt * siim_rhs
             seev[no,i] = seev[no,i-1] + dt * seev_rhs
-            #seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
-            #siev[no,i] = siev[no,i-1] + dt * siev_rhs
-            #siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
+            seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
+            siev[no,i] = siev[no,i-1] + dt * siev_rhs
+            siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
             
             #print(seev[no,i-1], seev_rhs)
 

@@ -392,7 +392,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
     state_post_ = 0.
     
-    if (t_sim_post_ > dt):
+    if (t_sim_post_ >= dt):
         
         if startind_ == 1:
             fo.update_init(model, init_vars, state_vars)
@@ -554,7 +554,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
             phi_[0,6,ind_time-1] = phi_[0,6,ind_time] - dt * der
             
             der = phi_[0,3,ind_time] * jac[3,7] + phi_[0,7,ind_time] * jac[7,7] + phi_[0,11,ind_time] * jac[11,7]
-            #phi_[0,7,ind_time-1] = phi_[0,7,ind_time] - dt * der
+            phi_[0,7,ind_time-1] = phi_[0,7,ind_time] - dt * der
             
             der = phi_[0,3,ind_time] * jac[3,8] + phi_[0,8,ind_time] * jac[8,8] + phi_[0,12,ind_time] * jac[12,8]
             phi_[0,8,ind_time-1] = phi_[0,8,ind_time] - dt * der
@@ -563,13 +563,13 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
             phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
             
             der = phi_[0,10,ind_time] * jac[10,10] + phi_[0,15,ind_time] * jac[15,10]
-            #phi_[0,10,ind_time-1] = phi_[0,10,ind_time] - dt * der
+            phi_[0,10,ind_time-1] = phi_[0,10,ind_time] - dt * der
             
             der = phi_[0,11,ind_time] * jac[11,11] + phi_[0,16,ind_time] * jac[16,11]
-            #phi_[0,11,ind_time-1] = phi_[0,11,ind_time] - dt * der
+            phi_[0,11,ind_time-1] = phi_[0,11,ind_time] - dt * der
             
             der = phi_[0,12,ind_time] * jac[12,12] + phi_[0,16,ind_time] * jac[16,12]
-            #phi_[0,12,ind_time-1] = phi_[0,12,ind_time] - dt * der
+            phi_[0,12,ind_time-1] = phi_[0,12,ind_time] - dt * der
             
             # do not impact anything else, could be left out
             #der = phi_[0,2,ind_time] * jac[2,13] + phi_[0,13,ind_time] * jac[13,13]
@@ -767,7 +767,7 @@ def D_u_h(V, state_, control_, t_,
     sig_ee = state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
     #sig_ee = ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
     sig_ei = state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * ( (1 + z1ei) * taum + tau_si )**(-1)
-    sig_ei = 0.
+    #sig_ei = 0.
     
     if sig_ee + sig_ei + sigmae_ext**2 > 0.:
         sigma_sqrt_e = ( sig_ee + sig_ei + sigmae_ext**2 )**(-1./2.)
@@ -775,7 +775,6 @@ def D_u_h(V, state_, control_, t_,
        # print("WARNING: sigma sqrt e not positive")
         sigma_sqrt_e = 0.
     
-    #duh_[2,15] = 0.5 * factor_eec1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2.) * sigma_sqrt_e * state_[0,9,t_]
     duh_[2,15] = 0.5 * factor_eec1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
     
     return duh_
@@ -866,35 +865,32 @@ def jacobian(V, state_, control_, t_,
     
     jacobian_[5,0] = - (1. - state_[0,5,t_]) * factor_ee1 * 1e-3 / tau_se
     jacobian_[5,5] = ( 1. + ( factor_ee1 * rd_exc[0,0] + factor_eec1 * control_[0,2,t_]) ) / tau_se
-    #jacobian_[5,5] = 0.1 * ( 1. + z1ee ) / tau_se
-    #jacobian_[5,5] = ( 1. + factor_eec1 * control_[0,2,t_] ) / tau_se
     
     jacobian_[6,1] = - (1. - state_[0,6,t_]) * factor_ei1 * 1e-3 / tau_si
     jacobian_[6,6] = ( 1. + z1ei ) / tau_si
     
-    #jacobian_[7,0] = - (1. - state_[0,7,t_]) * factor_ie1 * 1e-3 / tau_se
-    #jacobian_[7,7] = ( 1. + z1ie ) / tau_se
+    jacobian_[7,0] = - (1. - state_[0,7,t_]) * factor_ie1 * 1e-3 / tau_se
+    jacobian_[7,7] = ( 1. + z1ie ) / tau_se
     
     jacobian_[8,1] = - (1. - state_[0,8,t_]) * factor_ii1 * 1e-3 / tau_si
     jacobian_[8,8] = ( 1. + z1ii ) / tau_si
     
-    #jacobian_[9,0] = - ( (1. - state_[0,5,t_])**2 * factor_ee2 + state_[0,9,t_] * ( factor_ee2 - ( tau_se + tau_se ) *  factor_ee1 ) ) * 1e-3 / tau_se_sq
-    jacobian_[9,0] = ( - (1. - state_[0,5,t_])**2 * factor_ee2 * 1e-3 + (- factor_ee2 * 1e-3 + 2. * tau_se * factor_ee1 * 1e-3 ) * state_[0,9,t_] ) / tau_se_sq
+    jacobian_[9,0] = ( - (1. - state_[0,5,t_])**2 * factor_ee2 * 1e-3 + (- factor_ee2 * 1e-3
+                    + 2. * tau_se * factor_ee1 * 1e-3 ) * state_[0,9,t_] ) / tau_se_sq
     jacobian_[9,5] = 2. * (1. - state_[0,5,t_]) * z2ee / tau_se_sq
-    #jacobian_[9,5] = 2. * (1. - state_[0,5,t_]) / tau_se_sq
     jacobian_[9,9] = ( - z2ee + 2. * tau_se * ( z1ee + 1.) ) / tau_se_sq
     
-    #jacobian_[10,1] = - ( (1. - state_[0,6,t_])**2 * factor_ei2 + state_[0,10,t_] * ( factor_ei2 - ( tau_si + tau_si ) *  factor_ei1 ) ) * 1e-3 / tau_si_sq
-    #jacobian_[10,6] = 2. * (1. - state_[0,6,t_]) * z2ei / tau_si_sq
-    #jacobian_[10,10] = - (z2ei - ( tau_si + tau_si ) * ( z1ei + 1.) ) / tau_si_sq
+    jacobian_[10,1] = - ( (1. - state_[0,6,t_])**2 * factor_ei2 + state_[0,10,t_] * ( factor_ei2 - ( tau_si + tau_si ) *  factor_ei1 ) ) * 1e-3 / tau_si_sq
+    jacobian_[10,6] = 2. * (1. - state_[0,6,t_]) * z2ei / tau_si_sq
+    jacobian_[10,10] = - (z2ei - ( tau_si + tau_si ) * ( z1ei + 1.) ) / tau_si_sq
     
-    #jacobian_[11,0] = - ( (1. - state_[0,7,t_])**2 * factor_ie2 + state_[0,11,t_] * ( factor_ie2 - ( tau_se + tau_se ) *  factor_ie1 ) ) * 1e-3 / tau_se_sq
-    #jacobian_[11,7] = 2. * (1. - state_[0,7,t_]) * z2ie / tau_se_sq
-    #jacobian_[11,11] = - (z2ie - ( tau_se + tau_se ) * ( z1ie + 1.) ) / tau_se_sq
+    jacobian_[11,0] = - ( (1. - state_[0,7,t_])**2 * factor_ie2 + state_[0,11,t_] * ( factor_ie2 - ( tau_se + tau_se ) *  factor_ie1 ) ) * 1e-3 / tau_se_sq
+    jacobian_[11,7] = 2. * (1. - state_[0,7,t_]) * z2ie / tau_se_sq
+    jacobian_[11,11] = - (z2ie - ( tau_se + tau_se ) * ( z1ie + 1.) ) / tau_se_sq
     
-    #jacobian_[12,1] = - ( (1. - state_[0,8,t_])**2 * factor_ii2 + state_[0,12,t_] * ( factor_ii2 - ( tau_si + tau_si ) *  factor_ii1 ) ) * 1e-3 / tau_si_sq
-    #jacobian_[12,8] = 2. * (1. - state_[0,8,t_]) * z2ii / tau_si_sq
-    #jacobian_[12,12] = - (z2ii - ( tau_si + tau_si ) * ( z1ii + 1.) ) / tau_si_sq
+    jacobian_[12,1] = - ( (1. - state_[0,8,t_])**2 * factor_ii2 + state_[0,12,t_] * ( factor_ii2 - ( tau_si + tau_si ) *  factor_ii1 ) ) * 1e-3 / tau_si_sq
+    jacobian_[12,8] = 2. * (1. - state_[0,8,t_]) * z2ii / tau_si_sq
+    jacobian_[12,12] = - (z2ii - ( tau_si + tau_si ) * ( z1ii + 1.) ) / tau_si_sq
     
     jacobian_[13,13] = 1. / tau_ou
     
@@ -903,7 +899,7 @@ def jacobian(V, state_, control_, t_,
     sig_ee = state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
     #sig_ee = ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
     sig_ei = state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * ( (1 + z1ei) * taum + tau_si )**(-1)
-    sig_ei = 0.
+    #sig_ei = 0.
     
     if sig_ee + sig_ei + sigmae_ext**2 > 0.:
         sigma_sqrt_e = ( sig_ee + sig_ei + sigmae_ext**2 )**(-1./2.)
@@ -912,11 +908,10 @@ def jacobian(V, state_, control_, t_,
         sigma_sqrt_e = 0.
     
     jacobian_[15,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
-    #jacobian_[15,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2.) * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
-    #jacobian_[15,1] = 0.5 * (1e-3) * factor_ei1 * taum * ( (1 + z1ei) * taum + tau_si )**(-2) * state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
+    jacobian_[15,1] = 0.5 * (1e-3) * factor_ei1 * taum * ( (1 + z1ei) * taum + tau_si )**(-2) * state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
     jacobian_[15,9] = - 0.5 * ( (1 + z1ee) * taum + tau_se )**(-1) * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
-    #jacobian_[15,10] = - 0.5 * ( (1 + z1ei) * taum + tau_si )**(-1) * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
-    #jacobian_[15,15] = 1.
+    jacobian_[15,10] = - 0.5 * ( (1 + z1ei) * taum + tau_si )**(-1) * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
+    jacobian_[15,15] = 1.
     
     sig_ii = state_[0,12,t_] * ( 2. * Jii_sq * tau_si * taum ) * ( (1 + z1ii) * taum + tau_si )**(-1)
     sig_ie = state_[0,11,t_] * ( 2. * Jie_sq * tau_se * taum ) * ( (1 + z1ie) * taum + tau_se )**(-1)

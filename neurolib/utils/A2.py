@@ -9,7 +9,7 @@ np.set_printoptions(precision=8)
 # control optimization
 
 def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, start_step_, test_step_, max_control_, min_control_,
-       t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, control_variables_ = [0,1]):
+       t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, control_variables_ = [0,1], prec_variables_ = [0,1]):
             
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
@@ -69,7 +69,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
         print('RUN ', i, ', total integrated cost: ', total_cost_[i])
 
         delta_ = gf_dc(model, N, n_control_vars, T, best_control_, target_, include_timestep_, start_step_, test_step_, max_control_,
-                       min_control_, startind_, delay_state_vars_, control_variables_)
+                       min_control_, startind_, delay_state_vars_, control_variables_, prec_variables_)
         best_control_ += delta_
         
         best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, max_control_, min_control_)
@@ -117,7 +117,7 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     
     state_post_ = 0.
     
-    if (t_sim_post_ > dt):
+    if (t_sim_post_ >= dt):
         
         if startind_ == 1:
             fo.update_init(model, init_vars, state_vars)
@@ -134,6 +134,8 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
         
     i1 = int(round(t_sim_pre_/dt, 1))
     i2 = int(round(t_sim_post_/dt, 1))
+    
+    print(i1, i2)
         
     bc_, bs_ = fo.set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_, state_, state_post_, model.state_vars, model.params.a, model.params.b)
             
@@ -177,7 +179,7 @@ def get_dir(model, N, V, T, ind_node, ind_var, ind_time, state0, target0_, contr
 
 
 # Gradient of the cost function with respect to the control
-def gf_dc(model, N, V, T, control_, target_, include_timestep_, start_step_, test_step_, max_control_, min_control_, startind_, delay_state_vars_, control_variables_):
+def gf_dc(model, N, V, T, control_, target_, include_timestep_, start_step_, test_step_, max_control_, min_control_, startind_, delay_state_vars_, control_variables_, prec_variables_):
     
     dt = model.params['dt']
 
@@ -223,7 +225,8 @@ def gf_dc(model, N, V, T, control_, target_, include_timestep_, start_step_, tes
                 if not start_st_ == 0.:
                     #print("get step")
                     step_ = fo.step_size(model, N, V, T_, dt, state0, target0_, control0_, dir_, start_st_, max_it_ = 1000,
-                                         bisec_factor_ = 2., max_control_ = max_control_, min_control_ = min_control_, alg = "A2")
+                                         bisec_factor_ = 2., max_control_ = max_control_, min_control_ = min_control_,
+                                         variables_ = prec_variables_, alg = "A2")
                     
                     #print("step size = ", step_)
             
