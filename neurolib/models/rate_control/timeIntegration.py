@@ -497,7 +497,8 @@ def timeIntegration_njit_elementwise(
             noise_inh[no] = rates_inh[no, i]
 
             # subtract startind from control, as initial conditions are not set.
-            mue = (Jee_max * seem[no,i-1] #+ Jei_max * seim[no,i-1] + mue_ou[no,i-1] + ext_exc_current[no, i]
+            mue = (Jee_max * seem[no,i-1] + Jei_max * seim[no,i-1]
+                   + mue_ou[no,i-1] + ext_exc_current[no, i]
                    + control_ext[no, 0, i-startind+1]
                    )
             mui = (Jie_max * siem[no,i-1] + Jii_max * siim[no,i-1] + mui_ou[no,i-1] + ext_inh_current[no, i]
@@ -544,17 +545,23 @@ def timeIntegration_njit_elementwise(
                 + sigmae_ext ** 2
             )  # mV/sqrt(ms)
             
-            arg = 2. * sq_Jee_max * seev[no,i-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)  + sigmae_ext ** 2
+            arg = ( 2. * sq_Jee_max * seev[no,i-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
+                   + 2. * sq_Jei_max * seiv[no,i-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
+                   + sigmae_ext ** 2 ) # mV/sqrt(ms)
+            
             if arg > 0.:
                 sigmae = np.sqrt( arg  )
             else:
                 sigmae = 0.
                         
-            sigmai = np.sqrt(
-                2 * sq_Jie_max * siev[no,i-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
+            arg = ( 2 * sq_Jie_max * siev[no,i-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
                 + 2 * sq_Jii_max * siiv[no,i-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
-                + sigmai_ext ** 2
-            )  # mV/sqrt(ms)
+                + sigmai_ext ** 2 )  # mV/sqrt(ms)
+            
+            if arg > 0.:
+                sigmai = np.sqrt( arg  )
+            else:
+                sigmai = 0.
 
             if not filter_sigma:
                 sigmae_f[no,i-1] = sigmae
@@ -655,9 +662,9 @@ def timeIntegration_njit_elementwise(
                 sigmai_f[no,i] = sigmai_f[no,i-1] + dt * sigmai_f_rhs
 
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
-            #seim[no,i] = seim[no,i-1] + dt * seim_rhs
+            seim[no,i] = seim[no,i-1] + dt * seim_rhs
             #siem[no,i] = siem[no,i-1] + dt * siem_rhs
-            #siim[no,i] = siim[no,i-1] + dt * siim_rhs
+            siim[no,i] = siim[no,i-1] + dt * siim_rhs
             seev[no,i] = seev[no,i-1] + dt * seev_rhs
             #seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
             #siev[no,i] = siev[no,i-1] + dt * siev_rhs

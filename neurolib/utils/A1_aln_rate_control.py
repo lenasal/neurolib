@@ -534,6 +534,8 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
                                 phi_[0,15,ind_time+shift_i], phi_[0,16,ind_time+shift_i] ] ), 
                                 np.array( [jac[3,1], jac[6,1], jac[8,1], jac[10,1], jac[12,1], jac[15,1], jac[16,1]] ) )
         
+        #print(phi_[0,1,ind_time], phi_[0,3,ind_time])
+        
         if (ind_time == 0):
                 break
         
@@ -549,13 +551,13 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
             phi_[0,5,ind_time-1] = phi_[0,5,ind_time] - dt * der
             
             der = phi_[0,2,ind_time] * jac[2,6] + phi_[0,6,ind_time] * jac[6,6] + phi_[0,10,ind_time] * jac[10,6]
-            #phi_[0,6,ind_time-1] = phi_[0,6,ind_time] - dt * der
+            phi_[0,6,ind_time-1] = phi_[0,6,ind_time] - dt * der
             
             der = phi_[0,3,ind_time] * jac[3,7] + phi_[0,7,ind_time] * jac[7,7] + phi_[0,11,ind_time] * jac[11,7]
             #phi_[0,7,ind_time-1] = phi_[0,7,ind_time] - dt * der
             
             der = phi_[0,3,ind_time] * jac[3,8] + phi_[0,8,ind_time] * jac[8,8] + phi_[0,12,ind_time] * jac[12,8]
-            #phi_[0,8,ind_time-1] = phi_[0,8,ind_time] - dt * der
+            phi_[0,8,ind_time-1] = phi_[0,8,ind_time] - dt * der
             
             der = phi_[0,9,ind_time] * jac[9,9] + phi_[0,15,ind_time] * jac[15,9]
             phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
@@ -844,13 +846,12 @@ def jacobian(V, state_, control_, t_,
     
     jacobian_[2,2] = 1. / state_[0,18,t_]
     jacobian_[2,5] = - Jee_max / state_[0,18,t_]
-    #jacobian_[2,6] = - Jei_max / state_[0,18,t_]
-    #jacobian_[2,13] = - 1. / state_[0,18,t_]
+    jacobian_[2,6] = - Jei_max / state_[0,18,t_]
+    jacobian_[2,13] = - 1. / state_[0,18,t_]
     jacobian_[2,18] = ( Jee_max * state_[0,5,t_-1]
                        #+ Jei_max * state_[0,6,t_-1]
-                       + control_[0,0,t_] #+ ext_exc_current + state_[0,13,t_-1]
+                       + control_[0,0,t_] + ext_exc_current + state_[0,13,t_-1]
                        - state_[0,2,t_-1] ) / state_[0,18,t_-1]**2
-    #jacobian_[2,2] = 1. 
     
     jacobian_[3,3] = 1. / state_[0,19,t_]
     jacobian_[3,7] = - Jie_max / state_[0,19,t_]
@@ -868,14 +869,14 @@ def jacobian(V, state_, control_, t_,
     #jacobian_[5,5] = 0.1 * ( 1. + z1ee ) / tau_se
     #jacobian_[5,5] = ( 1. + factor_eec1 * control_[0,2,t_] ) / tau_se
     
-    #jacobian_[6,1] = - (1. - state_[0,6,t_]) * factor_ei1 * 1e-3 / tau_si
-    #jacobian_[6,6] = ( 1. + z1ei ) / tau_si
+    jacobian_[6,1] = - (1. - state_[0,6,t_]) * factor_ei1 * 1e-3 / tau_si
+    jacobian_[6,6] = ( 1. + z1ei ) / tau_si
     
     #jacobian_[7,0] = - (1. - state_[0,7,t_]) * factor_ie1 * 1e-3 / tau_se
     #jacobian_[7,7] = ( 1. + z1ie ) / tau_se
     
-    #jacobian_[8,1] = - (1. - state_[0,8,t_]) * factor_ii1 * 1e-3 / tau_si
-    #jacobian_[8,8] = ( 1. + z1ii ) / tau_si
+    jacobian_[8,1] = - (1. - state_[0,8,t_]) * factor_ii1 * 1e-3 / tau_si
+    jacobian_[8,8] = ( 1. + z1ii ) / tau_si
     
     #jacobian_[9,0] = - ( (1. - state_[0,5,t_])**2 * factor_ee2 + state_[0,9,t_] * ( factor_ee2 - ( tau_se + tau_se ) *  factor_ee1 ) ) * 1e-3 / tau_se_sq
     jacobian_[9,0] = ( - (1. - state_[0,5,t_])**2 * factor_ee2 * 1e-3 + (- factor_ee2 * 1e-3 + 2. * tau_se * factor_ee1 * 1e-3 ) * state_[0,9,t_] ) / tau_se_sq
@@ -883,17 +884,17 @@ def jacobian(V, state_, control_, t_,
     #jacobian_[9,5] = 2. * (1. - state_[0,5,t_]) / tau_se_sq
     jacobian_[9,9] = ( - z2ee + 2. * tau_se * ( z1ee + 1.) ) / tau_se_sq
     
-    jacobian_[10,1] = - ( (1. - state_[0,6,t_])**2 * factor_ei2 + state_[0,10,t_] * ( factor_ei2 - ( tau_si + tau_si ) *  factor_ei1 ) ) * 1e-3 / tau_si_sq
-    jacobian_[10,6] = 2. * (1. - state_[0,6,t_]) * z2ei / tau_si_sq
-    jacobian_[10,10] = - (z2ei - ( tau_si + tau_si ) * ( z1ei + 1.) ) / tau_si_sq
+    #jacobian_[10,1] = - ( (1. - state_[0,6,t_])**2 * factor_ei2 + state_[0,10,t_] * ( factor_ei2 - ( tau_si + tau_si ) *  factor_ei1 ) ) * 1e-3 / tau_si_sq
+    #jacobian_[10,6] = 2. * (1. - state_[0,6,t_]) * z2ei / tau_si_sq
+    #jacobian_[10,10] = - (z2ei - ( tau_si + tau_si ) * ( z1ei + 1.) ) / tau_si_sq
     
-    jacobian_[11,0] = - ( (1. - state_[0,7,t_])**2 * factor_ie2 + state_[0,11,t_] * ( factor_ie2 - ( tau_se + tau_se ) *  factor_ie1 ) ) * 1e-3 / tau_se_sq
-    jacobian_[11,7] = 2. * (1. - state_[0,7,t_]) * z2ie / tau_se_sq
-    jacobian_[11,11] = - (z2ie - ( tau_se + tau_se ) * ( z1ie + 1.) ) / tau_se_sq
+    #jacobian_[11,0] = - ( (1. - state_[0,7,t_])**2 * factor_ie2 + state_[0,11,t_] * ( factor_ie2 - ( tau_se + tau_se ) *  factor_ie1 ) ) * 1e-3 / tau_se_sq
+    #jacobian_[11,7] = 2. * (1. - state_[0,7,t_]) * z2ie / tau_se_sq
+    #jacobian_[11,11] = - (z2ie - ( tau_se + tau_se ) * ( z1ie + 1.) ) / tau_se_sq
     
-    jacobian_[12,1] = - ( (1. - state_[0,8,t_])**2 * factor_ii2 + state_[0,12,t_] * ( factor_ii2 - ( tau_si + tau_si ) *  factor_ii1 ) ) * 1e-3 / tau_si_sq
-    jacobian_[12,8] = 2. * (1. - state_[0,8,t_]) * z2ii / tau_si_sq
-    jacobian_[12,12] = - (z2ii - ( tau_si + tau_si ) * ( z1ii + 1.) ) / tau_si_sq
+    #jacobian_[12,1] = - ( (1. - state_[0,8,t_])**2 * factor_ii2 + state_[0,12,t_] * ( factor_ii2 - ( tau_si + tau_si ) *  factor_ii1 ) ) * 1e-3 / tau_si_sq
+    #jacobian_[12,8] = 2. * (1. - state_[0,8,t_]) * z2ii / tau_si_sq
+    #jacobian_[12,12] = - (z2ii - ( tau_si + tau_si ) * ( z1ii + 1.) ) / tau_si_sq
     
     jacobian_[13,13] = 1. / tau_ou
     

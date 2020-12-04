@@ -15,7 +15,7 @@ assertion_tolerance = 2
 c_controlmin, c_controlmax = -2., 2.
 r_controlmin, r_controlmax = 0., 0.1
 algorithm_tolerance = 1e-12
-max_iteration = int(1e4)
+max_iteration = int(1e6)
 start_step = 10.
 test_step = 1e-12
 
@@ -70,12 +70,14 @@ class TestA1(unittest.TestCase):
         
         if c_var in [0,1,[0,1]]:
             c_max = 1e4 * c_controlmax
+            c_min = 1e4 * c_controlmin
         else:
             c_max = 2. * r_controlmax
+            c_min = 2. * r_controlmin
                            
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat,
                             u_scheme, max_iteration_ = max_iteration, tolerance_ = algorithm_tolerance, startStep_ = start_step,
-                            max_control_ = c_max, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post,
+                            max_control_ = c_max, min_control_ = c_min, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post,
                             CGVar = cgv, control_variables_ = cntrl_var)        
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
@@ -131,11 +133,13 @@ class TestA1(unittest.TestCase):
         
         if c_var in [0,1,[0,1]]:
             c_max = 1e4 * c_controlmax
+            c_min = 1e4 * c_controlmin
         else:
             c_max = 2. * r_controlmax
+            c_min = 2. * r_controlmin
         
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat,
-                        u_scheme, max_iteration, algorithm_tolerance, start_step, c_max, duration,
+                        u_scheme, max_iteration, algorithm_tolerance, start_step, c_max, c_min, duration,
                         dur_pre, dur_post, CGVar = cgv, control_variables_ = cntrl_var)
         
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
