@@ -605,7 +605,7 @@ def timeIntegration_njit_elementwise(
 
             # now everything available for r.h.s:
 
-            mufe_rhs = (mue #- mufe[no,i-1] 
+            mufe_rhs = (mue - mufe[no,i-1] 
                         #+ control_ext[no, 0, i-startind+1]
                         ) / tau_exc[no,i-1]
             

@@ -538,10 +538,9 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
                 break
         
         if (ind_time != T-1):
-            der = phi_[0,0,ind_time+1] * jac[0,2] + phi_[0,2,ind_time] * jac[2,2] + phi_[0,17,ind_time] * jac[17,2] + phi_[0,18,ind_time] * jac[18,2]
+            der = ( phi_[0,0,ind_time+1] * jac[0,2] + phi_[0,2,ind_time] * jac[2,2] + phi_[0,17,ind_time] * jac[17,2]
+                   + phi_[0,18,ind_time] * jac[18,2] )
             phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
-            #print("der = ", der)
-            #print(phi_[0,0,ind_time+1] * jac[0,2] , phi_[0,2,ind_time] * jac[2,2] , phi_[0,17,ind_time] * jac[17,2] , phi_[0,18,ind_time] * jac[18,2])
             
             der = phi_[0,1,ind_time+1] * jac[1,3] + phi_[0,3,ind_time] * jac[3,3] + phi_[0,19,ind_time] * jac[19,3]
             phi_[0,3,ind_time-1] = phi_[0,3,ind_time] - dt * der
@@ -586,7 +585,8 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
         res = - phi_[0,3,ind_time-1] * jac[3,19]
         phi_[0,19,ind_time-1] = res
         
-        der = phi_[0,0,ind_time] * jac[0,4] + phi_[0,4,ind_time] * jac[4,4] + phi_[0,17,ind_time-1] * jac[17,4] + phi_[0,18,ind_time-1] * jac[18,4] 
+        der = ( phi_[0,0,ind_time] * jac[0,4] + phi_[0,4,ind_time] * jac[4,4] + phi_[0,17,ind_time-1] * jac[17,4]
+               + phi_[0,18,ind_time-1] * jac[18,4] )
         phi_[0,4,ind_time-1] = phi_[0,4,ind_time] - dt * der
 
         res = - phi_[0,0,ind_time] * jac[0,15] - phi_[0,18,ind_time-1] * jac[18,15] - phi_[0,17,ind_time-1] * jac[17,15] 
@@ -842,12 +842,14 @@ def jacobian(V, state_, control_, t_,
     jacobian_[1,3] = - d_r_func_mu(state_[0,3,t_], sigmarange, ds, state_[0,16,t_], Irange, dI, C, precalc_r) * 1e3
     jacobian_[1,16] = - d_r_func_sigma(state_[0,3,t_-1],sigmarange, ds, state_[0,16,t_-1], Irange, dI, C, precalc_r) * 1e3
     
-    #jacobian_[2,2] = 1. / state_[0,18,t_]
+    jacobian_[2,2] = 1. / state_[0,18,t_]
     jacobian_[2,5] = - Jee_max / state_[0,18,t_]
     #jacobian_[2,6] = - Jei_max / state_[0,18,t_]
     #jacobian_[2,13] = - 1. / state_[0,18,t_]
-    #jacobian_[2,18] = ( Jee_max * state_[0,5,t_-1] + Jei_max * state_[0,6,t_-1] + control_[0,0,t_] + ext_exc_current
-    #                   + state_[0,13,t_-1] - state_[0,2,t_-1] ) / state_[0,18,t_-1]**2
+    jacobian_[2,18] = ( Jee_max * state_[0,5,t_-1]
+                       #+ Jei_max * state_[0,6,t_-1]
+                       + control_[0,0,t_] #+ ext_exc_current + state_[0,13,t_-1]
+                       - state_[0,2,t_-1] ) / state_[0,18,t_-1]**2
     #jacobian_[2,2] = 1. 
     
     jacobian_[3,3] = 1. / state_[0,19,t_]
