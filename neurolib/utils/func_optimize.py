@@ -209,6 +209,8 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
                 result = step_min_down, cost_min_int_, start_step_
             else:
                 result = step_min_, cost_min_int_, start_step_
+                
+            #("result from scan : ", result)
             
             return result
         
@@ -222,20 +224,35 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         
 def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_,
          min_control_, variables_ = [0,1]):
-    cntrl_ = control_ + ( 1. + substep_ ) * step_min_ * dir_
+    #print("initial control = ", control_)
+    #print("direction = ", dir_)
+    i = 1.
+    cntrl_ = control_ + ( 1. + i * substep_ ) * step_min_ * dir_
+    #print("scan control = ", cntrl_[0,2,:])
     cntrl_ = setmaxcontrol(V, cntrl_, max_control_, min_control_)
+    #print("scan control after setting = ", cntrl_[0,2,:])
     state_ = updateState(model_, cntrl_)
     cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
     step_min1_ = step_min_
+    #print("cost = ", cost_int)
+    #print("previous step = ", step_min1_)
+
     
-    while (cost_int < cost_min_int_):
+    while (i <= 10. and cost_int < cost_min_int_):
+        #print("loop")
+        i += 1.
         cost_min_int_ = cost_int
         step_min1_ += substep_ * step_min_
+        #print("step = ", step_min1_)  
         
-        cntrl_ += substep_ * step_min_ * dir_
+        # new control
+        cntrl_ = control_ + ( 1. + i * substep_ ) * step_min_ * dir_
+        #print("scan control = ", cntrl_[0,2,:])
         cntrl_ = setmaxcontrol(V, cntrl_, max_control_, min_control_)
+        #print("scan control after setting = ", cntrl_[0,2,:])
         state_ = updateState(model_, cntrl_)
         cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
+        #print("cost = ", cost_int)  
         
         
     return step_min1_, cost_min_int_

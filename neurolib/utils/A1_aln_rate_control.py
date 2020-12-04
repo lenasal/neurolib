@@ -341,8 +341,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         print("RUN ", i, ", total integrated cost = ", total_cost_[i])
         best_control_ = u_opt0_ + step_ * dir0_
         
-        # why is this needed?
-        
+        # why is this needed?  
         best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)
         
         u_diff_ = ( np.absolute(best_control_ - u_opt0_) < tolerance_ )
@@ -760,7 +759,7 @@ def D_u_h(V, state_, control_, t_,
 
     #duh_[2,9] = - ( (1. - state_[0,5,t_])**2 * factor_eec2 + state_[0,9,t_] * ( factor_eec2
     #            - ( tau_se + tau_se ) *  factor_eec1 ) ) / tau_se_sq   
-    duh_[2,9] = - 0.1 * factor_eec1 / tau_se_sq 
+    duh_[2,9] = - factor_eec1 / tau_se_sq 
         
     sig_ee = state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
     #sig_ee = ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
@@ -876,7 +875,7 @@ def jacobian(V, state_, control_, t_,
     #jacobian_[8,8] = ( 1. + z1ii ) / tau_si
     
     #jacobian_[9,0] = - ( (1. - state_[0,5,t_])**2 * factor_ee2 + state_[0,9,t_] * ( factor_ee2 - ( tau_se + tau_se ) *  factor_ee1 ) ) * 1e-3 / tau_se_sq
-    #jacobian_[9,0] = - factor_ee1 * 1e-3 / tau_se_sq
+    jacobian_[9,0] = - factor_ee1 * 1e-3 / tau_se_sq
     #jacobian_[9,5] = 2. * (1. - state_[0,5,t_]) * z2ee / tau_se_sq
     #jacobian_[9,9] = - (z2ee - ( tau_se + tau_se ) * ( z1ee + 1.) ) / tau_se_sq
     
