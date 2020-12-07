@@ -27,8 +27,8 @@ dur_post = 0.5
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control", "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [ 0 ] #, [ [0,1], [2,3] ]
-prec_var = [ 0 ]
+cntrl_var = [ 1 ] #, [ [0,1], [2,3] ]
+prec_var = [ 1 ]
 
 class TestA1A2Conv(unittest.TestCase):
     

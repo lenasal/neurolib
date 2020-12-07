@@ -14,7 +14,7 @@ np.set_printoptions(precision=8)
 VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
 
 def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
-       cntrl_max_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1]):
+       cntrl_max_, cntrl_min_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1]):
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
@@ -131,7 +131,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             fo.update_init_delayed(model, delay_state_vars_, init_vars, state_vars, t_pre_ndt, startind_)
     
     model.params['duration'] = t_sim_
-    control_[:,2:,-2:] = 0.
+    #control_[:,2:,-2:] = 0.
     state0_ = fo.updateFullState(model, control_, state_vars)
     
     T = int( 1 + np.around(t_sim_ / dt, 1) )
@@ -145,6 +145,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     runtime_start_ = timer()
     
     print("RUN ", i, ", total integrated cost = ", total_cost_[i])
+    
+    if CGVar not in VALID_VAR:
+        print("No valid variant of conjugate gradient descent selected, use none instead.")
+        CGVar = None
 
     state1_ = state0_.copy()
     u_opt0_ = control_.copy()
@@ -219,6 +223,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         i += 1   
         
+        grad0_ = grad1_.copy()
+        
         phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_, best_control_,
                           sigmae_ext,
                           ext_exc_rate,
@@ -240,45 +246,11 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                           ndt_di,
                      )
         
-        grad_cost_e_ = cost.cost_energy_gradient(best_control_)
-        grad_cost_s_ = cost.cost_sparsity_gradient(N, n_control_vars, T, dt, best_control_)
+        grad1_ = fo.compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables)
         
-        #print("sparsity gradient = ", grad_cost_s_[0,2,:])
-        #print("adjoint gradient inh = ", phi1_[0,1,:])
+        dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, tolerance_)
         
-        grad0_ = grad1_.copy()
-        
-        for j in range(n_control_vars):
-            if j in control_variables:
-                grad1_[:,j,:] = grad_cost_e_[:,j,:] + grad_cost_s_[:,j,:] + phi1_[:,j,:]
-        
-        beta = np.zeros(( N, n_control_vars ))
-        
-        if CGVar not in VALID_VAR:
-            print("No valid variant of conjugate gradient descent selected, use none instead.")
-            CGVar = None
-        
-        if (i >= 2 and CGVar != None):
-            if CGVar == "HS":        # Hestens-Stiefel
-                beta = fo.betaHS(N, n_control_vars, grad0_, grad1_, dir0_)
-            elif CGVar == "FR":        # Fletcher-Reeves
-                beta = fo.betaFR(N, n_control_vars, grad0_, grad1_)
-            elif CGVar == "PR":        # Polak-Ribiere
-                beta = fo.betaPR(N, n_control_vars, grad0_, grad1_)
-            elif CGVar == "HZ":        # Hager-Zhang
-                beta = fo.betaHZ(N, n_control_vars, grad0_, grad1_, dir0_)
-                
-        dir1_ = np.zeros(( N, n_control_vars, T ))
-        for n in range(N):
-            for v in range(n_control_vars):
-                dir1_[n,v,:] = beta[n,v] * dir0_[n,v,:]
-        
-        dir0_ = - grad1_.copy() + dir1_
-        
-        # if this is too close to zero, use beta = 0 instead
-        if (CGVar != None and np.amax(np.absolute(dir0_)) < tolerance_ ):
-            print("Descent direction vanishing, use standard gradient descent")
-            dir0_ = - grad1_.copy()
+        #dir0_[:,2:,-2] = 0. #pre-last rate control does not impact anything
         
         minCost = []
         tc_exc = -1
@@ -292,7 +264,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
             s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                          best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_,
-                         variables_ = prec_variables)
+                         min_control_ = cntrl_min_, variables_ = prec_variables)
             minCost.append(tc_exc)
         
         #print("step size exc = ", s_exc)
@@ -304,7 +276,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
             s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                          best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_,
-                         variables_ = prec_variables)
+                         min_control_ = cntrl_min_, variables_ = prec_variables)
             minCost.append(tc_inh)
             
             #print("step size inh = ", s_inh)
@@ -316,14 +288,14 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
             joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                          best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000, max_control_ = cntrl_max_,
-                         variables_ = prec_variables)
+                         min_control_ = cntrl_min_, variables_ = prec_variables)
             minCost.append(joint_cost)
     
         #dir0_[0,2,1] /= 2.
         
-        step_, total_cost_[i], startStep_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+        step_, total_cost_[i], startstep_adj_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_,
-                     variables_ = prec_variables)
+                     min_control_ = cntrl_min_, variables_ = prec_variables)
         
         minCost.append(total_cost_[i])
         
@@ -336,28 +308,27 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             step_ = s_exc
             total_cost_[i] = tc_exc
             dir0_ = d_exc.copy()
-            #startStep_ = startstep_exc_
+            startStep_ = startstep_exc_
             
         elif (tc_inh ==  costMin):
             #print("choose inh only")
             step_ = s_inh
             total_cost_[i] = tc_inh
             dir0_ = d_inh.copy()
-            #startStep_ = startstep_inh_
+            startStep_ = startstep_inh_
         
         elif (joint_cost ==  costMin):
             #print("choose exc, inh combination")
             step_ = joint_step_
             total_cost_[i] = joint_cost
             dir0_ = joint_dir.copy()
-            #startStep_ = startstep_joint_ 
-        #else:
+            startStep_ = startstep_joint_ 
+        else:
             #print("choose adjoint")
-            #startStep_ = startstep_adj_
+            startStep_ = startstep_adj_
             
         #print("found step ", step_)
         #print("continue with start steps ", startstep_exc_, startstep_inh_, startstep_joint_, startStep_)
-        
         
         runtime_[i] = timer() - runtime_start_
         
@@ -365,7 +336,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         best_control_ = u_opt0_ + step_ * dir0_
         
         # why is this needed?
-        best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_)
+        best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)
         
         u_diff_ = ( np.absolute(best_control_ - u_opt0_) < tolerance_ )
         if ( u_diff_.all() ):
@@ -557,7 +528,8 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
                 break
         
         if (ind_time != T-1):
-            der = phi_[0,0,ind_time+1] * jac[0,2] + phi_[0,2,ind_time] * jac[2,2] + phi_[0,17,ind_time] * jac[17,2] + phi_[0,18,ind_time] * jac[18,2]
+            der = ( phi_[0,0,ind_time+1] * jac[0,2] + phi_[0,2,ind_time] * jac[2,2] + phi_[0,17,ind_time] * jac[17,2]
+                   + phi_[0,18,ind_time] * jac[18,2] )
             phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
             
             der = phi_[0,1,ind_time+1] * jac[1,3] + phi_[0,3,ind_time] * jac[3,3] + phi_[0,19,ind_time] * jac[19,3]
@@ -603,7 +575,8 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad,
         res = - phi_[0,3,ind_time-1] * jac[3,19]
         phi_[0,19,ind_time-1] = res
         
-        der = phi_[0,0,ind_time] * jac[0,4] + phi_[0,4,ind_time] * jac[4,4] + phi_[0,17,ind_time-1] * jac[17,4] + phi_[0,18,ind_time-1] * jac[18,4] 
+        der = ( phi_[0,0,ind_time] * jac[0,4] + phi_[0,4,ind_time] * jac[4,4] + phi_[0,17,ind_time-1] * jac[17,4]
+               + phi_[0,18,ind_time-1] * jac[18,4])
         phi_[0,4,ind_time-1] = phi_[0,4,ind_time] - dt * der
 
         res = - phi_[0,0,ind_time] * jac[0,15] - phi_[0,18,ind_time-1] * jac[18,15] - phi_[0,17,ind_time-1] * jac[17,15] 
@@ -777,7 +750,11 @@ def D_u_h(V, state_, control_, t_,
     sig_ee = state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
     sig_ei = state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * ( (1 + z1ei) * taum + tau_si )**(-1)
     
-    sigma_sqrt_e = ( sig_ee + sig_ei + sigmae_ext**2 )**(-1./2.)
+    if sig_ee + sig_ei + sigmae_ext**2 > 0.:
+        sigma_sqrt_e = ( sig_ee + sig_ei + sigmae_ext**2 )**(-1./2.)
+    else:
+       # print("WARNING: sigma sqrt e not positive")
+        sigma_sqrt_e = 0.
     
     duh_[2,15] = 0.5 * factor_eec1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
     
@@ -825,8 +802,8 @@ def jacobian(V, state_, control_, t_,
               precalc_r, precalc_tau_mu, precalc_V,
               ):
     
-    z1ee = factor_ee1 * rd_exc[0,0] + factor_eec1 * ( ext_exc_rate + control_[0, 2, t_] )
-    z2ee = factor_ee2 * rd_exc[0,0] + factor_eec2 * ( ext_exc_rate + control_[0, 2, t_] )
+    z1ee = factor_ee1 * rd_exc[0,0] + factor_eec1 * ( ext_exc_rate + control_[0,2,t_] )
+    z2ee = factor_ee2 * rd_exc[0,0] + factor_eec2 * ( ext_exc_rate + control_[0,2,t_] )
     
     z1ei = factor_ei1 * rd_inh[0]
     z2ei = factor_ei2 * rd_inh[0]
@@ -877,9 +854,9 @@ def jacobian(V, state_, control_, t_,
     jacobian_[8,1] = - (1. - state_[0,8,t_]) * factor_ii1 * 1e-3 / tau_si
     jacobian_[8,8] = ( 1. + z1ii ) / tau_si
     
-    jacobian_[9,0] = - ( (1. - state_[0,5,t_])**2 * factor_ee2 + state_[0,9,t_] * ( factor_ee2 - ( tau_se + tau_se ) *  factor_ee1 ) ) * 1e-3 / tau_se_sq
+    jacobian_[9,0] = - ( (1. - state_[0,5,t_])**2 * factor_ee2 + state_[0,9,t_] * ( factor_ee2 - ( tau_se + tau_se ) * factor_ee1 ) ) * 1e-3 / tau_se_sq
     jacobian_[9,5] = 2. * (1. - state_[0,5,t_]) * z2ee / tau_se_sq
-    jacobian_[9,9] = - (z2ee - ( tau_se + tau_se ) * ( z1ee + 1.) ) / tau_se_sq
+    jacobian_[9,9] = - ( z2ee - ( tau_se + tau_se ) * ( z1ee + 1.) ) / tau_se_sq
     
     jacobian_[10,1] = - ( (1. - state_[0,6,t_])**2 * factor_ei2 + state_[0,10,t_] * ( factor_ei2 - ( tau_si + tau_si ) *  factor_ei1 ) ) * 1e-3 / tau_si_sq
     jacobian_[10,6] = 2. * (1. - state_[0,6,t_]) * z2ei / tau_si_sq
@@ -900,7 +877,13 @@ def jacobian(V, state_, control_, t_,
     sig_ee = state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * ( (1 + z1ee) * taum + tau_se )**(-1)
     sig_ei = state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * ( (1 + z1ei) * taum + tau_si )**(-1)
     
-    sigma_sqrt_e = ( sig_ee + sig_ei + sigmae_ext**2 )**(-1./2.)
+    arg = sig_ee + sig_ei + sigmae_ext**2
+    
+    if arg > 0.:
+        sigma_sqrt_e = ( arg )**(-1./2.)
+    else:
+        #print("WARNING: sigma sqrt e not positive")
+        sigma_sqrt_e = 0.
     
     jacobian_[15,0] = 0.5 * (1e-3) * factor_ee1 * taum * ( (1 + z1ee) * taum + tau_se )**(-2) * state_[0,9,t_] * ( 2. * Jee_sq * tau_se * taum ) * sigma_sqrt_e
     jacobian_[15,1] = 0.5 * (1e-3) * factor_ei1 * taum * ( (1 + z1ei) * taum + tau_si )**(-2) * state_[0,10,t_] * ( 2. * Jei_sq * tau_si * taum ) * sigma_sqrt_e
@@ -911,7 +894,13 @@ def jacobian(V, state_, control_, t_,
     sig_ii = state_[0,12,t_] * ( 2. * Jii_sq * tau_si * taum ) * ( (1 + z1ii) * taum + tau_si )**(-1)
     sig_ie = state_[0,11,t_] * ( 2. * Jie_sq * tau_se * taum ) * ( (1 + z1ie) * taum + tau_se )**(-1)
     
-    sigma_sqrt_i = ( sig_ii + sig_ie + sigmai_ext**2 )**(-1./2.)
+    arg = sig_ii + sig_ie + sigmai_ext**2
+    
+    if arg > 0.:
+        sigma_sqrt_i = ( arg )**(-1./2.)
+    else:
+        #print("WARNING: sigma sqrt i not positive")
+        sigma_sqrt_i = 0.
     
     jacobian_[16,0] = 0.5 * (1e-3) * factor_ie1 * taum * ( (1 + z1ie) * taum + tau_se )**(-2) * state_[0,11,t_] * ( 2. * Jie_sq * tau_se * taum ) * sigma_sqrt_i
     jacobian_[16,1] = 0.5 * (1e-3) * factor_ii1 * taum * ( (1 + z1ii) * taum + tau_si )**(-2) * state_[0,12,t_] * ( 2. * Jii_sq * tau_si * taum ) * sigma_sqrt_i
