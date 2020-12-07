@@ -9,6 +9,7 @@ costparams = dotdict({})
 costparamsdefault = np.array([1., 1., 1.])
 tolerance = 1e-16
 
+#@numba.njit
 def makeList(list_):
     l = List()
     for l0 in list_:
@@ -17,6 +18,7 @@ def makeList(list_):
 
 def getParams():
     if (len(costparams) == 0):
+        logging.warn("Cost parameters not found, set default values.")
         setDefaultParams()
     return costparams.I_p, costparams.I_e, costparams.I_s
 
@@ -216,7 +218,7 @@ def f_int(N, V, T, dt, state_, target_, control_, v_ = [0,1]):
     # return cost_int: integrated (total) cost
         
     var = makeList(v_)
-    
+        
     i_p, i_e, i_s = getParams()
     cost_prec, cost_energy, cost_sparsity = 0., 0., 0.
             
@@ -227,9 +229,11 @@ def f_int(N, V, T, dt, state_, target_, control_, v_ = [0,1]):
     if not i_s < 1e-12:
         cost_sparsity = f_cost_sparsity_int(N, V, T, dt, i_s, control_)
     
-    #print("cost precision = ", cost_prec)
-    #print("cost energy = ", cost_energy)
-    #print("cost sparsity = ", cost_sparsity)
+    """
+    print("cost precision = ", cost_prec)
+    print("cost energy = ", cost_energy)
+    print("cost sparsity = ", cost_sparsity)
+    """
     
     #if (cost_energy > 100.):
     #    print("control = ", control_)

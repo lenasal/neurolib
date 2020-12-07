@@ -48,9 +48,12 @@ class TestA1A2Conv(unittest.TestCase):
         
         cntrl_zeros_pre = int(dur_pre / model.params.dt)
         cntrl_zeros_post = int(dur_post / model.params.dt)
+        
+        delay_ndt = func.getDelay_ndt(model)
                 
         control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
                                          control_variables_ = cntrl_var) 
+        control1[:,:,-4-delay_ndt:] = 0.
         
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
@@ -109,7 +112,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         for n in range(A2_bestControl.shape[0]):
             for v in cntrl_var:
-                for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - 1 - cntrl_zeros_post):
+                for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - 1 - cntrl_zeros_post - delay_ndt):
                     self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)   
                     
         for n in range(A2_bestControl.shape[0]):

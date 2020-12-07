@@ -115,13 +115,12 @@ def update_init_delayed(model, delay_state_vars_, init_vars_, state_vars_, t_pre
             else:
                 model.params[init_vars_[iv]] = model.state[state_vars_[sv]]
 
-def test_step(model, N, V, T, state_, target_, control_, dir_, test_step_ = 1e-12, variables_ = [0,1]):
-    dt = model.params['dt']
-    cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
+def test_step(model, N, V, T, dt, state_, target_, control_, dir_, cost0_, test_step_ = 1e-12, prec_variables_ = [0,1]):
+    cost0_int_ = cost0_
     
     test_control_ = control_ + test_step_ * dir_
     state1_ = updateState(model, test_control_)
-    cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = variables_)
+    cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = prec_variables_)
     #print("test step size computation : ------ step size, cost1, cost0 : ", test_step_, cost1_int_, cost0_int_)
         
     if (cost1_int_ < cost0_int_):

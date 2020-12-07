@@ -11,22 +11,25 @@ from neurolib.utils import costFunctions as cost
 import test_control_functions as func
 
 assertion_tolerance = 2
+assertion_tolerance_diffnode = 1
+assertion_tolerance_grad = 5
         
 c_controlmin, c_controlmax = -2., 2.
 r_controlmin, r_controlmax = 0., 0.1
 algorithm_tolerance = 1e-12
-max_iteration = int(1e6)
+max_iteration = int(1e4)
 start_step = 10.
 test_step = 1e-12
 
-duration = 0.8
+duration = 1.
 dur_pre = 0.5
 dur_post = 0.5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control"], "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [2]#, [ [0,1], [2,3] ]
+cntrl_var = [ 2 ]#, [ [0,1], [2,3] ]
+prec_var = [ 0 ]
 
 np.set_printoptions(precision=16)
 
@@ -49,9 +52,11 @@ class TestA1(unittest.TestCase):
             
         cntrl_zeros_pre = int(dur_pre / model.params.dt)
         cntrl_zeros_post = int(dur_post / model.params.dt)
+        
+        delay_ndt = func.getDelay_ndt(model)
             
         control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var)  
-        #control1 = model.getZeroControl()
+        control1[:,:,-4-delay_ndt:] = 0.
 
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
@@ -78,7 +83,7 @@ class TestA1(unittest.TestCase):
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat,
                             u_scheme, max_iteration_ = max_iteration, tolerance_ = algorithm_tolerance, startStep_ = start_step,
                             max_control_ = c_max, min_control_ = c_min, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post,
-                            CGVar = cgv, control_variables_ = cntrl_var)        
+                            CGVar = cgv, control_variables_ = cntrl_var, prec_variables_ = prec_var)        
             
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         
@@ -86,17 +91,32 @@ class TestA1(unittest.TestCase):
         print("control1 = ", control1[0,cntrl_var,:])
         print("best control a1 = ", A1_bestControl[0,cntrl_var,:])
         print("grad = ", A1_grad[0,cntrl_var,:])
+        
+        tol = assertion_tolerance
+        if not c_var == prec_var[0]:
+            tol = assertion_tolerance_diffnode
                     
         for n in range(A1_bestControl.shape[0]):
             for v in cntrl_var:
-                for t in range(1, control1.shape[2] - 3): # rate control does not perform well for last index
+                for t in range(1, control1.shape[2] - 1 - delay_ndt): # rate control does not perform well for last index
                     print(n, v, t)
-                    self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], assertion_tolerance) 
+                    self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], tol) 
                     
         for t in range(len(A1_runtime)-1):
             if (A1_runtime[t+1] == 0.):
                 break
                 self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
+                
+        for n in range(A1_bestControl.shape[0]):
+            for v in cntrl_var:
+                for t in range(0, A1_grad.shape[2]):
+                    print(n, v, t, A1_grad[n, v, t])
+                    if ( np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre]) < 1e-10
+                        or np.abs(np.amax(A1_bestControl[n,v,t+cntrl_zeros_pre]) - c_max) < 1e-4
+                        or np.abs(np.amin(A1_bestControl[n,v,t+cntrl_zeros_pre]) - c_min) < 1e-4):
+                        print("gradient could be nonvanishing because of absolute value, or because operating at boundary.")
+                    else:
+                        self.assertAlmostEqual(A1_grad[n, v, t], 0., assertion_tolerance_grad) 
                     
 
     def test_A1zeroControlForEnergyAndSparsityCostOnly(self):
@@ -147,7 +167,7 @@ class TestA1(unittest.TestCase):
         for n in range(A1_bestControl.shape[0]):
             for v in cntrl_var:
                 for t in range(1, A1_bestControl.shape[2] - 2):
-                    print(n, v, t)
+                    #print(n, v, t)
                     self.assertAlmostEqual(A1_bestControl[n, v, t], 0., assertion_tolerance)  
                     
         for t in range(len(A1_runtime)-1):

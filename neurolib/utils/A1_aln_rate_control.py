@@ -299,7 +299,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         #print(state1_[:,:2,:])
         
-        step_, total_cost_[i], startStep_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+        step_, total_cost_[i], startstep_adj_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_,
                          min_control_ = cntrl_min_, variables_ = prec_variables)
         
@@ -314,24 +314,24 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             step_ = s_exc
             total_cost_[i] = tc_exc
             dir0_ = d_exc.copy()
-            #startStep_ = startstep_exc_
+            startStep_ = startstep_exc_
             
         elif (tc_inh ==  costMin):
             #print("choose inh only")
             step_ = s_inh
             total_cost_[i] = tc_inh
             dir0_ = d_inh.copy()
-            #startStep_ = startstep_inh_
+            startStep_ = startstep_inh_
         
         elif (joint_cost ==  costMin):
             #print("choose exc, inh combination")
             step_ = joint_step_
             total_cost_[i] = joint_cost
             dir0_ = joint_dir.copy()
-            #startStep_ = startstep_joint_ 
-        #else:
+            startStep_ = startstep_joint_ 
+        else:
             #print("choose adjoint")
-            #startStep_ = startstep_adj_
+            startStep_ = startstep_adj_
             
         #print("found step ", step_)
         #print("continue with start steps ", startstep_exc_, startstep_inh_, startstep_joint_, startStep_)        

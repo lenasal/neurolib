@@ -100,9 +100,9 @@ def getmodel(i, dur_pre, dur_post):
         dt = model_.params.dt
         maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
     
-        model_.params.signalV = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)
-        model_.params.de = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)
-        model_.params.di = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.signalV = np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.di = np.around( maxDelay * random.uniform(0., 1.), 1)
                         
         # should not have too big impact
         model_.params.ext_exc_current = random.uniform(0., 1.2)
