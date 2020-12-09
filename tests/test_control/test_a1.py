@@ -17,31 +17,37 @@ assertion_tolerance_grad = 5
 c_controlmin, c_controlmax = -2., 2.
 r_controlmin, r_controlmax = 0., 0.1
 algorithm_tolerance = 1e-12
-max_iteration = int(1e4)
+max_iteration = int(1e6)
 start_step = 10.
-test_step = 1e-12
+test_step = 1e-14
 
-duration = 1.
+duration = 1.2
 dur_pre = 0.5
 dur_post = 0.5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control"], "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [ 2 ]#, [ [0,1], [2,3] ]
+cntrl_var = [ 0 ]#, [ [0,1], [2,3] ]
 prec_var = [ 0 ]
+ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
+ind_timeshift = 1   # for c=0 and p=0, c=1 and p=1, c=2 and p=0
 
-np.set_printoptions(precision=16)
+np.set_printoptions(precision=4)
 
 class TestA1(unittest.TestCase): 
 # set init vars zero everywhere or nowhere
     
     
     def test_A1inputControlForPrecisionCostOnly(self):
+        
+        delay_ndt = func.getDelay_ndt(model)
                         
         print("test_A1inputControlForPrecisionCostOnly for model", testcaseind,
               "\n with conjugated gradient descent variant", cgv,
-              "\n for control variables", c_var)
+              "\n for control variables", cntrl_var[0],
+              "\n for precision measurement variable", prec_var[0],
+              "\n with delay by", delay_ndt, "timesteps.")
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -52,11 +58,10 @@ class TestA1(unittest.TestCase):
             
         cntrl_zeros_pre = int(dur_pre / model.params.dt)
         cntrl_zeros_post = int(dur_post / model.params.dt)
-        
-        delay_ndt = func.getDelay_ndt(model)
             
-        control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = cntrl_var)  
-        control1[:,:,-4-delay_ndt:] = 0.
+        control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
+                                         control_variables_ = cntrl_var)  
+        control1[:,:,-delay_ndt-ind_timeshift:] = 0.
 
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
@@ -73,7 +78,7 @@ class TestA1(unittest.TestCase):
             
         func.setInitVarsZero(model, init_vars)
         
-        if c_var in [0,1,[0,1]]:
+        if cntrl_var[0] == 0 or cntrl_var[0] == 1:
             c_max = 1e4 * c_controlmax
             c_min = 1e4 * c_controlmin
         else:
@@ -93,12 +98,13 @@ class TestA1(unittest.TestCase):
         print("grad = ", A1_grad[0,cntrl_var,:])
         
         tol = assertion_tolerance
-        if not c_var == prec_var[0]:
+        if not cntrl_var[0] == prec_var[0]:
             tol = assertion_tolerance_diffnode
                     
         for n in range(A1_bestControl.shape[0]):
             for v in cntrl_var:
-                for t in range(1, control1.shape[2] - 1 - delay_ndt): # rate control does not perform well for last index
+                # last index could go wrong
+                for t in range(1, control1.shape[2] - ind_timeshift - delay_ndt):
                     print(n, v, t)
                     self.assertAlmostEqual(A1_bestControl[n, v, t], control1[n, v, t], tol) 
                     
@@ -121,9 +127,13 @@ class TestA1(unittest.TestCase):
 
     def test_A1zeroControlForEnergyAndSparsityCostOnly(self):
         
+        delay_ndt = func.getDelay_ndt(model)
+        
         print("test_A1zeroControlForEnergyCostOnly for model", testcaseind,
               "\n with conjugated gradient descent variant", cgv,
-              "\n for control variables", c_var)
+              "\n for control variables", cntrl_var[0],
+              "\n for precision measurement variable", prec_var[0],
+              "\n with delay by", delay_ndt, "timesteps.")
         
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -151,7 +161,7 @@ class TestA1(unittest.TestCase):
         
         func.setInitVarsZero(model, init_vars)
         
-        if c_var in [0,1,[0,1]]:
+        if cntrl_var[0] == 0 or cntrl_var[0] == 1:
             c_max = 1e4 * c_controlmax
             c_min = 1e4 * c_controlmin
         else:
@@ -189,15 +199,14 @@ if __name__ == '__main__':
         model = func.getmodel(testcaseind, dur_pre, dur_post)
         
         for cgv in cg_var:
-            for c_var in cntrl_var:
-                suite = unittest.TestLoader().loadTestsFromTestCase(TestA1)
-                result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
-                runs += result[-1].testsRun
-                if not result[-1].wasSuccessful():
-                    success = False
-                    errors += 1
-                    failures += 1
-                    failedTests.append(testcaseind)
+            suite = unittest.TestLoader().loadTestsFromTestCase(TestA1)
+            result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
+            runs += result[-1].testsRun
+            if not result[-1].wasSuccessful():
+                success = False
+                errors += 1
+                failures += 1
+                failedTests.append(testcaseind)
         
     print("Run", runs, "tests with", errors, "errors and", failures, "failures.")
     if success:

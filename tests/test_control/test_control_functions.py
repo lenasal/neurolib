@@ -80,6 +80,7 @@ def getmodel(i, dur_pre, dur_post):
         model_ = ALNModel()
         dt = model_.params.dt
         maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
+        model_.params.sigma_ou = 0.
     
         model_.params.signalV = np.around( maxDelay * random.uniform(0., 1.), 1)
         model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
@@ -99,23 +100,33 @@ def getmodel(i, dur_pre, dur_post):
         model_ = RateModel()
         dt = model_.params.dt
         maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
+        model_.params.sigma_ou = 0.
     
         model_.params.signalV = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)
-        model_.params.de = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)
+        model_.params.de = np.around( maxDelay * random.uniform(0., 1.), 1)
         model_.params.di = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)
                         
         # should not have too big impact
-        model_.params.ext_exc_current = random.uniform(0., 1.2)
-        model_.params.ext_inh_current = random.uniform(0., 1.2)
+        model_.params.ext_exc_current = 0.#random.uniform(0., 1.2)
+        model_.params.ext_inh_current = 0.#random.uniform(0., 1.2)
         
-        model_.params.mue_ext_mean = random.uniform(0., 4.)
-        model_.params.mui_ext_mean = random.uniform(0., 4.)
+        model_.params.mue_ext_mean = 0.#random.uniform(0., 4.)
+        model_.params.mui_ext_mean = 0.#random.uniform(0., 4.)
         
-        model_.params.sigmae_ext = model_.params.mue_ext_mean * random.uniform(0.5, 1.)
-        model_.params.sigmai_ext = model_.params.mui_ext_mean * random.uniform(0.5, 1.)
+        model_.params.sigmae_ext = 0.#model_.params.mue_ext_mean * random.uniform(0.5, 1.)
+        model_.params.sigmai_ext = 0.#model_.params.mui_ext_mean * random.uniform(0.5, 1.)
         
-        #model_.params.a = 0.
-        #model_.params.b = 0.
+        model_.params.cie = 1.
+        model_.params.Jie_max = 1.
+        model_.params.tau_se = 1.
+        model_.params.tau_si = 1.
+        model_.params.C = 1.
+        model_.params.gL = 1.
+        model_.params.Ke = 1000.
+        model_.params.Ki = 1000.
+        
+        model_.params.a = 0.
+        model_.params.b = 0.
         
         #setParametersALN(model_)
         

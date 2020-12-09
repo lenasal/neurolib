@@ -95,7 +95,7 @@ def plot_traces(model, control_):
     
     rows = 3
     columns = 2
-    fig, ax = plt.subplots(rows, columns, figsize=(12, 8), linewidth=8, edgecolor='grey')
+    fig, ax = plt.subplots(rows, columns, figsize=(12, 4), linewidth=8, edgecolor='grey')
     
     ax[0,0].plot(model.t, model.rates_exc[0,:], label ="exc rates")
     ax[0,1].plot(model.t, model.rates_inh[0,:], label ="inh rates")

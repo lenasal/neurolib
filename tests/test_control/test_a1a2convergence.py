@@ -10,32 +10,43 @@ import random
 from neurolib.utils import costFunctions as cost
 import test_control_functions as func
 
+np.set_printoptions(precision=4)
+
 assertion_tolerance = 2
 assertion_tolerance_grad = 5
         
-c_controlmin, c_controlmax = -2., 2.
+c_controlmin, c_controlmax = -0., 2.
 r_controlmin, r_controlmax = 0., 0.1
-algorithm_tolerance = 1e-32
+algorithm_tolerance = 1e-24
 max_iteration = int(1e4)
 start_step = 10.
 test_step = 1e-6
 
-duration = 1.
+duration = 1.2
 dur_pre = 0.5
 dur_post = 0.5
 
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control", "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
-cntrl_var = [ 1 ] #, [ [0,1], [2,3] ]
+cntrl_var = [ 0 ] #, [ [0,1], [2,3] ]
 prec_var = [ 1 ]
+ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
+#ind_timeshift = 1   # for c=0 and p=0, c=1 and p=1, c=2 and p=0
+
+testip, testie, testis = round(1e1 * random.uniform(1., 10.),1), 1.*round(random.uniform(0., 1e0),1), 1.*round(random.uniform(0., 1e0),1)
 
 class TestA1A2Conv(unittest.TestCase):
     
     def test_A1A2ConvergeForRandomTarget_PSE(self):
+        
+        delay_ndt = func.getDelay_ndt(model)
+
         print("test_A1A2ConvergeForRandomTarget_PE for model", testcaseind,
               "\n with conjugated gradient descent variant", cgv,
-              "\n for control variables", c_var)
+              "\n for control variable", cntrl_var[0],
+              "\n for precision measurement variable", prec_var[0],
+              "\n with delay by", delay_ndt, "timesteps.")
                 
         target_vars, output_vars, init_vars = model.target_output_vars, model.output_vars, model.init_vars
         c_scheme, u_mat, u_scheme = func.getSchemes(model)
@@ -48,32 +59,33 @@ class TestA1A2Conv(unittest.TestCase):
         
         cntrl_zeros_pre = int(dur_pre / model.params.dt)
         cntrl_zeros_post = int(dur_post / model.params.dt)
-        
-        delay_ndt = func.getDelay_ndt(model)
-                
+                        
         control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
                                          control_variables_ = cntrl_var) 
-        control1[:,:,-4-delay_ndt:] = 0.
+        control1[:,:,-delay_ndt-ind_timeshift:] = 0.
+        #control1 = model.getZeroControl()
+        #control1[0,0,cntrl_zeros_pre + 3] = 1.
         
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
             cntrl_zeros_post = 1
             
         func.setInitVarsZero(model, init_vars)
+        
+        print("target = ", func.setTargetFromControl(model, control1, output_vars, target_vars))
             
         target = func.setTargetFromControl(model, control1, output_vars, target_vars)[:,:, cntrl_zeros_pre:]
             
         model.params.duration = duration
         control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
                                          control_variables_ = cntrl_var) 
-        #control2 = model.getZeroControl()
+        control2 = model.getZeroControl()
         
-        testip, testie, testis = random.uniform(1., 10.), random.uniform(0., 1.), random.uniform(0., 1.)
-        cost.setParams(10.*testip, testie, testis)
+        cost.setParams(testip, testie, testis)
         
         func.setInitVarsZero(model, init_vars)
         
-        if c_var in [0,1,[0,1]]:
+        if cntrl_var[0] == 0 or cntrl_var[0] == 1:
             c_max = 1e4 * c_controlmax
             c_min = 1e4 * c_controlmin
         else:
@@ -93,6 +105,7 @@ class TestA1A2Conv(unittest.TestCase):
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         self.assertEqual(A2_bestControl.shape[2], cntrl_len)
         
+        print("target = ", target)
         print("control1 = ", control1[0,cntrl_var,:])
         print("best control a1 = ", A1_bestControl[0,cntrl_var,:])
         print("best control a2 = ", A2_bestControl[0,cntrl_var,:])
@@ -112,7 +125,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         for n in range(A2_bestControl.shape[0]):
             for v in cntrl_var:
-                for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - 1 - cntrl_zeros_post - delay_ndt):
+                for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - ind_timeshift - cntrl_zeros_post - delay_ndt):
                     self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)   
                     
         for n in range(A2_bestControl.shape[0]):
@@ -341,15 +354,14 @@ if __name__ == '__main__':
         model = func.getmodel(testcaseind, dur_pre, dur_post)
     
         for cgv in cg_var:
-            for c_var in cntrl_var:
-                suite = unittest.TestLoader().loadTestsFromTestCase(TestA1A2Conv)
-                result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
-                runs += result[-1].testsRun
-                if not result[-1].wasSuccessful():
-                    success = False
-                    errors += 1
-                    failures += 1
-                    failedTests.append(testcaseind)
+            suite = unittest.TestLoader().loadTestsFromTestCase(TestA1A2Conv)
+            result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
+            runs += result[-1].testsRun
+            if not result[-1].wasSuccessful():
+                success = False
+                errors += 1
+                failures += 1
+                failedTests.append(testcaseind)
         
     print("Run", runs, "tests with", errors, "errors and", failures, "failures.")
     if success:

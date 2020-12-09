@@ -107,6 +107,8 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     improvement = 100.
     if total_cost_[0] != 0.:
         improvement = improvement = 100. - 100.*(total_cost_[max_iteration_]/total_cost_[0])
+        
+    print("Improved over ", max_iteration_, " iterations by ", improvement, " percent.")
             
     if (t_sim_pre_ < dt and t_sim_post_ < dt):
         return best_control_, state_, total_cost_, runtime_
