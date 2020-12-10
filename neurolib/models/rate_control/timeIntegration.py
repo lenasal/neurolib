@@ -352,7 +352,7 @@ def timeIntegration(params, control):
     )
 
 
-#@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64, "idx1": numba.int64, "idy1": numba.int64})
+@numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64, "idx1": numba.int64, "idy1": numba.int64})
 def timeIntegration_njit_elementwise(
     dt,
     duration,
@@ -550,7 +550,7 @@ def timeIntegration_njit_elementwise(
             else:
                 sigmae = 0.
                 #print("prefactor = ", c_gl ** 2 * Ke_gl)
-            sigmae = 1./( 1. + z2ee ) + 1./(1. + z2ei) #+ control_ext[no, 2, i-startind] + control_ext[no, 2, i-startind]**2
+            sigmae = seiv[no,i-1] #+ 1./( 1. + z2ee ) + 1./(1. + z2ei) #+ control_ext[no, 2, i-startind] + control_ext[no, 2, i-startind]**2
             
             #print("effect of self-excitation: ", 1e3 * z2ee**2)
                         
@@ -564,59 +564,26 @@ def timeIntegration_njit_elementwise(
                 sigmai = arg
             else:
                 sigmai = 0.
-            sigmai = 1./(1. + z2ie) + 1./(1. + z2ii) 
+                
+            sigmai = +1./(1. + z2ie) + 1./(1. + z2ii)  #siev[no,i-1] #
+            
 
             if not filter_sigma:
                 sigmae_f[no,i-1] = sigmae
                 sigmai_f[no,i-1] = sigmai
 
-            # Read the transfer function from the lookup table
-            # -------------------------------------------------------------
-
-            # ------- excitatory population
-            # mufe[no] - IA[no] / C is the total current of the excitatory population
-            xid1, yid1, dxid, dyid = fast_interp2_opt(
-                sigmarange, ds, sigmae_f[no,i-1], Irange, dI, mufe[no,i-1] - IA[no, i - 1] / C
-            )
-            xid1, yid1 = int(xid1), int(yid1)
-
-            #print("integration: xid1, yid1, dxid, dyid = ", xid1, yid1, dxid, dyid)
-            rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
-            Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
-            
             rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
-            #print("rates exc = ", rates_exc[no,i], " from ", mufe[no,i-1], IA[no,i-1], sigmae_f[no,i-1])
             Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
-            
-            # shift tau by one???
-            tau_exc[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
             tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
                                     
-            if filter_sigma:
-                tau_sigmae_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
-
-            # ------- inhibitory population
-            #  mufi[no] are the (filtered) currents of the inhibitory population
-            
-            xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,i-1], Irange, dI, mufi[no,i-1])
-            xid1, yid1 = int(xid1), int(yid1)
-
-            rates_inh[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
             rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
-            
-            
-            # Vmean_inh = interpolate_values(precalc_V, xid1, yid1, dxid, dyid) # not used
-            tau_inh[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
             tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
-            
-            if filter_sigma:
-                tau_sigmai_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
 
             # -------------------------------------------------------------
 
             # now everything available for r.h.s:
 
-            mufe_rhs = (mue #- mufe[no,i-1] 
+            mufe_rhs = (mue - mufe[no,i-1] 
                         #+ control_ext[no, 0, i-startind+1]
                         ) / tau_exc[no,i-1]
             
@@ -639,9 +606,10 @@ def timeIntegration_njit_elementwise(
             seev_rhs = ( (1. - seem[no,i-1])**2 * z2ee + ( z2ee - 2. * tau_se * (z1ee + 1.)) * seev[no,i-1] ) / tau_se ** 2
             #seev_rhs = ( (1 - seem[no,i-1]) ) / tau_se**2 #+ (z2ee - 2 * tau_se * (z1ee + 1)) * seev[no,i-1] ) / tau_se**2
             seiv_rhs = ((1 - seim[no,i-1]) ** 2 * z2ei + (z2ei - 2 * tau_si * (z1ei + 1)) * seiv[no,i-1]) / tau_si ** 2
+            seiv_rhs = z1ei
             siev_rhs = ((1 - siem[no,i-1]) ** 2 * z2ie + (z2ie - 2 * tau_se * (z1ie + 1)) * siev[no,i-1]) / tau_se ** 2
             #siev_rhs = ((1 - siem[no,i-1]) ** 2 * z2ie + (z2ie - 2 * tau_se * (z1ie + 1)) * siev[no,i-1]) / tau_se ** 2
-            siev_rhs = ( z2ie ) 
+            #siev_rhs =  1e-1 * siev[no,i-4]**2 + 1e-2 * z1ie**2
             #siev_rhs = ( z2ie + z2ie**2 ) / tau_se ** 2
             siiv_rhs = ((1 - siim[no,i-1]) ** 2 * z2ii + (z2ii - 2 * tau_si * (z1ii + 1)) * siiv[no,i-1]) / tau_si ** 2
 
@@ -656,7 +624,7 @@ def timeIntegration_njit_elementwise(
             #siem[no,i] = siem[no,i-1] + dt * siem_rhs
             #siim[no,i] = siim[no,i-1] + dt * siim_rhs
             #seev[no,i] = seev[no,i-1] + dt * seev_rhs
-            #seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
+            seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
             #siev[no,i] = siev[no,i-1] + dt * siev_rhs
             #siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
             
@@ -734,21 +702,15 @@ def timeIntegration_njit_elementwise(
     )  # external rate input to inh. population
     z2ii = cii ** 2 * Ki * rd_inh[no]
 
-    sigmae = 1./(1. + z2ee ) + 1./(1. + z2ei) #+ control_ext[no, 2, -1] + control_ext[no, 2, -1]**2 
-    sigmai = 1./(1. + z2ie) + 1./(1. + z2ii)
+    sigmae = seiv[no,-1] + 1./(1. + z2ee ) + 1./(1. + z2ei)
+    sigmai = 1./(1. + z2ie) + 1./(1. + z2ii) 
+
 
     if not filter_sigma:
         sigmae_f[no,-1] = sigmae
         sigmai_f[no,-1] = sigmai
     
-    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmae_f[no,-1], Irange, dI, mufe[no,-1] - IA[no,-1] / C)
-    xid1, yid1 = int(xid1), int(yid1)
-    tau_exc[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
     tau_exc[no,-1] = tau_func(mufe[no,-1], sigmae_f[no,-1])
-
-    xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,-1], Irange, dI, mufi[no,-1])
-    xid1, yid1 = int(xid1), int(yid1)
-    tau_inh[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
     tau_inh[no,-1] = tau_func(mufi[no,-1], sigmai_f[no,-1])
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou, sigmae_f, sigmai_f, Vmean_exc, tau_exc, tau_inh
@@ -935,6 +897,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
 
 @numba.njit
 def r_func(mu, sigma):
+    #return ( mu + sigma ) * 1e-3
     return (mu + mu**3 + sigma + sigma**3) * 1e-3
     x_shift_mu = - 2.
     x_shift_sigma = -1.
