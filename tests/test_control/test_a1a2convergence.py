@@ -12,13 +12,14 @@ import test_control_functions as func
 
 np.set_printoptions(precision=4)
 
-assertion_tolerance = 2
+assertion_tolerance = 1
 assertion_tolerance_grad = 5
         
 c_controlmin, c_controlmax = -0., 2.
 r_controlmin, r_controlmax = 0., 0.1
 algorithm_tolerance = 1e-24
 max_iteration = int(1e4)
+max_iteration_A2 = 100
 start_step = 10.
 test_step = 1e-6
 
@@ -29,10 +30,17 @@ dur_post = 0.5
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control", "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
+
+"""
 cntrl_var = [ 0 ] #, [ [0,1], [2,3] ]
 prec_var = [ 1 ]
 ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 #ind_timeshift = 1   # for c=0 and p=0, c=1 and p=1, c=2 and p=0
+"""
+
+variation = [ [0,0,1,False] , [0,0,1,True], [0,1,4,False], [0,1,4,True], [1,0,4,False], [1,0,4,True], [1,1,1,False], [1,1,1,True],
+              [2,0,1,False] , [2,0,1,True], [2,1,4,False], [2,1,4,True] ]
+
 
 testip, testie, testis = round(1e1 * random.uniform(1., 10.),1), 1.*round(random.uniform(0., 1e0),1), 1.*round(random.uniform(0., 1e0),1)
 
@@ -98,7 +106,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         func.setInitVarsZero(model, init_vars)
 
-        A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration,
+        A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration_A2,
                             algorithm_tolerance, incl_steps, start_step, test_step, c_max, c_min, duration, dur_pre, dur_post,
                             control_variables_ = cntrl_var, prec_variables_ = prec_var)
         
@@ -122,12 +130,7 @@ class TestA1A2Conv(unittest.TestCase):
             if (A2_runtime[t+1] == 0.):
                 break
                 self.assertLessEqual(A2_runtime[t], A2_runtime[t+1])
-        
-        for n in range(A2_bestControl.shape[0]):
-            for v in cntrl_var:
-                for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - ind_timeshift - cntrl_zeros_post - delay_ndt):
-                    self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)   
-                    
+                
         for n in range(A2_bestControl.shape[0]):
             for v in cntrl_var:
                 for t in range(0, A1_grad.shape[2]):
@@ -138,6 +141,12 @@ class TestA1A2Conv(unittest.TestCase):
                         print("gradient could be nonvanishing because of absolute value, or because operating at boundary.")
                     else:
                         self.assertAlmostEqual(A1_grad[n, v, t], 0., assertion_tolerance_grad) 
+        
+        for n in range(A2_bestControl.shape[0]):
+            for v in cntrl_var:
+                for t in range(cntrl_zeros_pre, A2_bestControl.shape[2] - ind_timeshift - cntrl_zeros_post - delay_ndt):
+                    self.assertAlmostEqual(A2_bestControl[n, v, t], A1_bestControl[n, v, t], assertion_tolerance)   
+                
       
                     
     """                
@@ -354,14 +363,28 @@ if __name__ == '__main__':
         model = func.getmodel(testcaseind, dur_pre, dur_post)
     
         for cgv in cg_var:
-            suite = unittest.TestLoader().loadTestsFromTestCase(TestA1A2Conv)
-            result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
-            runs += result[-1].testsRun
-            if not result[-1].wasSuccessful():
-                success = False
-                errors += 1
-                failures += 1
-                failedTests.append(testcaseind)
+            for ind_v in range(len(variation)):
+                model = func.getmodel(testcaseind, dur_pre, dur_post)
+                
+                cntrl_var = [ variation[ind_v][0] ]#, [ [0,1], [2,3] ]
+                prec_var = [ variation[ind_v][1] ]
+                ind_timeshift = variation[ind_v][2]
+                if not variation[ind_v][3]:
+                    model.params.de = 0.
+                    model.params.di = 0.
+                    
+                print("-------------------------------------------------------------------------")
+                print("-------------------------------", ind_v)
+                print("-------------------------------", cntrl_var, prec_var, ind_timeshift, variation[ind_v][3])
+                    
+                suite = unittest.TestLoader().loadTestsFromTestCase(TestA1A2Conv)
+                result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
+                runs += result[-1].testsRun
+                if not result[-1].wasSuccessful():
+                    success = False
+                    errors += 1
+                    failures += 1
+                    failedTests.append(testcaseind)
         
     print("Run", runs, "tests with", errors, "errors and", failures, "failures.")
     if success:

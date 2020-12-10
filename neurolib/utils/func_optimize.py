@@ -386,6 +386,7 @@ def compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, con
         
     for j in range(n_control_vars):
         if j in control_variables:
+            #print("j energy, sprsity gradient = ", j, grad_cost_e_[:,j,:] , grad_cost_s_[:,j,:])
             grad1_[:,j,:] = grad_cost_e_[:,j,:] + grad_cost_s_[:,j,:] + phi1_[:,j,:]
     return grad1_
 

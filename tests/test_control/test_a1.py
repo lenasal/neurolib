@@ -28,10 +28,17 @@ dur_post = 0.5
 #tests = ["fhn1", "aln1", "fhn2", "aln2", "fhn2delay", "aln1delay", "aln2delay"]
 tests = ["rate_control"]#, "aln1", "aln-control"], "rate_control"
 cg_var = [None]#, "HS", "FR", "PR", "HZ"]
+
+"""
 cntrl_var = [ 0 ]#, [ [0,1], [2,3] ]
 prec_var = [ 0 ]
 ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 ind_timeshift = 1   # for c=0 and p=0, c=1 and p=1, c=2 and p=0
+"""
+
+# c var, p var, ind_Timeshift, delay
+variation = [ [0,0,1,False], [0,0,1,True], [0,1,4,False], [0,1,4,True], [1,0,4,False], [1,0,4,True], [1,1,1,False], [1,1,1,True],
+              [2,0,1,False] , [2,0,1,True], [2,1,4,False], [2,1,4,True] ]
 
 np.set_printoptions(precision=4)
 
@@ -196,17 +203,26 @@ if __name__ == '__main__':
     failedTests = []
     
     for testcaseind in tests:
-        model = func.getmodel(testcaseind, dur_pre, dur_post)
         
         for cgv in cg_var:
-            suite = unittest.TestLoader().loadTestsFromTestCase(TestA1)
-            result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
-            runs += result[-1].testsRun
-            if not result[-1].wasSuccessful():
-                success = False
-                errors += 1
-                failures += 1
-                failedTests.append(testcaseind)
+            for ind_v in range(len(variation)):
+                model = func.getmodel(testcaseind, dur_pre, dur_post)
+                
+                cntrl_var = [ variation[ind_v][0] ]#, [ [0,1], [2,3] ]
+                prec_var = [ variation[ind_v][1] ]
+                ind_timeshift = variation[ind_v][2]
+                if not variation[ind_v][3]:
+                    model.params.de = 0.
+                    model.params.di = 0.
+                
+                suite = unittest.TestLoader().loadTestsFromTestCase(TestA1)
+                result.append(unittest.TextTestRunner(verbosity=2).run(suite) )
+                runs += result[-1].testsRun
+                if not result[-1].wasSuccessful():
+                    success = False
+                    errors += 1
+                    failures += 1
+                    failedTests.append(testcaseind)
         
     print("Run", runs, "tests with", errors, "errors and", failures, "failures.")
     if success:

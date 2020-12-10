@@ -549,6 +549,10 @@ def timeIntegration_njit_elementwise(
                 sigmae = np.sqrt( arg  )
             else:
                 sigmae = 0.
+                #print("prefactor = ", c_gl ** 2 * Ke_gl)
+            sigmae = 1./( 1. + z2ee ) + 1./(1. + z2ei) #+ control_ext[no, 2, i-startind] + control_ext[no, 2, i-startind]**2
+            
+            #print("effect of self-excitation: ", 1e3 * z2ee**2)
                         
             arg = ( 
                 2 * sq_Jie_max * siev[no,i-1] * tau_se * taum #/ ((1 + z1ie) * taum + tau_se)
@@ -560,7 +564,7 @@ def timeIntegration_njit_elementwise(
                 sigmai = arg
             else:
                 sigmai = 0.
-            sigmai = z2ie
+            sigmai = 1./(1. + z2ie) + 1./(1. + z2ii) 
 
             if not filter_sigma:
                 sigmae_f[no,i-1] = sigmae
@@ -581,6 +585,7 @@ def timeIntegration_njit_elementwise(
             Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
             
             rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
+            #print("rates exc = ", rates_exc[no,i], " from ", mufe[no,i-1], IA[no,i-1], sigmae_f[no,i-1])
             Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
             
             # shift tau by one???
@@ -621,15 +626,6 @@ def timeIntegration_njit_elementwise(
 
             # rate has to be kHz
             IA_rhs = (a * (Vmean_exc[no,i] - EA) - IA[no, i - 1] + tauA * b * rates_exc[no, i] * 1e-3) / tauA
-            
-            # EQ. 4.43
-            if distr_delay:
-                rd_exc_rhs = (rates_exc[no, i] * 1e-3 - rd_exc[no, no]) / tau_de
-                rd_inh_rhs = (rates_inh[no, i] * 1e-3 - rd_inh[no]) / tau_di
-
-            if filter_sigma:
-                sigmae_f_rhs = (sigmae - sigmae_f[no,i-1]) / tau_sigmae_eff
-                sigmai_f_rhs = (sigmai - sigmai_f[no,i-1]) / tau_sigmai_eff
 
             # integration of synaptic input (eq. 4.36)
             
@@ -654,14 +650,6 @@ def timeIntegration_njit_elementwise(
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             mufi[no,i] = mufi[no,i-1] + dt * mufi_rhs
             IA[no,i] = IA[no, i - 1] + dt * IA_rhs
-
-            if distr_delay:
-                rd_exc[no, no] = rd_exc[no, no] + dt * rd_exc_rhs
-                rd_inh[no] = rd_inh[no] + dt * rd_inh_rhs
-
-            if filter_sigma:
-                sigmae_f[no,i] = sigmae_f[no,i-1] + dt * sigmae_f_rhs
-                sigmai_f[no,i] = sigmai_f[no,i-1] + dt * sigmai_f_rhs
 
             #seem[no,i] = seem[no,i-1] + dt * seem_rhs
             #seim[no,i] = seim[no,i-1] + dt * seim_rhs
@@ -746,20 +734,8 @@ def timeIntegration_njit_elementwise(
     )  # external rate input to inh. population
     z2ii = cii ** 2 * Ki * rd_inh[no]
 
-    sigmae = np.sqrt(
-        2 * sq_Jee_max * seev[no,-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
-        + 2 * sq_Jei_max * seiv[no,-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
-        + sigmae_ext ** 2
-    )  # mV/sqrt(ms)
-    
-    arg = (
-        2 * sq_Jie_max * siev[no,-1] * tau_se * taum #/ ((1 + z1ie) * taum + tau_se)
-        #+ 2 * sq_Jii_max * siiv[no,-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
-        + sigmai_ext ** 2
-        )
-    
-    sigmai = np.sqrt(arg)  # mV/sqrt(ms)
-    sigmai = arg
+    sigmae = 1./(1. + z2ee ) + 1./(1. + z2ei) #+ control_ext[no, 2, -1] + control_ext[no, 2, -1]**2 
+    sigmai = 1./(1. + z2ie) + 1./(1. + z2ii)
 
     if not filter_sigma:
         sigmae_f[no,-1] = sigmae
@@ -959,7 +935,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
 
 @numba.njit
 def r_func(mu, sigma):
-    return (mu + sigma) * 1e-3
+    return (mu + mu**3 + sigma + sigma**3) * 1e-3
     x_shift_mu = - 2.
     x_shift_sigma = -1.
     x_scale_mu = 0.6
