@@ -704,10 +704,11 @@ def phi1(N, V, T, n_control_vars, phi_, state_, control_, state_pre_,
         #phi_shift = np.ascontiguousarray(phi_[0,:,ind_t])
         phi_shift = phi.copy()
         
-        if ind_t+1 < T:
-            phi_shift[9] = phi_[0,9,ind_t+1]
-        else:
+        if ind_t == T-1:
             phi_shift[9] = 0.
+        else:
+            phi_shift[9] = phi_[0,9,ind_t+1]
+
                     
         y0 = np.ascontiguousarray(jac_u_[0,:])
         y1 = np.ascontiguousarray(jac_u_[1,:])
@@ -752,11 +753,11 @@ def D_u_h(V, state_, control_, t_, state_pre_,
           ):
     
     if t_-shift_e >= 0:
-        z1ee = factor_ee1 * rd_exc[0,0,t_-shift_e] #+ factor_eec1 * ( control_[0,2,t_] )
-        z2ee = factor_ee2 * rd_exc[0,0,t_-shift_e] #+ factor_eec2 * ( control_[0,2,t_] )    
+        z1ee = factor_ee1 * rd_exc[0,0,t_-shift_e] + factor_eec1 * ( control_[0,2,t_] )
+        z2ee = factor_ee2 * rd_exc[0,0,t_-shift_e] + factor_eec2 * ( control_[0,2,t_] )    
     else:
-        z1ee = factor_ee1 * state_pre_[0,0,t_-shift_e-1] * 1e-3 #+ factor_eec1 * ( control_[0,2,t_] )
-        z2ee = factor_ee2 * state_pre_[0,0,t_-shift_e-1] * 1e-3  #+ factor_eec2 * ( control_[0,2,t_] )
+        z1ee = factor_ee1 * state_pre_[0,0,t_-shift_e-1] * 1e-3 + factor_eec1 * ( control_[0,2,t_] )
+        z2ee = factor_ee2 * state_pre_[0,0,t_-shift_e-1] * 1e-3  + factor_eec2 * ( control_[0,2,t_] )
         
     
     duh_ = np.zeros(( 4, V ))
@@ -765,8 +766,10 @@ def D_u_h(V, state_, control_, t_, state_pre_,
     duh_[0,2] = - 1. / state_[0,18,t_-1]
     duh_[1,3] = - 1. / state_[0,19,t_-1]
     
-    #duh_[2,9] = -1. 
-    duh_[2,15] = - (1. + z2ee)**2 * 2. * (1. + control_[0,2,t_] ) #( 1. + z2ee )**(-2.) * factor_eec2
+    duh_[2,9] = -1. 
+    #duh_[2,15] = - (1. + z2ee)**2 * 2. * (1. + control_[0,2,t_] ) #( 1. + z2ee )**(-2.) * factor_eec2
+    duh_[2,15] = ( 1. + z2ee )**(-2.) * factor_eec2
+    #print("factor adjoint = ", factor_eec2)
     #print(control_[0,2,t_], )
     
     return duh_
@@ -820,13 +823,13 @@ def jacobian(V, state_, control_, T, state_pre_,
     for t_ in range(0,T):
            
         if t_-shift_e >= 0:
-            z1ee = factor_ee1 * rd_exc[0,0,t_-shift_e] #+ factor_eec1 * ( control_[0,2,t_] )
-            z2ee = factor_ee2 * rd_exc[0,0,t_-shift_e] #+ factor_eec2 * ( control_[0,2,t_] ) 
+            z1ee = factor_ee1 * rd_exc[0,0,t_-shift_e] + factor_eec1 * ( control_[0,2,t_] )
+            z2ee = factor_ee2 * rd_exc[0,0,t_-shift_e] + factor_eec2 * ( control_[0,2,t_] ) 
             z1ie = factor_ie1 * rd_exc[0,0,t_-shift_e]
             z2ie = factor_ie2 * rd_exc[0,0,t_-shift_e]
         else:
-            z1ee = factor_ee1 * state_pre_[0,0,t_-shift_e-1] * 1e-3 #+ factor_eec1 * ( control_[0,2,t_] )
-            z2ee = factor_ee2 * state_pre_[0,0,t_-shift_e-1] * 1e-3  #+ factor_eec2 * ( control_[0,2,t_] )
+            z1ee = factor_ee1 * state_pre_[0,0,t_-shift_e-1] * 1e-3 + factor_eec1 * ( control_[0,2,t_] )
+            z2ee = factor_ee2 * state_pre_[0,0,t_-shift_e-1] * 1e-3  + factor_eec2 * ( control_[0,2,t_] )
             z1ie = factor_ie1 * state_pre_[0,0,t_-shift_e-1] * 1e-3
             z2ie = factor_ie2 * state_pre_[0,0,t_-shift_e-1] * 1e-3
             
@@ -858,12 +861,13 @@ def jacobian(V, state_, control_, T, state_pre_,
         #jacobian_[11,11,t_] = -1e-1 * 2. * state_[0,11,t_]
         # z1ie * (1. - siev[no,i-1]) + siev[no,i-1]
         
-        jacobian_[15,0,t_] = - (1. + control_[0,2,t_])**2 * factor_ee2 * 1e-3 * 2. * (1. + z2ee) #( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
-        #jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3
+        #jacobian_[15,0,t_] = - (1. + control_[0,2,t_])**2 * factor_ee2 * 1e-3 * 2. * (1. + z2ee) 
+        jacobian_[15,0,t_] = ( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
+        jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3
         #jacobian_[15,9,t_] = -1.
         
-        #jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
-        #jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3
+        jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
+        jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3
         #jacobian_[16,11,t_] = -1.
 
     
