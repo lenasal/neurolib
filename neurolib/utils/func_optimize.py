@@ -142,8 +142,15 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
               bisec_factor_ = 2., max_control_ = 20., min_control_ = -20., tolerance_ = 1e-16, substep_ = 0.1,
               variables_ = [0,1], alg = "A1"):
     
+    #print("into step size computation cost")
+    #print("exc rate = ", state_[0,0,:])
+    #print("target = ", target_[0,0,:])
+   # print("control = ", control_[0,2,:])
+    #print("direction = ", dir_[0,2,:])
     
     cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
+    
+    #print("first cot = ", cost0_int_)
     cost_min_int_ = cost0_int_
     step_ = start_step_
     step_min_ = 0.
@@ -151,6 +158,9 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
     factor = 2.**7
         
     start_step_out_ = start_step_
+    
+    #print("try again")
+    
     
     for i in range(max_it_):
         test_control_ = control_ + step_ * dir_
@@ -210,7 +220,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
             else:
                 result = step_min_, cost_min_int_, start_step_
                 
-            #("result from scan : ", result)
+            ("result from scan : ", result)
             
             return result
         
@@ -386,7 +396,11 @@ def compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, con
         
     for j in range(n_control_vars):
         if j in control_variables:
-            #print("j energy, sprsity gradient = ", j, grad_cost_e_[:,j,:] , grad_cost_s_[:,j,:])
+            #print("j, adjoint, energy, sparsity gradient = ", j)
+            #print(phi1_[:,j,:])
+            #print(grad_cost_e_[:,j,:])
+            #print(grad_cost_s_[:,j,:])
+            
             grad1_[:,j,:] = grad_cost_e_[:,j,:] + grad_cost_s_[:,j,:] + phi1_[:,j,:]
     return grad1_
 

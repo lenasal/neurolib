@@ -27,7 +27,19 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     for v in control_variables_:
         control_variables.append(v)
         
+    n_maxDelay = model.getMaxDelay()
+        
+    startind_ = int(n_maxDelay + 1)
+            
+    state_vars = model.state_vars
+    init_vars = model.init_vars
+    n_control_vars = len(model.control_input_vars)
+        
     T = int( 1 + np.around(t_sim_ / dt, 1) )
+    
+    V = len(state_vars)
+    V_target = target_state_.shape[1]
+    i=0
        
     ##############################################
     # PARAMETERS FOR JACOBIAN
@@ -105,14 +117,6 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     precalc_V = model.params["precalc_V"]
     ##############################################
     
-    n_maxDelay = model.getMaxDelay()
-        
-    startind_ = int(n_maxDelay + 1)
-            
-    state_vars = model.state_vars
-    init_vars = model.init_vars
-    n_control_vars = len(model.control_input_vars)
-    
     if (startind_ > 1):
         fo.adjust_shape_init_params(model, init_vars, startind_)
     
@@ -122,6 +126,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     if ( startind_ > 1 and t_pre_ndt <= startind_ ):
         logging.error("Not possible to set up initial conditions without sufficient simulation time before control")
         #return
+        
+    state_pre_ = np.zeros(( N,V,max(t_pre_ndt,1) ))
     
     # simulate with duration t_sim_pre before start
     if (t_sim_pre_ >= dt):
@@ -138,12 +144,15 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     #control_[:,2:,-2:] = 0.
     state0_ = fo.updateFullState(model, control_, state_vars)
     
-    V = state0_.shape[1]
-    V_target = target_state_.shape[1]
-    i=0
+
     
     total_cost_ = np.zeros((max_iteration_+1))
+    #print("into initial cost")
+    #print("exc rate = ", state0_[0,0,:])
+    #print("target = ", target_state_[0,0,:])
+    #print("control = ", control_[0,2,:])
     total_cost_[i] = cost.f_int(N, n_control_vars, T, dt, state0_, target_state_, control_, v_ = prec_variables )
+    #print("initial cost = ", total_cost_[i])
     runtime_ = np.zeros(( int(max_iteration_+1) ))
     runtime_start_ = timer()
     
@@ -167,11 +176,13 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     grad1_ = grad0_.copy()
     dir0_ = grad0_.copy()
     
+    
     state_maxDelay = np.zeros( (N, V, int( T + n_maxDelay ) ))
     control_maxDelay = np.zeros( (N, n_control_vars, int( T + n_maxDelay ) ))
     dur_maxDelay = t_sim_ + int( n_maxDelay ) * dt
     phi_maxDelay = state_maxDelay.copy()
     
+    """
     control_maxDelay[:,:,:T] = best_control_
     #print("control = ", control_maxDelay)
     
@@ -182,6 +193,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     state_maxDelay = fo.updateFullState(model, control_maxDelay, state_vars)
     
     #print("rate max delay = ", state_maxDelay[0,:2, :])
+    """
     
     model.params['duration'] = t_sim_
         
@@ -251,7 +263,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             #print("adj inh rate =", phi0_[0,1,:])
             print("adj mue =", phi0_[0,2,:])
             #print("adj mui =", phi0_[0,3,:])
-            #print("adj sigma e =", phi0_[0,15,:])
+            print("adj sigma e =", phi0_[0,15,:])
             #print("adj sigma i =", phi0_[0,16,:])
             
         i += 1   
@@ -259,8 +271,8 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         grad0_ = grad1_.copy()
         
         #print("prefactor = ", factor_eec2)
-        
-        phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_, best_control_,
+                
+        phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_, best_control_, state_pre_,
                           sigmae_ext,
                           ext_exc_rate,
                           tau_se,
@@ -285,15 +297,11 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         #print("adj rate i = ", phi0_[0,1,:])
         #print("adj mue = ", phi0_[0,2,:])
         #print("adj sigma i = ", phi0_[0,16,:])
-        
-        #print("phi 1 = ", phi1_[0,:,:])
-        
-        grad1_ = fo.compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables)
-        
-        #print("grad = ", grad1_)
-        
-        dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, tolerance_)
                 
+        grad1_ = fo.compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables)
+                
+        dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, tolerance_)
+                        
         #dir0_[:,2:,-2] = 0. #pre-last rate control does not impact anything
         
         minCost = []
@@ -394,6 +402,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         # why is this needed?  
         best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)
+        ########
         
         u_diff_ = ( np.absolute(best_control_ - u_opt0_) < tolerance_ )
         if ( u_diff_.all() ):
@@ -534,7 +543,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         if ind_time + ndt_di < T:
             shift_i = ndt_di
     
-        jac = jacobian(V, state_[:,:,:], control_[:,:,:], T,
+        jac = jacobian(V, state_[:,:,:], control_[:,:,:], T, state_pre_,
                        ext_exc_current,
                        ext_inh_current,
                        ext_exc_rate,
@@ -579,31 +588,21 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         
         if ind_time + ndt_de >= T-1:
             phi_[0,0,ind_time] = - full_cost_grad[0,0,ind_time]
-        elif ind_time + ndt_de + 1 >= T-1:
+        else:
             phi_[0,0,ind_time] = - ( full_cost_grad[0,0,ind_time]
                                     + np.dot( np.array( [ phi_[0,15,ind_time+ndt_de],
                                                          phi_[0,16,ind_time+ndt_de] ] ),
-                                             np.array( [ jac[15,0,ind_time+shift_e],
-                                                        jac[16,0,ind_time+shift_e] ] ) ) )
-        else:
-            phi_[0,0,ind_time] = - ( full_cost_grad[0,0,ind_time]
-                                    + np.dot( np.array( [phi_[0,15,ind_time+ndt_de],
-                                                         phi_[0,16,ind_time+ndt_de] ] ),
-                                             np.array( [ jac[15,0,ind_time+shift_e],
-                                                        jac[16,0,ind_time+shift_e] ] ) ) )
+                                             np.array( [ jac[15,0,ind_time+ndt_de],
+                                                        jac[16,0,ind_time+ndt_de] ] ) ) )
             
         if ind_time + ndt_di >= T-1:
             phi_[0,1,ind_time] = - ( full_cost_grad[0,1,ind_time] )
-        elif ind_time + ndt_di +1 >= T-1:
-            phi_[0,1,ind_time] = - ( full_cost_grad[0,1,ind_time]
-                                    + np.dot( np.array( [phi_[0,15,ind_time+ndt_di], phi_[0,16,ind_time+ndt_di] ] ),
-                                             np.array( [ jac[15,1,ind_time+shift_i], jac[16,1,ind_time+shift_i] ] ) ) )
         else:
             phi_[0,1,ind_time] = - ( full_cost_grad[0,1,ind_time]
-                                    + np.dot( np.array( [ phi_[0,10,ind_time+ndt_di+1],
-                                                         phi_[0,15,ind_time+ndt_di], phi_[0,16,ind_time+ndt_di] ] ),
-                                             np.array( [ jac[10,1,ind_time+shift_i],
-                                                        jac[15,1,ind_time+shift_i], jac[16,1,ind_time+shift_i] ] ) ) )
+                                    + np.dot( np.array( [phi_[0,15,ind_time+ndt_di],
+                                                         phi_[0,16,ind_time+ndt_di] ] ),
+                                             np.array( [ jac[15,1,ind_time+ndt_di],
+                                                        jac[16,1,ind_time+ndt_di] ] ) ) )
                 
         if (ind_time == 0):
                 break
@@ -634,13 +633,13 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         phi_[0,16,ind_time-1] = res
         
         
-        der = ( phi_[0,15,ind_time-1] * jac[15,10,ind_time] )
-        phi_[0,10,ind_time-1] = phi_[0,10,ind_time] - dt * der
+        der = ( phi_[0,15,ind_time-1] * jac[15,9,ind_time-1] )
+        phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
                 
     return phi_
 
 @numba.njit
-def phi1(N, V, T, n_control_vars, phi_, state_, control_,
+def phi1(N, V, T, n_control_vars, phi_, state_, control_, state_pre_,
                           sigmae_ext,
                           ext_exc_rate,
                           tau_se,
@@ -680,7 +679,7 @@ def phi1(N, V, T, n_control_vars, phi_, state_, control_,
         if ind_t - ndt_di >= 0:
             shift_i = ndt_di
         
-        jac_u_ = D_u_h(V, state_, control_, ind_t,
+        jac_u_ = D_u_h(V, state_, control_, ind_t, state_pre_,
                           sigmae_ext,
                           ext_exc_rate,
                           tau_se,
@@ -703,16 +702,22 @@ def phi1(N, V, T, n_control_vars, phi_, state_, control_,
         phi = np.ascontiguousarray(phi_[0,:,ind_t])
         #phi_shift = np.ascontiguousarray(phi_[0,:,ind_t-1])#, dtype=np.float64)
         #phi_shift = np.ascontiguousarray(phi_[0,:,ind_t])
+        phi_shift = phi.copy()
         
+        if ind_t+1 < T:
+            phi_shift[9] = phi_[0,9,ind_t+1]
+        else:
+            phi_shift[9] = 0.
+                    
         y0 = np.ascontiguousarray(jac_u_[0,:])
         y1 = np.ascontiguousarray(jac_u_[1,:])
         y2 = np.ascontiguousarray(jac_u_[2,:])
         
-        phi1_[0,2,ind_t] = np.dot(phi, y2)
+        phi1_[0,2,ind_t] = np.dot(phi_shift, y2)
 
         if ind_t > 0:
-            phi1_[0,0,ind_t] = np.dot(phi, y0)
-            phi1_[0,1,ind_t] = np.dot(phi, y1)
+            phi1_[0,0,ind_t] = np.dot(phi_shift, y0)
+            phi1_[0,1,ind_t] = np.dot(phi_shift, y1)
         
         
         #print(phi1_[0,0,ind_t] == res1, phi1_[0,1,ind_t] == res2)
@@ -725,7 +730,7 @@ def D_xdot(V, state_t_):
     return dxdot_
 
 @numba.njit
-def D_u_h(V, state_, control_, t_, 
+def D_u_h(V, state_, control_, t_, state_pre_,
           sigmae_ext,
           ext_exc_rate,
           tau_se,
@@ -746,8 +751,13 @@ def D_u_h(V, state_, control_, t_,
           shift_i,
           ):
     
-    z1ee = factor_ee1 * rd_exc[0,0,t_-shift_e] + factor_eec1 * ( control_[0,2,t_] )
-    z2ee = factor_ee2 * rd_exc[0,0,t_-shift_e] + factor_eec2 * ( control_[0,2,t_] )    
+    if t_-shift_e >= 0:
+        z1ee = factor_ee1 * rd_exc[0,0,t_-shift_e] #+ factor_eec1 * ( control_[0,2,t_] )
+        z2ee = factor_ee2 * rd_exc[0,0,t_-shift_e] #+ factor_eec2 * ( control_[0,2,t_] )    
+    else:
+        z1ee = factor_ee1 * state_pre_[0,0,t_-shift_e-1] * 1e-3 #+ factor_eec1 * ( control_[0,2,t_] )
+        z2ee = factor_ee2 * state_pre_[0,0,t_-shift_e-1] * 1e-3  #+ factor_eec2 * ( control_[0,2,t_] )
+        
     
     duh_ = np.zeros(( 4, V ))
     
@@ -755,13 +765,14 @@ def D_u_h(V, state_, control_, t_,
     duh_[0,2] = - 1. / state_[0,18,t_-1]
     duh_[1,3] = - 1. / state_[0,19,t_-1]
     
-    #duh_[2,11] = factor_eec2 * ( 1. + z2ee )**(-2.) 
-    duh_[2,15] = factor_eec2 * ( 1. + z2ee )**(-2.) 
+    #duh_[2,9] = -1. 
+    duh_[2,15] = - (1. + z2ee)**2 * 2. * (1. + control_[0,2,t_] ) #( 1. + z2ee )**(-2.) * factor_eec2
+    #print(control_[0,2,t_], )
     
     return duh_
 
 @numba.njit
-def jacobian(V, state_, control_, T, 
+def jacobian(V, state_, control_, T, state_pre_,
               ext_exc_current,
               ext_inh_current,
               ext_exc_rate,
@@ -808,18 +819,27 @@ def jacobian(V, state_, control_, T,
     
     for t_ in range(0,T):
            
-        # TODO should go below zero if not starting in static state
-        z1ee = factor_ee1 * rd_exc[0,0,t_-shift_e] + factor_eec1 * ( control_[0,2,t_] )
-        z2ee = factor_ee2 * rd_exc[0,0,t_-shift_e] + factor_eec2 * ( control_[0,2,t_] )
-        
-        z1ei = factor_ei1 * rd_inh[0,t_-shift_i]
-        z2ei = factor_ei2 * rd_inh[0,t_-shift_i]
-        
-        z1ie = factor_ie1 * rd_exc[0,0,t_-shift_e]
-        z2ie = factor_ie2 * rd_exc[0,0,t_-shift_e]
-        
-        z1ii = factor_ii1 * rd_inh[0,t_-shift_i]
-        z2ii = factor_ii2 * rd_inh[0,t_-shift_i]
+        if t_-shift_e >= 0:
+            z1ee = factor_ee1 * rd_exc[0,0,t_-shift_e] #+ factor_eec1 * ( control_[0,2,t_] )
+            z2ee = factor_ee2 * rd_exc[0,0,t_-shift_e] #+ factor_eec2 * ( control_[0,2,t_] ) 
+            z1ie = factor_ie1 * rd_exc[0,0,t_-shift_e]
+            z2ie = factor_ie2 * rd_exc[0,0,t_-shift_e]
+        else:
+            z1ee = factor_ee1 * state_pre_[0,0,t_-shift_e-1] * 1e-3 #+ factor_eec1 * ( control_[0,2,t_] )
+            z2ee = factor_ee2 * state_pre_[0,0,t_-shift_e-1] * 1e-3  #+ factor_eec2 * ( control_[0,2,t_] )
+            z1ie = factor_ie1 * state_pre_[0,0,t_-shift_e-1] * 1e-3
+            z2ie = factor_ie2 * state_pre_[0,0,t_-shift_e-1] * 1e-3
+            
+        if t_-shift_i >= 0:
+            z1ei = factor_ei1 * rd_inh[0,t_-shift_i]
+            z2ei = factor_ei2 * rd_inh[0,t_-shift_i]            
+            z1ii = factor_ii1 * rd_inh[0,t_-shift_i]
+            z2ii = factor_ii2 * rd_inh[0,t_-shift_i]
+        else:
+            z1ei = factor_ei1 * state_pre_[0,1,t_-shift_i-1] * 1e-3
+            z2ei = factor_ei2 * state_pre_[0,1,t_-shift_i-1] * 1e-3        
+            z1ii = factor_ii1 * state_pre_[0,1,t_-shift_i-1] * 1e-3
+            z2ii = factor_ii2 * state_pre_[0,1,t_-shift_i-1] * 1e-3
         
         jacobian_[0,2,t_] = - d_r_func_mu(state_[0,2,t_], sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
         jacobian_[0,15,t_] = - d_r_func_sigma(state_[0,2,t_], sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
@@ -829,19 +849,21 @@ def jacobian(V, state_, control_, T,
         
         jacobian_[2,2,t_] = 1. / state_[0,18,t_]
         
-        jacobian_[10,1,t_] = - factor_ei1 * 1e-3
+        #jacobian_[9,0,t_] = 
+                
+        #jacobian_[10,1,t_] = - factor_ei1 * 1e-3
         #jacobian_[10,10,t_] = -1.
         
         #jacobian_[11,0,t_] = - 2. * z1ie * factor_ie1 * 1e-3 * 1e-2
         #jacobian_[11,11,t_] = -1e-1 * 2. * state_[0,11,t_]
         # z1ie * (1. - siev[no,i-1]) + siev[no,i-1]
         
-        #jacobian_[15,0,t_] = ( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
+        jacobian_[15,0,t_] = - (1. + control_[0,2,t_])**2 * factor_ee2 * 1e-3 * 2. * (1. + z2ee) #( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
         #jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3
-        jacobian_[15,10,t_] = -1.
+        #jacobian_[15,9,t_] = -1.
         
-        jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
-        jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3
+        #jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
+        #jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3
         #jacobian_[16,11,t_] = -1.
 
     
@@ -849,7 +871,7 @@ def jacobian(V, state_, control_, T,
 
 @numba.njit
 def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
-    #return 1. * 1e-3
+    return 1. * 1e-3
     return (1. + 3. * mu**2) * 1e-3
     #result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
     x_shift_mu = - 2.
@@ -861,7 +883,7 @@ def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
 
 @numba.njit
 def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
-    #return 1. * 1e-3
+    return 1. * 1e-3
     return (1. + 3. * sigma**2) * 1e-3
     #result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
     x_shift_sigma = -1.

@@ -19,11 +19,11 @@ c_controlmin, c_controlmax = -0., 2.
 r_controlmin, r_controlmax = 0., 0.1
 algorithm_tolerance = 1e-24
 max_iteration = int(1e4)
-max_iteration_A2 = 100
+max_iteration_A2 = 300
 start_step = 10.
 test_step = 1e-6
 
-duration = 1.2
+duration = 1.8
 dur_pre = 0.5
 dur_post = 0.5
 
@@ -38,11 +38,17 @@ ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 #ind_timeshift = 1   # for c=0 and p=0, c=1 and p=1, c=2 and p=0
 """
 
-variation = [ [0,0,1,False] , [0,0,1,True], [0,1,4,False], [0,1,4,True], [1,0,4,False], [1,0,4,True], [1,1,1,False], [1,1,1,True],
-              [2,0,1,False] , [2,0,1,True], [2,1,4,False], [2,1,4,True] ]
+variation = [ 
+              [0,0,1,False], [0,0,1,True], 
+              [0,1,4,False], [0,1,4,True], 
+              [1,0,4,False], [1,0,4,True], 
+              [1,1,1,False], [1,1,1,True],
+              [2,0,1,False], [2,0,1,True], 
+              [2,1,4,False], [2,1,4,True] 
+              ]
 
 
-testip, testie, testis = round(1e1 * random.uniform(1., 10.),1), 1.*round(random.uniform(0., 1e0),1), 1.*round(random.uniform(0., 1e0),1)
+testip, testie, testis = round(1e1 * random.uniform(1., 10.),1), 1.*round(random.uniform(0., 1e0),1), 0.*round(random.uniform(0., 1e0),1)
 
 class TestA1A2Conv(unittest.TestCase):
     
@@ -70,7 +76,10 @@ class TestA1A2Conv(unittest.TestCase):
                         
         control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
                                          control_variables_ = cntrl_var) 
+        
+        # cannot be reconstructed reasonably as information is missing due to delay not within simulation duration
         control1[:,:,-delay_ndt-ind_timeshift:] = 0.
+        control1[:,:,:delay_ndt+ind_timeshift] = 0.
         #control1 = model.getZeroControl()
         #control1[0,0,cntrl_zeros_pre + 3] = 1.
         

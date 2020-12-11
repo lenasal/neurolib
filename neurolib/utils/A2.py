@@ -66,7 +66,9 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
             
         #cost_ = cost.f_cost(state_, target_, best_control_)
         total_cost_[i] = cost.f_int(N, n_control_vars, T, dt, state_, target_, best_control_, v_ = prec_variables_)
-        print('RUN ', i, ', total integrated cost: ', total_cost_[i])
+        
+        if (i < 5 or i%20 == 0):
+            print('RUN ', i, ', total integrated cost: ', total_cost_[i])
 
         delta_ = gf_dc(model, N, n_control_vars, T, best_control_, target_, include_timestep_, start_step_, test_step_, max_control_,
                        min_control_, startind_, delay_state_vars_, control_variables_, prec_variables_)
@@ -80,6 +82,8 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
 
         state0_ = state_
         state_ = fo.updateState(model, best_control_)
+        
+        #print("best control = ", best_control_[0,control_variables_[0],:])
         
         runtime_[i] = timer() - runtime_start_
         
