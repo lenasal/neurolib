@@ -137,6 +137,18 @@ def setmaxcontrol(n_control_vars, control_, max_control_, min_control_):
             elif control_[0,v,j] < min_control_:
                 control_[0,v,j] = min_control_
     return control_
+
+@numba.njit
+def scalemaxcontrol(control_, max_control_, min_control_):
+    max_val_ = np.amax(control_)
+    if max_val_ != 0 and max_val_> max_control_:
+        scale_factor_ = np.abs(max_control_ / max_val_)
+        control_ *= scale_factor_
+    min_val_ = np.amin(control_)
+    if min_val_ != 0. and min_control_ != 0. and min_val_< min_control_:
+        scale_factor_ = np.abs(min_control_ / min_val_)
+        control_ *= scale_factor_
+    return control_
     
 def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
               bisec_factor_ = 2., max_control_ = 20., min_control_ = -20., tolerance_ = 1e-16, substep_ = 0.1,
@@ -167,6 +179,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         
         # include maximum control value to assure no divergence
         if ( np.amax(test_control_) > max_control_ or np.amin(test_control_) < min_control_):
+            test_control_ = scalemaxcontrol(test_control_, max_control_, min_control_)
             test_control_ = setmaxcontrol(V, test_control_, max_control_, min_control_)
         
         state1_ = updateState(model, test_control_)
@@ -239,6 +252,7 @@ def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cos
     i = 1.
     cntrl_ = control_ + ( 1. + i * substep_ ) * step_min_ * dir_
     #print("scan control = ", cntrl_[0,2,:])
+    cntrl_ = scalemaxcontrol(cntrl_, max_control_, min_control_)
     cntrl_ = setmaxcontrol(V, cntrl_, max_control_, min_control_)
     #print("scan control after setting = ", cntrl_[0,2,:])
     state_ = updateState(model_, cntrl_)
@@ -258,6 +272,7 @@ def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cos
         # new control
         cntrl_ = control_ + ( 1. + i * substep_ ) * step_min_ * dir_
         #print("scan control = ", cntrl_[0,2,:])
+        cntrl_ = scalemaxcontrol(cntrl_, max_control_, min_control_)
         cntrl_ = setmaxcontrol(V, cntrl_, max_control_, min_control_)
         #print("scan control after setting = ", cntrl_[0,2,:])
         state_ = updateState(model_, cntrl_)

@@ -545,14 +545,25 @@ def timeIntegration_njit_elementwise(
                 + sigmae_ext ** 2
                 ) # mV/sqrt(ms)
             
+            z1ee = max(z1ee,0.)
+            z2ee = max(z2ee,0.)
+            z1ei = max(z1ei,0.)
+            z2ei = max(z2ei,0.)
+            z1ie = max(z1ie,0.)
+            z2ie = max(z2ie,0.)
+            z1ii = max(z1ii,0.)
+            z2ii = max(z2ii,0.)
+                
+            
             if arg > 0.:
                 sigmae = np.sqrt( arg  )
             else:
                 sigmae = 0.
                 #print("prefactor = ", c_gl ** 2 * Ke_gl)
             #sigmae = (1. + z2ee )**2 * (1. + control_ext[no, 2, i-startind])**2
-            sigmae = seev[no,i-1] + (1. + z2ee )**(-1) + (1. + z2ei )**(-1)
-            sigmae = (1. + z2ee )**(-1) + (1. + z2ei )**(-1)
+            sigmae = 1e1 * seev[no,i-1] + (1. + z2ee )**(-1) #+ (1. + z2ei )**(-1)
+            #print(seev[no,i-1], (1. + z2ee )**(-1))
+            #sigmae = (1. + z2ee )**(-1) + (1. + z2ei )**(-1)
             #print("factor integration = ", c_gl ** 2 * Ke_gl)
             #print("z2ee = ", z2ee)
             
@@ -569,7 +580,7 @@ def timeIntegration_njit_elementwise(
             else:
                 sigmai = 0.
                 
-            sigmai = 1./(1. + z2ie) + 1./(1. + z2ii)  #siev[no,i-1] #
+            sigmai = 0.#1./(1. + z2ie) + 1./(1. + z2ii)  #siev[no,i-1] #
             
 
             if not filter_sigma:

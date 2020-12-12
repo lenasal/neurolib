@@ -144,6 +144,14 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     #control_[:,2:,-2:] = 0.
     state0_ = fo.updateFullState(model, control_, state_vars)
     
+    state1_ = state0_.copy()
+    u_opt0_ = control_.copy()
+    best_control_ = control_.copy()
+    
+    # set max control
+    best_control_ = fo.scalemaxcontrol(best_control_, cntrl_max_, cntrl_min_)
+    best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)
+    
 
     
     total_cost_ = np.zeros((max_iteration_+1))
@@ -151,7 +159,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     #print("exc rate = ", state0_[0,0,:])
     #print("target = ", target_state_[0,0,:])
     #print("control = ", control_[0,2,:])
-    total_cost_[i] = cost.f_int(N, n_control_vars, T, dt, state0_, target_state_, control_, v_ = prec_variables )
+    total_cost_[i] = cost.f_int(N, n_control_vars, T, dt, state0_, target_state_, best_control_, v_ = prec_variables )
     #print("initial cost = ", total_cost_[i])
     runtime_ = np.zeros(( int(max_iteration_+1) ))
     runtime_start_ = timer()
@@ -161,10 +169,6 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     if CGVar not in VALID_VAR:
         print("No valid variant of conjugate gradient descent selected, use none instead.")
         CGVar = None
-
-    state1_ = state0_.copy()
-    u_opt0_ = control_.copy()
-    best_control_ = control_.copy()
     
     full_cost_grad = np.zeros(( N, 2, T ))   
     
@@ -304,6 +308,25 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                         
         #dir0_[:,2:,-2] = 0. #pre-last rate control does not impact anything
         
+        """
+        ########
+        # eliminate maximum absolute value of dir
+        indmax0 = [-1,-1]
+        indmax1 = [-1,-1]
+        maxdir0 = 0.
+        maxdir1 = 0.
+        for k in range(T):
+            for v in range(n_control_vars):
+                if np.abs(dir0_[0,v,k]) > maxdir0:
+                    indmax0 = [v,k]
+                    maxdir0 = np.abs(dir0_[0,v,k])
+                elif np.abs(dir0_[0,v,k]) > maxdir1:
+                    indmax1 = [v,k]
+                    maxdir1 = np.abs(dir0_[0,v,k])
+        print("max dir 0 and 1: ", maxdir0, indmax0, maxdir1, indmax1)
+        dir0_[0,indmax0[0], indmax0[1]] = 0.
+        """
+        
         minCost = []
         tc_exc = -1
         tc_inh = -1
@@ -349,7 +372,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         """
         
         step_, total_cost_[i], startStep_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, dir0_, start_step_ = startStep_, max_it_ = 1000, max_control_ = cntrl_max_,
+                     best_control_, dir0_, start_step_ = startStep_, max_it_ = 10000, max_control_ = cntrl_max_,
                          min_control_ = cntrl_min_, variables_ = prec_variables)
         
         #print("step size = ", step_, total_cost_[i])
@@ -401,8 +424,10 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         best_control_ = u_opt0_ + step_ * dir0_
         
         # why is this needed?  
+        best_control_ = fo.scalemaxcontrol(best_control_, cntrl_max_, cntrl_min_)
         best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)
         ########
+                
         
         u_diff_ = ( np.absolute(best_control_ - u_opt0_) < tolerance_ )
         if ( u_diff_.all() ):
@@ -604,8 +629,12 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
                                              np.array( [ jac[15,1,ind_time+ndt_di],
                                                         jac[16,1,ind_time+ndt_di] ] ) ) )
                 
-        if (ind_time == 0):
-                break
+        
+        #if ind_time == T-1:
+        #    phi_[0,9,-1] = + dt * jac[15,9,-1] * phi_[0,0,-1] * jac[0,15,-1]
+        #    print("last entry in phi 9 = ", phi_[0,9,-1])
+        if ind_time == 0:
+            break
             
         shift_mue = 1
         der = 0.
@@ -630,8 +659,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         phi_[0,15,ind_time-1] = res
         
         res = - phi_[0,1,ind_time] * jac[1,16, ind_time-1]
-        phi_[0,16,ind_time-1] = res
-        
+        #phi_[0,16,ind_time-1] = res
         
         der = ( phi_[0,15,ind_time-1] * jac[15,9,ind_time-1] )
         phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
@@ -708,6 +736,8 @@ def phi1(N, V, T, n_control_vars, phi_, state_, control_, state_pre_,
             phi_shift[9] = 0.
         else:
             phi_shift[9] = phi_[0,9,ind_t+1]
+            
+        #print("t, phi 9, 15 = ", ind_t, phi_shift[9], phi_shift[15])
 
                     
         y0 = np.ascontiguousarray(jac_u_[0,:])
@@ -759,6 +789,8 @@ def D_u_h(V, state_, control_, t_, state_pre_,
         z1ee = factor_ee1 * state_pre_[0,0,t_-shift_e-1] * 1e-3 + factor_eec1 * ( control_[0,2,t_] )
         z2ee = factor_ee2 * state_pre_[0,0,t_-shift_e-1] * 1e-3  + factor_eec2 * ( control_[0,2,t_] )
         
+    z1ee = max(z1ee,0.)
+    z2ee = max(z2ee,0.)
     
     duh_ = np.zeros(( 4, V ))
     
@@ -766,7 +798,7 @@ def D_u_h(V, state_, control_, t_, state_pre_,
     duh_[0,2] = - 1. / state_[0,18,t_-1]
     duh_[1,3] = - 1. / state_[0,19,t_-1]
     
-    duh_[2,9] = -1. 
+    duh_[2,9] = - 1.
     #duh_[2,15] = - (1. + z2ee)**2 * 2. * (1. + control_[0,2,t_] ) #( 1. + z2ee )**(-2.) * factor_eec2
     duh_[2,15] = ( 1. + z2ee )**(-2.) * factor_eec2
     #print("factor adjoint = ", factor_eec2)
@@ -843,6 +875,15 @@ def jacobian(V, state_, control_, T, state_pre_,
             z2ei = factor_ei2 * state_pre_[0,1,t_-shift_i-1] * 1e-3        
             z1ii = factor_ii1 * state_pre_[0,1,t_-shift_i-1] * 1e-3
             z2ii = factor_ii2 * state_pre_[0,1,t_-shift_i-1] * 1e-3
+            
+        z1ee = max(z1ee,0.)
+        z2ee = max(z2ee,0.)
+        z1ei = max(z1ei,0.)
+        z2ei = max(z2ei,0.)
+        z1ie = max(z1ie,0.)
+        z2ie = max(z2ie,0.)
+        z1ii = max(z1ii,0.)
+        z2ii = max(z2ii,0.)
         
         jacobian_[0,2,t_] = - d_r_func_mu(state_[0,2,t_], sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
         jacobian_[0,15,t_] = - d_r_func_sigma(state_[0,2,t_], sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
@@ -863,11 +904,11 @@ def jacobian(V, state_, control_, T, state_pre_,
         
         #jacobian_[15,0,t_] = - (1. + control_[0,2,t_])**2 * factor_ee2 * 1e-3 * 2. * (1. + z2ee) 
         jacobian_[15,0,t_] = ( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
-        jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3
-        #jacobian_[15,9,t_] = -1.
+        #jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3
+        jacobian_[15,9,t_] = - 1e1
         
-        jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
-        jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3
+        #jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
+        #jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3
         #jacobian_[16,11,t_] = -1.
 
     
