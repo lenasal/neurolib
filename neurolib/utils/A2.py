@@ -72,6 +72,12 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
 
         delta_ = gf_dc(model, N, n_control_vars, T, best_control_, target_, include_timestep_, start_step_, test_step_, max_control_,
                        min_control_, startind_, delay_state_vars_, control_variables_, prec_variables_)
+        
+        #step_ = fo.step_size(model, N, V, T, dt, state_, target_, best_control_, delta_, start_step_, max_it_ = 1000,
+        #                                     bisec_factor_ = 2., max_control_ = max_control_, min_control_ = min_control_,
+        #                                     variables_ = prec_variables_, alg = "A2")
+        #print("step = ", step_)
+        
         best_control_ += delta_
         
         best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, max_control_, min_control_)
@@ -96,8 +102,8 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
         s_diff_ = ( np.absolute(state_ - state0_) < tolerance_ )
         if ( s_diff_.all() ):
             print("State only changes marginally.")
-            max_iteration_ = i+1
-            break
+            #max_iteration_ = i+1
+            #break
         
     state_ = fo.updateFullState(model, best_control_, state_vars)
     
@@ -177,11 +183,11 @@ def get_dir(model, N, V, T, dt, ind_node, ind_var, ind_time, state0, target0_, c
             else:
                 if (counter == maxcounter - 1):
                     dir_ = dir_up_.copy()         
-                test_step_ *= 4.
+                test_step_ *= 10.
                 counter += 1
         # both directions no improvement
         else:
-            test_step_ *= 4.
+            test_step_ *= 10.
             counter += 1
         
     return dir_
@@ -225,7 +231,7 @@ def gf_dc(model, N, V, T, control_, target_, include_timestep_, start_step_, tes
         if ind_var in control_variables_:
             cntrl_vars.append(ind_var)
         
-    #print("cntrl_vars = ", cntrl_vars)
+   # print("cntrl_vars = ", cntrl_vars)
     
     # t = 0 does matter for rate control, not for current control
     if 2 in cntrl_vars:
@@ -277,9 +283,10 @@ def gf_dc(model, N, V, T, control_, target_, include_timestep_, start_step_, tes
                         if not start_st_ == 0.:
                             #print("get step")
                             step_ = fo.step_size(model, N, V, T_, dt, state0, target0_, control0_, dir_, start_st_, max_it_ = 1000,
-                                                 bisec_factor_ = 2., max_control_ = max_control_, min_control_ = min_control_, alg = "A2")
+                                                 bisec_factor_ = 2., max_control_ = max_control_, min_control_ = min_control_,
+                                                 variables_ = prec_variables_, alg = "A2")
                             
-                            #print("step size = ", step_)
+                            print("step size = ", step_)
                     
                             control0_[ind_node, ind_var, 1] += step_[0] * dir_[ind_node, ind_var, 1]
                             delta_c[ind_node, ind_var, ind_time+1] = step_[0] * dir_[ind_node, ind_var, 1]                    
@@ -299,9 +306,9 @@ def gf_dc(model, N, V, T, control_, target_, include_timestep_, start_step_, tes
                                             
                     #print("update state with control = ", control0_)
                     state0 = fo.updateState(model, control0_)
-                    #print("get dir --------------------------------------------- ")
+                   # print("get dir --------------------------------------------- ")
                     dir_ = get_dir(model, N, V, T, dt, ind_node, ind_var, ind_time, state0, target0_, control0_, test_step_, prec_variables_)
-                    #print("1")
+                    #print("dir ", dir_)
                     
                     if (dir_.any() != 0.):
                         #print("2")
@@ -309,7 +316,8 @@ def gf_dc(model, N, V, T, control_, target_, include_timestep_, start_step_, tes
                         if not start_st_ == 0.:
                             #print("3")
                             step_ = fo.step_size(model, N, V, T, dt, state0, target0_, control0_, dir_, start_st_, max_it_ = 1000,
-                                                 bisec_factor_ = 2., max_control_ = max_control_, min_control_ = min_control_, alg = "A2")
+                                                 bisec_factor_ = 2., max_control_ = max_control_, min_control_ = min_control_,
+                                                 variables_ = prec_variables_, alg = "A2")
                             
                             #print("step size = ", step_)
                     

@@ -149,7 +149,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     best_control_ = control_.copy()
     
     # set max control
-    best_control_ = fo.scalemaxcontrol(best_control_, cntrl_max_, cntrl_min_)
+    #best_control_ = fo.scalemaxcontrol(best_control_, cntrl_max_, cntrl_min_)
     best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)
     
 
@@ -424,7 +424,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         best_control_ = u_opt0_ + step_ * dir0_
         
         # why is this needed?  
-        best_control_ = fo.scalemaxcontrol(best_control_, cntrl_max_, cntrl_min_)
+        #best_control_ = fo.scalemaxcontrol(best_control_, cntrl_max_, cntrl_min_)
         best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)
         ########
                 
@@ -659,7 +659,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         phi_[0,15,ind_time-1] = res
         
         res = - phi_[0,1,ind_time] * jac[1,16, ind_time-1]
-        #phi_[0,16,ind_time-1] = res
+        phi_[0,16,ind_time-1] = res
         
         der = ( phi_[0,15,ind_time-1] * jac[15,9,ind_time-1] )
         phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
@@ -802,7 +802,7 @@ def D_u_h(V, state_, control_, t_, state_pre_,
     
     duh_[2,9] = - 1.
     #duh_[2,15] = - (1. + z2ee)**2 * 2. * (1. + control_[0,2,t_] ) #( 1. + z2ee )**(-2.) * factor_eec2
-    duh_[2,15] = -1.#( 1. + z2ee )**(-2.) * factor_eec2
+    duh_[2,15] = ( 1. + z2ee )**(-2.) * factor_eec2
     #print("factor adjoint = ", factor_eec2)
     #print(control_[0,2,t_], )
     
@@ -907,12 +907,12 @@ def jacobian(V, state_, control_, T, state_pre_,
         # z1ie * (1. - siev[no,i-1]) + siev[no,i-1]
         
         #jacobian_[15,0,t_] = - (1. + control_[0,2,t_])**2 * factor_ee2 * 1e-3 * 2. * (1. + z2ee) 
-        #jacobian_[15,0,t_] = ( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
-        #jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3
-        jacobian_[15,9,t_] = - 1e2
+        jacobian_[15,0,t_] = ( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
+        jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3
+        jacobian_[15,9,t_] = - 1e1
         
-        #jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
-        #jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3
+        jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
+        jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3
         #jacobian_[16,11,t_] = -1.
 
     

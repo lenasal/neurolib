@@ -40,15 +40,15 @@ ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 
 variation = [ 
               #[0,0,1,False], [0,0,1,True], 
-              [0,1,4,False], [0,1,4,True], 
-              [1,0,4,False], [1,0,4,True], 
-              #[1,1,1,False], [1,1,1,True],
-              #[2,0,1,False], [2,0,1,True], 
-              #[2,1,4,False], [2,1,4,True] 
+              #[0,1,4,False], [0,1,4,True], 
+              #[1,0,4,False], [1,0,4,True], 
+              [1,1,1,False], [1,1,1,True],
+              [2,0,1,False], [2,0,1,True], 
+              [2,1,4,False], [2,1,4,True] 
               ]
 
 
-testip, testie, testis = round(1e1 * random.uniform(1., 10.),1), 1.*round(random.uniform(0., 1e0),1), 0.*round(random.uniform(0., 1e0),1)
+testip, testie, testis = round(1e1 * random.uniform(1., 10.),1), 1.*round(random.uniform(0., 1e-2),3), 1.*round(random.uniform(0., 1e-2),3)
 
 class TestA1A2Conv(unittest.TestCase):
     
@@ -96,7 +96,7 @@ class TestA1A2Conv(unittest.TestCase):
         model.params.duration = duration
         control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
                                          control_variables_ = cntrl_var) 
-        control2 = model.getZeroControl()
+        #control2 = model.getZeroControl()
         
         cost.setParams(testip, testie, testis)
         
@@ -114,6 +114,8 @@ class TestA1A2Conv(unittest.TestCase):
                         CGVar = None, control_variables_ = cntrl_var, prec_variables_ = prec_var)
         
         func.setInitVarsZero(model, init_vars)
+        
+        #control2 = A1_bestControl[:,:,cntrl_zeros_pre:-cntrl_zeros_post] * random.uniform(0.8,1.2)
 
         A2_bestControl, A2_bestState, A2_cost, A2_runtime = model.A2(control2, target, max_iteration_A2,
                             algorithm_tolerance, incl_steps, start_step, test_step, c_max, c_min, duration, dur_pre, dur_post,

@@ -560,15 +560,9 @@ def timeIntegration_njit_elementwise(
                 sigmae = np.sqrt( arg  )
             else:
                 sigmae = 0.
-                #print("prefactor = ", c_gl ** 2 * Ke_gl)
-            #sigmae = (1. + z2ee )**2 * (1. + control_ext[no, 2, i-startind])**2
-            sigmae = 1e2 * seev[no,i-1] + control_ext[no, 2, i-startind]# (1. + z2ee )**(-1) #+ (1. + z2ei )**(-1)
-            #print(seev[no,i-1], (1. + z2ee )**(-1))
+
+            sigmae = 1e1 * seev[no,i-1] + (1. + z2ee )**(-1) + (1. + z2ei )**(-1)
             #sigmae = (1. + z2ee )**(-1) + (1. + z2ei )**(-1)
-            #print("factor integration = ", c_gl ** 2 * Ke_gl)
-            #print("z2ee = ", z2ee)
-            
-            #print("effect of self-excitation: ", 1e3 * z2ee**2)
                         
             arg = ( 
                 2 * sq_Jie_max * siev[no,i-1] * tau_se * taum #/ ((1 + z1ie) * taum + tau_se)
@@ -581,7 +575,7 @@ def timeIntegration_njit_elementwise(
             else:
                 sigmai = 0.
                 
-            sigmai = 0.#1./(1. + z2ie) + 1./(1. + z2ii)  #siev[no,i-1] #
+            sigmai =  1./(1. + z2ie) + 1./(1. + z2ii)  #siev[no,i-1] #
             
 
             if not filter_sigma:
@@ -713,8 +707,8 @@ def timeIntegration_njit_elementwise(
     )  # external rate input to inh. population
     z2ii = cii ** 2 * Ki * rd_inh[no]
 
-    sigmae = 0.#seev[no,-1] + 1./(1. + z2ei) + 1./(1. + z2ee)
-    sigmai = 0.#1./(1. + z2ie) + 1./(1. + z2ii) 
+    sigmae = 1e1 * seev[no,-1] + 1./(1. + z2ei) + 1./(1. + z2ee)
+    sigmai = 1./(1. + z2ie) + 1./(1. + z2ii) 
 
 
     if not filter_sigma:
