@@ -663,6 +663,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         
         der = ( phi_[0,15,ind_time-1] * jac[15,9,ind_time-1] )
         phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
+    
                 
     return phi_
 
@@ -788,9 +789,10 @@ def D_u_h(V, state_, control_, t_, state_pre_,
     else:
         z1ee = factor_ee1 * state_pre_[0,0,t_-shift_e-1] * 1e-3 + factor_eec1 * ( control_[0,2,t_] )
         z2ee = factor_ee2 * state_pre_[0,0,t_-shift_e-1] * 1e-3  + factor_eec2 * ( control_[0,2,t_] )
+       
         
-    z1ee = max(z1ee,0.)
-    z2ee = max(z2ee,0.)
+    #z1ee = max(z1ee,0.)
+    #z2ee = max(z2ee,0.)
     
     duh_ = np.zeros(( 4, V ))
     
@@ -800,7 +802,7 @@ def D_u_h(V, state_, control_, t_, state_pre_,
     
     duh_[2,9] = - 1.
     #duh_[2,15] = - (1. + z2ee)**2 * 2. * (1. + control_[0,2,t_] ) #( 1. + z2ee )**(-2.) * factor_eec2
-    duh_[2,15] = ( 1. + z2ee )**(-2.) * factor_eec2
+    duh_[2,15] = -1.#( 1. + z2ee )**(-2.) * factor_eec2
     #print("factor adjoint = ", factor_eec2)
     #print(control_[0,2,t_], )
     
@@ -875,7 +877,8 @@ def jacobian(V, state_, control_, T, state_pre_,
             z2ei = factor_ei2 * state_pre_[0,1,t_-shift_i-1] * 1e-3        
             z1ii = factor_ii1 * state_pre_[0,1,t_-shift_i-1] * 1e-3
             z2ii = factor_ii2 * state_pre_[0,1,t_-shift_i-1] * 1e-3
-            
+         
+        """
         z1ee = max(z1ee,0.)
         z2ee = max(z2ee,0.)
         z1ei = max(z1ei,0.)
@@ -884,6 +887,7 @@ def jacobian(V, state_, control_, T, state_pre_,
         z2ie = max(z2ie,0.)
         z1ii = max(z1ii,0.)
         z2ii = max(z2ii,0.)
+        """
         
         jacobian_[0,2,t_] = - d_r_func_mu(state_[0,2,t_], sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
         jacobian_[0,15,t_] = - d_r_func_sigma(state_[0,2,t_], sigmarange, ds, state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
@@ -903,9 +907,9 @@ def jacobian(V, state_, control_, T, state_pre_,
         # z1ie * (1. - siev[no,i-1]) + siev[no,i-1]
         
         #jacobian_[15,0,t_] = - (1. + control_[0,2,t_])**2 * factor_ee2 * 1e-3 * 2. * (1. + z2ee) 
-        jacobian_[15,0,t_] = ( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
+        #jacobian_[15,0,t_] = ( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
         #jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3
-        jacobian_[15,9,t_] = - 1e1
+        jacobian_[15,9,t_] = - 1e2
         
         #jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
         #jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3

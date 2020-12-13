@@ -545,6 +545,7 @@ def timeIntegration_njit_elementwise(
                 + sigmae_ext ** 2
                 ) # mV/sqrt(ms)
             
+            """
             z1ee = max(z1ee,0.)
             z2ee = max(z2ee,0.)
             z1ei = max(z1ei,0.)
@@ -553,7 +554,7 @@ def timeIntegration_njit_elementwise(
             z2ie = max(z2ie,0.)
             z1ii = max(z1ii,0.)
             z2ii = max(z2ii,0.)
-                
+            """ 
             
             if arg > 0.:
                 sigmae = np.sqrt( arg  )
@@ -561,7 +562,7 @@ def timeIntegration_njit_elementwise(
                 sigmae = 0.
                 #print("prefactor = ", c_gl ** 2 * Ke_gl)
             #sigmae = (1. + z2ee )**2 * (1. + control_ext[no, 2, i-startind])**2
-            sigmae = 1e1 * seev[no,i-1] + (1. + z2ee )**(-1) #+ (1. + z2ei )**(-1)
+            sigmae = 1e2 * seev[no,i-1] + control_ext[no, 2, i-startind]# (1. + z2ee )**(-1) #+ (1. + z2ei )**(-1)
             #print(seev[no,i-1], (1. + z2ee )**(-1))
             #sigmae = (1. + z2ee )**(-1) + (1. + z2ei )**(-1)
             #print("factor integration = ", c_gl ** 2 * Ke_gl)
@@ -638,6 +639,7 @@ def timeIntegration_njit_elementwise(
             
             #print(seev[no,i-1], seev_rhs)
 
+            """
             # Ensure the variance does not get negative for low activity
             if seev[no,i] < 0:
                 #print("catch below zero")
@@ -654,6 +656,7 @@ def timeIntegration_njit_elementwise(
             if siiv[no,i] < 0:
                 #print("catch below zero")
                 siiv[no,i] = 0.0
+            """
 
             # ornstein-uhlenbeck process
             mue_ou[no,i] = (
