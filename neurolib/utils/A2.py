@@ -286,7 +286,7 @@ def gf_dc(model, N, V, T, control_, target_, include_timestep_, start_step_, tes
                                                  bisec_factor_ = 2., max_control_ = max_control_, min_control_ = min_control_,
                                                  variables_ = prec_variables_, alg = "A2")
                             
-                            print("step size = ", step_)
+                            #print("step size = ", step_)
                     
                             control0_[ind_node, ind_var, 1] += step_[0] * dir_[ind_node, ind_var, 1]
                             delta_c[ind_node, ind_var, ind_time+1] = step_[0] * dir_[ind_node, ind_var, 1]                    

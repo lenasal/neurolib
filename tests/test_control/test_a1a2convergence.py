@@ -18,7 +18,7 @@ assertion_tolerance_grad = 5
 c_controlmin, c_controlmax = -0., 2.
 r_controlmin, r_controlmax = 0., 0.1
 algorithm_tolerance = 1e-24
-max_iteration = int(1e4)
+max_iteration = int(1e5)
 max_iteration_A2 = 300
 start_step = 10.
 test_step = 1e-6
@@ -41,10 +41,10 @@ ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 variation = [ 
               #[0,0,1,False], [0,0,1,True], 
               #[0,1,4,False], [0,1,4,True], 
-              #[1,0,4,False], [1,0,4,True], 
-              [1,1,1,False], [1,1,1,True],
-              [2,0,1,False], [2,0,1,True], 
-              [2,1,4,False], [2,1,4,True] 
+              [1,0,4,False], [1,0,4,True], 
+              #[1,1,1,False], [1,1,1,True],
+              #[2,0,1,False], [2,0,1,True], 
+              #[2,1,4,False], [2,1,4,True] 
               ]
 
 
@@ -79,7 +79,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         # cannot be reconstructed reasonably as information is missing due to delay not within simulation duration
         control1[:,:,-delay_ndt-ind_timeshift:] = 0.
-        control1[:,:,:delay_ndt+ind_timeshift] = 0.
+        control1[:,:,:cntrl_zeros_pre+delay_ndt+ind_timeshift] = 0.
         #control1 = model.getZeroControl()
         #control1[0,0,cntrl_zeros_pre + 3] = 1.
         

@@ -416,8 +416,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         if (
             i <= 20
-            or (i <= 200 and i%10 == 0) 
-            or (i <= 2000 and i%100 == 0) 
+            or ( i <= 200 and i%10 == 0 ) 
+            or ( i <= 2000 and i%100 == 0 ) 
+            or ( i%1000 == 0 )
             ):
             print("RUN ", i, ", total integrated cost = ", total_cost_[i])
             
@@ -613,11 +614,19 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         
         if ind_time + ndt_de >= T-1:
             phi_[0,0,ind_time] = - full_cost_grad[0,0,ind_time]
-        else:
+        elif ind_time + ndt_de + 1 >= T-1:
             phi_[0,0,ind_time] = - ( full_cost_grad[0,0,ind_time]
                                     + np.dot( np.array( [ phi_[0,15,ind_time+ndt_de],
                                                          phi_[0,16,ind_time+ndt_de] ] ),
                                              np.array( [ jac[15,0,ind_time+ndt_de],
+                                                        jac[16,0,ind_time+ndt_de] ] ) ) )
+        else:
+            phi_[0,0,ind_time] = - ( full_cost_grad[0,0,ind_time]
+                                    + np.dot( np.array( [ phi_[0,9,ind_time+ndt_de+1],
+                                                         phi_[0,15,ind_time+ndt_de],
+                                                         phi_[0,16,ind_time+ndt_de] ] ),
+                                             np.array( [ jac[9,0,ind_time+ndt_de+1],
+                                                        jac[15,0,ind_time+ndt_de],
                                                         jac[16,0,ind_time+ndt_de] ] ) ) )
             
         if ind_time + ndt_di >= T-1:
@@ -661,7 +670,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         res = - phi_[0,1,ind_time] * jac[1,16, ind_time-1]
         phi_[0,16,ind_time-1] = res
         
-        der = ( phi_[0,15,ind_time-1] * jac[15,9,ind_time-1] )
+        der = ( phi_[0,9,ind_time] * jac[9,9,ind_time] + phi_[0,15,ind_time-1] * jac[15,9,ind_time-1] )
         phi_[0,9,ind_time-1] = phi_[0,9,ind_time] - dt * der
     
                 
@@ -800,9 +809,9 @@ def D_u_h(V, state_, control_, t_, state_pre_,
     duh_[0,2] = - 1. / state_[0,18,t_-1]
     duh_[1,3] = - 1. / state_[0,19,t_-1]
     
-    duh_[2,9] = - 1.
+    duh_[2,9] = - 1. #factor_eec1
     #duh_[2,15] = - (1. + z2ee)**2 * 2. * (1. + control_[0,2,t_] ) #( 1. + z2ee )**(-2.) * factor_eec2
-    duh_[2,15] = ( 1. + z2ee )**(-2.) * factor_eec2
+    duh_[2,15] = ( 1. + z2ee )**(-2.) * factor_eec2 * 1e1 * ( 1. + state_[0,9,t_] )
     #print("factor adjoint = ", factor_eec2)
     #print(control_[0,2,t_], )
     
@@ -897,7 +906,8 @@ def jacobian(V, state_, control_, T, state_pre_,
         
         jacobian_[2,2,t_] = 1. / state_[0,18,t_]
         
-        #jacobian_[9,0,t_] = 
+        #jacobian_[9,0,t_] = - factor_ee1 * 1e-3
+        #jacobian_[9,9,t_] = - 1.
                 
         #jacobian_[10,1,t_] = - factor_ei1 * 1e-3
         #jacobian_[10,10,t_] = -1.
@@ -907,9 +917,10 @@ def jacobian(V, state_, control_, T, state_pre_,
         # z1ie * (1. - siev[no,i-1]) + siev[no,i-1]
         
         #jacobian_[15,0,t_] = - (1. + control_[0,2,t_])**2 * factor_ee2 * 1e-3 * 2. * (1. + z2ee) 
-        jacobian_[15,0,t_] = ( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3
-        jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3
-        jacobian_[15,9,t_] = - 1e1
+        jacobian_[15,0,t_] = ( 1. + z2ee )**(-2.) * factor_ee2 * 1e-3 * 1e1 * ( 1. + state_[0,9,t_] )
+        # should not be state[0,9,t-1] because also computing sigma t-1
+        jacobian_[15,1,t_] = ( 1. + z2ei )**(-2.) * factor_ei2 * 1e-3 * 1e2
+        jacobian_[15,9,t_] = - 1e1 * ( 1. + z2ee )**(-1.)
         
         jacobian_[16,0,t_] = ( 1. + z2ie )**(-2.) * factor_ie2 * 1e-3
         jacobian_[16,1,t_] = ( 1. + z2ii )**(-2.) * factor_ii2 * 1e-3

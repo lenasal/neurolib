@@ -69,6 +69,7 @@ class TestA1(unittest.TestCase):
         control1 = func.getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
                                          control_variables_ = cntrl_var)  
         control1[:,:,-delay_ndt-ind_timeshift:] = 0.
+        control1[:,:,:cntrl_zeros_pre+delay_ndt+ind_timeshift] = 0.
 
         cntrl_len = control1.shape[2] + cntrl_zeros_post
         if cntrl_zeros_post == 0:
