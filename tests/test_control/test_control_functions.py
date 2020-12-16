@@ -99,7 +99,7 @@ def getmodel(i, dur_pre, dur_post):
     elif i == "rate_control":
         model_ = RateModel()
         dt = model_.params.dt
-        maxDelay = min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
+        maxDelay = 0.5 * min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
         model_.params.sigma_ou = 0.
     
         model_.params.signalV = 0.#np.around( maxDelay * random.uniform(0., 1.), 1)

@@ -31,14 +31,15 @@ class TestCostFunctions(unittest.TestCase):
     """
         
     def test_sparsity(self):
-        T = 1.
+        dur = 1.
         dt = 0.1
+        T = int(1 + np.around(dur/dt))
         N = 1
         var = 2
         test_control_value = 2.
-        test_control = np.zeros(( N, var, int(1 + np.around(T/dt) ) ))
-        result_cost = N * var * test_control_value * np.sqrt(T)
-        result_gradient = test_control_value / np.sqrt( test_control_value**2 * T )
+        test_control = np.zeros(( N, var, T ) )
+        result_cost = N * var * test_control_value * np.sqrt(dur)
+        result_gradient = test_control_value / np.sqrt( test_control_value**2 * dur )
         
         i_s_ = 1.
         
@@ -46,12 +47,10 @@ class TestCostFunctions(unittest.TestCase):
         
         for t in range(test_control.shape[2]):
             test_control[:,:,t] = test_control_value
-            
-        print(cost.f_cost_sparsity_int(N, T, dt, i_s_, test_control, va_ = [0,1]), result_cost)
-            
-        self.assertAlmostEqual(cost.f_cost_sparsity_int(N, T, dt, i_s_, test_control, va_ = [0,1]), result_cost, tolerance_digits)
+                        
+        self.assertAlmostEqual(cost.f_cost_sparsity_int(N, var, T, dt, i_s_, test_control), result_cost, tolerance_digits)
         
-        gradient = cost.f_cost_sparsity_gradient(N, var, dt, test_control)
+        gradient = cost.cost_sparsity_gradient(N, var, T, dt, test_control)
         
         for n in range(test_control.shape[0]):
             for v in range(test_control.shape[1]):

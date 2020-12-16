@@ -154,12 +154,14 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
               bisec_factor_ = 2., max_control_ = 20., min_control_ = -20., tolerance_ = 1e-16, substep_ = 0.1,
               variables_ = [0,1], alg = "A1"):
     
-    #print("into step size computation cost")
-    #print("exc rate = ", state_[0,0,:])
-    #print("target = ", target_[0,0,:])
-    #print("control = ", control_[0,0,:])
-    #print("direction = ", dir_[0,0,:])
-    #print("variables = ", variables_)
+    """
+    print("into step size computation cost")
+    print("exc rate = ", state_[0,0,:])
+    print("target = ", target_[0,0,:])
+    print("control = ", control_[0,1,:])
+    print("direction = ", dir_[0,1,:])
+    print("variables = ", variables_)
+    """
     
     cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
     

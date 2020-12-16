@@ -65,6 +65,8 @@ def A2(model, cntrl_, target_, max_iteration_, tolerance_, include_timestep_, st
     for i in range( int(max_iteration_) ):
             
         #cost_ = cost.f_cost(state_, target_, best_control_)
+        #print("into cost ")
+        #print(state_, target_, best_control_)
         total_cost_[i] = cost.f_int(N, n_control_vars, T, dt, state_, target_, best_control_, v_ = prec_variables_)
         
         if (i < 5 or i%20 == 0):

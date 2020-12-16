@@ -133,7 +133,7 @@ def control_energy_components(N, V, T, dt, control_):
     for ind_node in range(N):
         for ind_var in range(V):
             energy = 0.
-            for ind_time in range(T):
+            for ind_time in range(0,T):
                 energy += dt * control_[ind_node, ind_var, ind_time]**2
             control_energy[ind_node, ind_var] = np.sqrt(energy)
     return control_energy
@@ -158,19 +158,20 @@ def numba_cost_sparsity_gradient(N, V, T, i_s, control_, control_energy):
                 cost_grad[ind_node, ind_var, :] = 0.
             else:
                 cost_grad[ind_node, ind_var, :] = i_s * control_[ind_node, ind_var,:] / control_energy[ind_node, ind_var]
+    #cost_grad[ind_node, ind_var, 0] = 0.
     return cost_grad
 
 def f_cost_sparsity_int(N, V, T, dt, i_s, control_):
     cost =  numba_cost_sparsity_int(N, V, T, i_s, dt, control_)
     return cost
 
-@numba.njit
+#@numba.njit
 def numba_cost_sparsity_int(N, V, T, i_s, dt, control_):
     int_ =  0.
     for ind_node in range(N):
         for ind_var in range(V):
             cost = 0.
-            for ind_time in range(T):
+            for ind_time in range(0,T):
                 cost += (control_[ind_node, ind_var, ind_time])**2 * dt
             int_ += i_s * np.sqrt(cost)
     return int_

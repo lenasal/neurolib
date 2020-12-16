@@ -157,7 +157,7 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     rows = 3
     n_vars = len(control_vars)
         
-    fig, ax = plt.subplots(rows, columns, figsize=(18, 14), linewidth=8, edgecolor='grey')
+    fig, ax = plt.subplots(rows, columns, figsize=(12, 14), linewidth=8, edgecolor='grey')
     plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.3, hspace=0.3)
     y_labels_rates = ['Rates exc. [Hz]', 'Rates inh. [Hz]', 'Adaptation current [pA]']
     y_labels_control = ['Control current exc. [nA]', 'Control current inh. [nA]', 'Control rate exc. [kHz]', 'Control rate inh. [kHz]']
