@@ -37,11 +37,11 @@ ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 
 variation = [ 
               #[0,0,1,False,1], [0,0,1,True,1], 
-              #[0,1,4,False,3],[0,1,4,True,3], # exp 3, 4
-              #[1,0,4,False,3], [1,0,4,True,5], 
+              [0,1,4,False,5], [0,1,4,True,5],
+              #[1,0,4,False,3], [1,0,4,True,3], 
               #[1,1,1,False,1], [1,1,1,True,1],
               [2,0,1,False,0], [2,0,1,True,0], 
-              [2,1,4,False,2], [2,1,4,True,2] 
+              #[2,1,4,False,2], [2,1,4,True,2] 
               ]
 
 class TestA1A2Conv(unittest.TestCase):
