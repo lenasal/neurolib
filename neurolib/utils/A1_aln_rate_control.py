@@ -609,8 +609,8 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
                        sigmarange, ds, Irange, dI,
                        C,
                        precalc_r, precalc_tau_mu, precalc_V,
-                       shift_e,
-                       shift_i,
+                       ndt_de,
+                       ndt_di,
                        )
         
         if ind_time + ndt_de >= T-1:
@@ -748,8 +748,8 @@ def phi1(N, V, T, n_control_vars, phi_, state_, control_, state_pre_,
                           factor_eec2,
                           rd_exc,
                           rd_inh,
-                          shift_e,
-                          shift_i,
+                          ndt_de,
+                          ndt_di,
                            )
         
         phi = np.ascontiguousarray(phi_[0,:,ind_t])
@@ -764,12 +764,9 @@ def phi1(N, V, T, n_control_vars, phi_, state_, control_, state_pre_,
         else:
             phi_shift[9] = phi_[0,9,ind_t+1]
             phi_shift[5] = phi_[0,5,ind_t+1]
-
-        
-            
+           
         #print("t, phi 9, 15 = ", ind_t, phi_shift[9], phi_shift[15])
-
-                    
+             
         y0 = np.ascontiguousarray(jac_u_[0,:])
         y1 = np.ascontiguousarray(jac_u_[1,:])
         y2 = np.ascontiguousarray(jac_u_[2,:])
@@ -833,8 +830,8 @@ def D_u_h(V, state_, control_, t_, state_pre_,
     
     duh_[2,5] = - factor_eec1
     duh_[2,9] = - factor_eec1 * ( 1. - state_[0,9,t_] ) #*  #factor_eec1 * ( 1. - state_[0,9,t_] )
+    #duh_[2,9] = - factor_eec1
     duh_[2,15] = ( (1. + z1ee) * taum + tau_se )**(-2.) * factor_eec1 * taum * ( 2. * Jee_sq * tau_se * taum * state_[0,9,t_] )
-    #duh_[2,15] = -  2. * control_[0,2,t_] #* ( state_[0,9,t_]**2 ) #( 1. + z2ee )**(-2.) * factor_eec2 * ( state_[0,9,t_] )
     #print("factor adjoint = ", factor_eec2)
     #print(control_[0,2,t_], )
     
@@ -935,8 +932,8 @@ def jacobian(V, state_, control_, T, state_pre_,
         jacobian_[5,0,t_] = - factor_ee1 * 1e-3
         #jacobian_[5,5,t_] = 1.
         
-        #jacobian_[9,0,t_] = - factor_ee1 * 1e-3 * ( 1. - state_[0,9,t_] )
-        #jacobian_[9,9,t_] = ( z1ee )
+        jacobian_[9,0,t_] = - factor_ee1 * 1e-3 * ( 1. - state_[0,9,t_] )
+        jacobian_[9,9,t_] = ( z1ee )
                 
         #jacobian_[10,1,t_] = - factor_ei1 * 1e-3
         #jacobian_[10,10,t_] = -1.

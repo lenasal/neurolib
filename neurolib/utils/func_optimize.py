@@ -338,17 +338,23 @@ def check_post(i2, bs_, state_post_, state_vars, a, b):
                 logging.error("Problem in initial value trasfer")
                 print("Problem in initial value trasfer: ", state_vars[v], bs_[n,v,-i2-1], state_post_[n,v,0])
 
-def adapt_step(control_, ind_node, ind_var, start_step_, dir_, max_control_):
+def adapt_step(control_, ind_node, ind_var, start_step_, dir_, max_control_, min_control_):
     start_st_ = start_step_
     max_index = -1
+    min_index = -1
     max_cntrl = max_control_
+    min_cntrl = min_control_
     for k in range(control_.shape[2]):
-        if ( np.abs(control_[ind_node,ind_var,k] + start_step_ * dir_[ind_node,ind_var,k]) > max_cntrl ):
+        if ( control_[ind_node,ind_var,k] + start_step_ * dir_[ind_node,ind_var,k] > max_cntrl ):
             max_index = k
-            max_cntrl = np.abs(control_[ind_node, ind_var,k] + start_step_ * dir_[ind_node, ind_var,k])
+            max_cntrl = control_[ind_node, ind_var,k] + start_step_ * dir_[ind_node, ind_var,k]
+        elif ( control_[ind_node,ind_var,k] + start_step_ * dir_[ind_node,ind_var,k] < min_cntrl ):
+            min_index = k
+            min_cntrl = control_[ind_node, ind_var,k] + start_step_ * dir_[ind_node, ind_var,k]
     if max_index != -1:
-        start_st_ = ( max_control_ - np.abs(control_[ind_node,ind_var,max_index]) ) / np.abs(dir_[ind_node,ind_var,max_index])
-    
+        start_st_ = ( max_control_ - control_[ind_node,ind_var,max_index] ) / dir_[ind_node,ind_var,max_index]
+    elif min_index != -1:
+        start_st_ = ( min_control_ - control_[ind_node,ind_var,min_index] ) / dir_[ind_node,ind_var,min_index]
     return start_st_
 
 # update rule for conjugate directions according to Hestenes-Stiefel

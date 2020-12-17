@@ -563,6 +563,7 @@ def timeIntegration_njit_elementwise(
 
             arg = (
                 2. * sq_Jee_max * seev[no,i-1] * tau_se * taum * ( (1. + z1ee ) * taum + tau_se )**(-1)
+                #2. * sq_Jee_max * tau_se * taum * ( (1. + z1ee ) * taum + tau_se )**(-1)
                 + 2. * sq_Jei_max * tau_si * taum * ( (1. + z1ei ) * taum + tau_se )**(-1)
                 + sigmae_ext ** 2
                      )
@@ -611,12 +612,14 @@ def timeIntegration_njit_elementwise(
             # integration of synaptic input (eq. 4.36)
             
             seem_rhs = ((1 - seem[no,i-1]) * z1ee - seem[no,i-1] ) / tau_se
-            seem_rhs = z1ee #- seem[no,i-1]
+            seem_rhs = c_gl * Ke_gl * control_ext[no, 2, i-startind] #- seem[no,i-1]
+            seem_rhs = z1ee
             seim_rhs = ((1 - seim[no,i-1]) * z1ei - seim[no,i-1]) / tau_si
             siem_rhs = ((1 - siem[no,i-1]) * z1ie - siem[no,i-1]) / tau_se
             siim_rhs = ((1 - siim[no,i-1]) * z1ii - siim[no,i-1]) / tau_si
             #seev_rhs = ((1 - seem[no,i-1]) ** 2 * z2ee + (z2ee - 2. * tau_se * (z1ee + 1.)) * seev[no,i-1]) / tau_se ** 2
             seev_rhs = ( z1ee ) * ( 1. - seev[no,i-1] ) #+ control_ext[no, 2, i-startind]
+            #seev_rhs = c_gl * Ke_gl * control_ext[no, 2, i-startind]
             seiv_rhs = ((1 - seim[no,i-1]) ** 2 * z2ei + (z2ei - 2 * tau_si * (z1ei + 1)) * seiv[no,i-1]) / tau_si ** 2
             siev_rhs = ((1 - siem[no,i-1]) ** 2 * z2ie + (z2ie - 2 * tau_se * (z1ie + 1)) * siev[no,i-1]) / tau_se ** 2
             siiv_rhs = ((1 - siim[no,i-1]) ** 2 * z2ii + (z2ii - 2 * tau_si * (z1ii + 1)) * siiv[no,i-1]) / tau_si ** 2
@@ -631,7 +634,7 @@ def timeIntegration_njit_elementwise(
             #seim[no,i] = seim[no,i-1] + dt * seim_rhs
             #siem[no,i] = siem[no,i-1] + dt * siem_rhs
             #siim[no,i] = siim[no,i-1] + dt * siim_rhs
-            #seev[no,i] = seev[no,i-1] + dt * seev_rhs
+            seev[no,i] = seev[no,i-1] + dt * seev_rhs
             #seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
             #siev[no,i] = siev[no,i-1] + dt * siev_rhs
             #siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs

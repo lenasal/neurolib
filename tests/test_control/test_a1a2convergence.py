@@ -20,7 +20,6 @@ max_iteration_A2 = 200
 start_step = 10.
 test_step = 1e-6
 
-duration = 5.
 dur_pre = 1.
 dur_post = 1.
 
@@ -36,12 +35,12 @@ ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 """
 
 variation = [ 
-              #[0,0,1,False,1], [0,0,1,True,1], 
-              [0,1,4,False,5], [0,1,4,True,5],
-              #[1,0,4,False,3], [1,0,4,True,3], 
-              #[1,1,1,False,1], [1,1,1,True,1],
-              [2,0,1,False,0], [2,0,1,True,0], 
-              #[2,1,4,False,2], [2,1,4,True,2] 
+              [0,0,1,False,1, 1.8], [0,0,1,True,1, 3.4], 
+              [0,1,4,False,5, 3.6], [0,1,4,True,5, 5.8],
+              [1,0,4,False,3, 3.6], [1,0,4,True,3, 5.6], 
+              [1,1,1,False,1, 1.8], [1,1,1,True,1, 3.4],
+              [2,0,1,False,-1, 1.8], [2,0,1,True,-1, 3.4], 
+              [2,1,4,False,4, 3.6], [2,1,4,True,3, 5.] 
               ]
 
 class TestA1A2Conv(unittest.TestCase):
@@ -95,9 +94,10 @@ class TestA1A2Conv(unittest.TestCase):
         target = func.setTargetFromControl(model, control1, output_vars, target_vars)[:,:, cntrl_zeros_pre:]
             
         model.params.duration = duration
-        control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
-                                         control_variables_ = cntrl_var) 
-        #control2 = model.getZeroControl()
+        #control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
+        #                                 control_variables_ = cntrl_var) 
+        
+        control2 = control1[:,:,cntrl_zeros_pre:] * random.uniform(0.99,1.1)
         
         cost.setParams(testip, testie, testis)
         
@@ -136,11 +136,23 @@ class TestA1A2Conv(unittest.TestCase):
         print("grad = ", A1_grad[0,cntrl_var,:])
         print("test weights ", testip, testie, testis)
         
-        
-        for t in range(len(A1_runtime)-1):
-            if (A1_runtime[t+1] == 0.):
+        # make sure cost is decreasing monotonously
+        A1lastind = max_iteration-1
+        for t in range(len(A1_cost)-1):
+            if (A1_cost[t+1] == 0.):
+                A1lastind = t
                 break
-                self.assertLessEqual(A1_runtime[t], A1_runtime[t+1])
+            self.assertLessEqual(A1_cost[t+1], A1_cost[t])
+            
+        A2lastind = max_iteration_A2-1
+        for t in range(len(A2_cost)-1):
+            if (A2_cost[t+1] == 0.):
+                A2lastind = t
+                break
+            self.assertLessEqual(A2_cost[t+1], A2_cost[t])
+            
+        # make sure a1 performs better than a2
+        self.assertLessEqual(A1_cost[A1lastind], A2_cost[A2lastind])
                 
         for t in range(len(A2_runtime)-1):
             if (A2_runtime[t+1] == 0.):
@@ -188,6 +200,8 @@ if __name__ == '__main__':
                 prec_var = [ variation[ind_v][1] ]
                 ind_timeshift = variation[ind_v][2]
                 exponent_cost = variation[ind_v][4]
+                duration = variation[ind_v][5]
+                
                 if not variation[ind_v][3]:
                     model.params.de = 0.
                     model.params.di = 0.
@@ -209,7 +223,7 @@ if __name__ == '__main__':
     
     print("-------------------------------------------------------------------------")
     print("Not sufficiently many iterations for test cases ", testAtMaxIt)
-    print("Zero control as result, check cost weights ", testAtZeroControl)
+    print("Zero control as result, check cost weights or simulation duration ", testAtZeroControl)
         
     if success:
         print("Test OK")
