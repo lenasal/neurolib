@@ -15,7 +15,7 @@ np.set_printoptions(precision=4)
 c_controlmin, c_controlmax = -5., 5.
 r_controlmin, r_controlmax = 0., 0.1
 algorithm_tolerance = 1e-24
-max_iteration = int(1e5)
+max_iteration = int(1e4)
 max_iteration_A2 = 200
 start_step = 10.
 test_step = 1e-6
@@ -35,12 +35,12 @@ ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 """
 
 variation = [ 
-              [0,0,1,False,1, 1.8], [0,0,1,True,1, 3.4], 
-              [0,1,4,False,5, 3.6], [0,1,4,True,5, 5.8],
-              [1,0,4,False,3, 3.6], [1,0,4,True,3, 5.6], 
-              [1,1,1,False,1, 1.8], [1,1,1,True,1, 3.4],
-              [2,0,1,False,-1, 1.8], [2,0,1,True,-1, 3.4], 
-              [2,1,4,False,4, 3.6], [2,1,4,True,3, 5.] 
+              #[0,0,1,False,1, 1.8], [0,0,1,True,-1, 3.6], 
+              #[0,1,4,False,-1, 2.6], [0,1,4,True,1, 4.4],
+              #[1,0,4,False,1, 2.6], [1,0,4,True,1, 4.4], 
+              #[1,1,1,False,1, 1.8], [1,1,1,True,1, 3.6],
+              #[2,0,1,False,-1, 1.8], [2,0,1,True,-1, 3.6], 
+              [2,1,4,False,2, 2.6], [2,1,4,True,2, 4.4] 
               ]
 
 class TestA1A2Conv(unittest.TestCase):
@@ -49,7 +49,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         ###############################################
         assertion_tolerance = 1
-        assertion_tolerance_grad = 4 + exponent_cost
+        assertion_tolerance_grad = 5 + exponent_cost
         
         testip = round(random.uniform(1., 10.),1)
         testie = round(random.uniform(0., 10.**(-exponent_cost)),exponent_cost+1)
@@ -80,8 +80,8 @@ class TestA1A2Conv(unittest.TestCase):
                                          control_variables_ = cntrl_var) 
         
         # cannot be reconstructed reasonably as information is missing due to delay not within simulation duration
-        control1[:,:,-3*(delay_ndt+ind_timeshift+1):] = 0.
-        control1[:,:,:cntrl_zeros_pre+3*(delay_ndt+ind_timeshift+1)] = 0.
+        control1[:,:,-2*(delay_ndt+ind_timeshift+1):] = 0.
+        control1[:,:,:cntrl_zeros_pre+2*(delay_ndt+ind_timeshift+1)] = 0.
         #control1 = model.getZeroControl()
         #control1[0,0,cntrl_zeros_pre + 3] = 1.
         
@@ -94,10 +94,10 @@ class TestA1A2Conv(unittest.TestCase):
         target = func.setTargetFromControl(model, control1, output_vars, target_vars)[:,:, cntrl_zeros_pre:]
             
         model.params.duration = duration
-        #control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
-        #                                 control_variables_ = cntrl_var) 
+        control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
+                                         control_variables_ = cntrl_var) 
         
-        control2 = control1[:,:,cntrl_zeros_pre:] * random.uniform(0.99,1.1)
+        #control2 = control1[:,:,cntrl_zeros_pre:] * random.uniform(0.9,1.1)
         
         cost.setParams(testip, testie, testis)
         
