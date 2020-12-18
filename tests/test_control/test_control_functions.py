@@ -116,10 +116,19 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.sigmae_ext = model_.params.mue_ext_mean * random.uniform(0.5, 1.)
         model_.params.sigmai_ext = model_.params.mui_ext_mean * random.uniform(0.5, 1.)
         
+        model_.params.cee = 1.
+        model_.params.cei = 1.
         model_.params.cie = 1.
+        model_.params.cii = 1.
+        
+        model_.params.Jee_max = 1.
+        model_.params.Jei_max = 1.
         model_.params.Jie_max = 1.
+        model_.params.Jii_max = 1.
+        
         model_.params.tau_se = 1.
         model_.params.tau_si = 1.
+        
         model_.params.C = 1.
         model_.params.gL = 1.
         model_.params.Ke = 1000.

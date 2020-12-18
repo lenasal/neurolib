@@ -564,16 +564,17 @@ def timeIntegration_njit_elementwise(
 
             arg = (
                 2. * sq_Jee_max * seev[no,i-1] * tau_se * taum * ( (1. + z1ee ) * taum + tau_se )**(-1)
-                #2. * sq_Jee_max * tau_se * taum * ( (1. + z1ee ) * taum + tau_se )**(-1)
                 + 2. * sq_Jei_max * seiv[no,i-1] * tau_si * taum * ( (1. + z1ei ) * taum + tau_se )**(-1)
                 + sigmae_ext ** 2
                      )
+            
             sigmae = arg
                                     
             arg = ( 
                 2 * sq_Jie_max * siev[no,i-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
                 + 2 * sq_Jii_max * siiv[no,i-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
-                + sigmai_ext ** 2 )  # mV/sqrt(ms)
+                + sigmai_ext ** 2
+                )  # mV/sqrt(ms)
             
             if arg > 0.:
                 sigmai = np.sqrt( arg  )
@@ -581,7 +582,13 @@ def timeIntegration_njit_elementwise(
             else:
                 sigmai = 0.
                 
-            sigmai =  1./(1. + z2ie) + 1./(1. + z2ii)  #siev[no,i-1] #
+            arg = ( 
+                2 * sq_Jie_max  * tau_se * siev[no,i-1] * taum / ((1 + z1ie) * taum + tau_se)
+                + 2 * sq_Jii_max * tau_si * siiv[no,i-1] * taum / ((1 + z1ii) * taum + tau_si)
+                + sigmai_ext ** 2
+                )  # mV/sqrt(ms)
+            
+            sigmai =  arg # 1./(1. + z2ie) + 1./(1. + z2ii)  #siev[no,i-1] #
             
 
             if not filter_sigma:
@@ -613,17 +620,15 @@ def timeIntegration_njit_elementwise(
             # integration of synaptic input (eq. 4.36)
             
             seem_rhs = ((1 - seem[no,i-1]) * z1ee - seem[no,i-1] ) / tau_se
-            #seem_rhs = c_gl * Ke_gl * control_ext[no, 2, i-startind] #- seem[no,i-1]
-            #seem_rhs = (1 - seem[no,i-1]) * z1ee - seem[no,i-1]
             seim_rhs = ((1 - seim[no,i-1]) * z1ei - seim[no,i-1]) / tau_si
             siem_rhs = ((1 - siem[no,i-1]) * z1ie - siem[no,i-1]) / tau_se
             siim_rhs = ((1 - siim[no,i-1]) * z1ii - siim[no,i-1]) / tau_si
-            #seev_rhs = ((1 - seem[no,i-1]) ** 2 * z2ee + (z2ee - 2. * tau_se * (z1ee + 1.)) * seev[no,i-1]) / tau_se ** 2
-            seev_rhs = ( (1. - seem[no,i-1]) ** 2 * z2ee + ( z2ee - 2. * tau_se * z1ee ) * seev[no,i-1] ) / tau_se ** 2
-            #seev_rhs = c_gl * Ke_gl * control_ext[no, 2, i-startind]
+            seev_rhs = ((1 - seem[no,i-1]) ** 2 * z2ee + (z2ee - 2 * tau_se * (z1ee + 1)) * seev[no,i-1]) / tau_se ** 2
             seiv_rhs = ((1 - seim[no,i-1]) ** 2 * z2ei + (z2ei - 2 * tau_si * (z1ei + 1)) * seiv[no,i-1]) / tau_si ** 2
-            siev_rhs = ((1 - siem[no,i-1]) ** 2 * z2ie + (z2ie - 2 * tau_se * (z1ie + 1)) * siev[no,i-1]) / tau_se ** 2
-            siiv_rhs = ((1 - siim[no,i-1]) ** 2 * z2ii + (z2ii - 2 * tau_si * (z1ii + 1)) * siiv[no,i-1]) / tau_si ** 2
+            #siev_rhs = ((1 - siem[no,i-1]) ** 2 * z2ie + (z2ie - 2 * tau_se * (z1ie + 1)) * siev[no,i-1]) / tau_se ** 2
+            siev_rhs = ((z2ie - 2 * tau_se * (z1ie + 1)) - siev[no,i-1]) / tau_se ** 2
+            #siiv_rhs = ((1 - siim[no,i-1]) ** 2 * z2ii + (z2ii - 2 * tau_si * (z1ii + 1)) * siiv[no,i-1]) / tau_si ** 2
+            siiv_rhs = ((1 - siim[no,i-1]) ** 2 * z2ii + (z2ii - 2 * tau_si * (z1ii + 1)) * siiv[no,i-1] ) / tau_si ** 2
 
             # -------------- integration --------------
 
@@ -634,11 +639,11 @@ def timeIntegration_njit_elementwise(
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
             #seim[no,i] = seim[no,i-1] + dt * seim_rhs
             #siem[no,i] = siem[no,i-1] + dt * siem_rhs
-            #siim[no,i] = siim[no,i-1] + dt * siim_rhs
+            siim[no,i] = siim[no,i-1] + dt * siim_rhs
             seev[no,i] = seev[no,i-1] + dt * seev_rhs
             #seiv[no,i] = seiv[no,i-1] + dt * seiv_rhs
             #siev[no,i] = siev[no,i-1] + dt * siev_rhs
-            #siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
+            siiv[no,i] = siiv[no,i-1] + dt * siiv_rhs
             
             #print(seev[no,i-1], seev_rhs)
 
@@ -696,7 +701,7 @@ def timeIntegration_njit_elementwise(
     # z1: weighted sum of delayed rates, weights=c*K
     z1ee = (
         cee * Ke * rd_exc[no,no] + c_gl * Ke_gl * rowsum
-        #+ c_gl * Ke_gl * ( ext_exc_rate[no,-1] + control_ext[no,2,-1] )
+        + c_gl * Ke_gl * ( ext_exc_rate[no,-1] + control_ext[no,2,-1] )
     )  # rate from other regions + exc_ext_rate
     z1ei = cei * Ki * rd_inh[no]
     z1ie = (
@@ -707,7 +712,7 @@ def timeIntegration_njit_elementwise(
     # z2: weighted sum of delayed rates, weights=c^2*K (see thesis last ch.)
     z2ee = (
         cee ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * rowsumsq
-        #+ c_gl ** 2 * Ke_gl * ( ext_exc_rate[no,-1] + control_ext[no,2,-1] )
+        + c_gl ** 2 * Ke_gl * ( ext_exc_rate[no,-1] + control_ext[no,2,-1] )
     )
     #print("parts of z2ee: ", cee ** 2 * Ke * rd_exc[no, no],  cee ** 2 * Ke, rd_exc[no, no])
     z2ei = cei ** 2 * Ki * rd_inh[no]
@@ -911,7 +916,7 @@ def fast_interp2_opt(x, dx, xi, y, dy, yi):
 
 @numba.njit
 def r_func(mu, sigma):
-    return ( mu + sigma ) * 1e-3
+    return ( 5. + mu + sigma ) * 1e-3
     return (mu + mu**3 + sigma + sigma**3) * 1e-3
     x_shift_mu = - 2.
     x_shift_sigma = -1.
