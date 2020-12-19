@@ -37,16 +37,16 @@ ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 variation = [ 
               [0,0,1,False,1, 1.8],
               [0,0,1,True,1, 3.6], 
-              #[0,1,4,False,4, 2.6],
-              #[0,1,4,True,4, 4.4],
-              #[1,0,4,False,3, 2.6],
-              #[1,0,4,True,2, 4.4], 
+              [0,1,4,False,5, 2.6],
+              [0,1,4,True,5, 4.4],
+              [1,0,4,False,5, 2.6],
+              [1,0,4,True,4, 4.4], 
               [1,1,1,False,1, 1.8],
               [1,1,1,True,1, 3.6],
-              #[2,0,1,False,0, 1.8],
-              #[2,0,1,True,-1, 3.6], 
-              #[2,1,4,False,0, 2.6],
-              #[2,1,4,True,1, 4.4] 
+              [2,0,1,False,1, 1.8],
+              [2,0,1,True,1, 3.6], 
+              [2,1,4,False,6, 2.6],
+              [2,1,4,True,6, 4.4] 
               ]
 
 class TestA1A2Conv(unittest.TestCase):
@@ -55,7 +55,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         ###############################################
         assertion_tolerance = 1
-        assertion_tolerance_grad = 4 + exponent_cost
+        assertion_tolerance_grad = 5 + exponent_cost
         
         testip = round(random.uniform(1., 10.),1)
         testie = round(random.uniform(0., 10.**(-exponent_cost)),exponent_cost+1)
@@ -86,8 +86,8 @@ class TestA1A2Conv(unittest.TestCase):
                                          control_variables_ = cntrl_var) 
         
         # cannot be reconstructed reasonably as information is missing due to delay not within simulation duration
-        control1[:,:,-3*(delay_ndt+ind_timeshift+1):] = 0.
-        control1[:,:,:cntrl_zeros_pre+3*(delay_ndt+ind_timeshift+1)] = 0.
+        control1[:,:,-2*(delay_ndt+ind_timeshift+1):] = 0.
+        control1[:,:,:cntrl_zeros_pre+2*(delay_ndt+ind_timeshift+1)] = 0.
         #control1 = model.getZeroControl()
         #control1[0,0,cntrl_zeros_pre + 3] = 1.
         
