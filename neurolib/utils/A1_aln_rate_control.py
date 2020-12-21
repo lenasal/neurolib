@@ -674,6 +674,12 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         #    print("last entry in phi 9 = ", phi_[0,9,-1])
         if ind_time == 0:
             break
+        
+        res = - phi_[0,2,ind_time] * jac[2,18, ind_time-1]
+        phi_[0,18,ind_time-1] = res
+        
+        res = - phi_[0,3,ind_time] * jac[3,19, ind_time-1]
+        phi_[0,19,ind_time-1] = res
             
         shift_mue = 1
         der = 0.
@@ -686,6 +692,7 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         # 2,2,-1 checked by trial and error
         der += phi_[0,2,ind_time] * jac[2,2,ind_time-1]
         der += phi_[0,17,ind_time] * jac[17,2,ind_time-1]
+        der += phi_[0,18,ind_time-1] * jac[18,2,ind_time-1]
         phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
         
         shift_mui = 1
@@ -695,12 +702,13 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
             der += phi_[0,1,ind_time+shift_mui-1] * jac[1,3,max(0,ind_time-1)]
         
         der += ( phi_[0,3,ind_time] * jac[3,3,ind_time-1] )
+        der += phi_[0,19,ind_time-1] * jac[19,3,ind_time-1]
         phi_[0,3,ind_time-1] = phi_[0,3,ind_time] - dt * der
         
         der = ( phi_[0,0,ind_time] * jac[0,4,ind_time-1]
                + phi_[0,4,ind_time] * jac[4,4,ind_time-1]
                + phi_[0,17,ind_time] * jac[17,4,ind_time-1]
-               + phi_[0,18,ind_time] * jac[18,4,ind_time-1] )
+               + phi_[0,18,ind_time-1] * jac[18,4,ind_time-1] )
         phi_[0,4,ind_time-1] = phi_[0,4,ind_time] - dt * der
         
         der = ( phi_[0,2,ind_time] * jac[2,5,ind_time-1]
@@ -731,10 +739,12 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         #der = ( phi_[0,16,ind_time] * jac[16,11,ind_time] )
         #phi_[0,11,ind_time-1] = phi_[0,11,ind_time] - dt * der
         
-        res = - phi_[0,0,ind_time] * jac[0,15, ind_time-1]
+        res = ( - phi_[0,0,ind_time] * jac[0,15, ind_time-1]
+               - phi_[0,17,ind_time] * jac[17,15, ind_time-1]
+               - phi_[0,18,ind_time-1] * jac[18,15, ind_time-1] )
         phi_[0,15,ind_time-1] = res
         
-        res = - phi_[0,1,ind_time] * jac[1,16, ind_time-1]
+        res = - phi_[0,1,ind_time] * jac[1,16, ind_time-1] - phi_[0,19,ind_time-1] * jac[19,16, ind_time-1]
         phi_[0,16,ind_time-1] = res
         
         res = - phi_[0,4,ind_time-1] * jac[4,17, ind_time-1]
@@ -1016,11 +1026,15 @@ def jacobian(V, state_, control_, T, state_pre_,
         jacobian_[2,2,t_] = 1. / state_[0,18,t_]
         jacobian_[2,5,t_] = - Jee_max / state_[0,18,t_]
         jacobian_[2,6,t_] = - Jei_max / state_[0,18,t_]
-        
+        jacobian_[2,18,t_] = ( Jee_max * state_[0,5,t_] + Jei_max * state_[0,6,t_] + control_[0,0,t_+1] + ext_exc_current
+                       + state_[0,13,t_] - state_[0,2,t_] ) / state_[0,18,t_]**2
+        #jacobian_[2,18,t_] = -1.
         
         jacobian_[3,3,t_] = 1. / state_[0,19,t_]
         jacobian_[3,7,t_] = - Jie_max / state_[0,19,t_]
         jacobian_[3,8,t_] = - Jii_max / state_[0,19,t_]
+        jacobian_[3,19,t_] = ( Jie_max * state_[0,7,t_] + Jii_max * state_[0,8,t_] + control_[0,1,t_+1] + ext_inh_current
+                       + state_[0,14,t_] - state_[0,3,t_] ) / state_[0,19,t_]**2
         
         jacobian_[4,0,t_] = - b * 1e-3
         jacobian_[4,4,t_] = 1. / tauA
@@ -1097,6 +1111,20 @@ def jacobian(V, state_, control_, T, state_pre_,
                                           state_[0,15,t_], Irange, dI, C, precalc_r)
         jacobian_[17,4,t_] = d_V_func_mu(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
                                           state_[0,15,t_], Irange, dI, C, precalc_r) / C
+        jacobian_[17,15,t_] = - d_V_func_sigma(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
+                                          state_[0,15,t_], Irange, dI, C, precalc_r)
+        
+        jacobian_[18,2,t_] = - d_tau_func_mu(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
+                                          state_[0,15,t_], Irange, dI, C, precalc_r)
+        jacobian_[18,4,t_] = d_tau_func_mu(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
+                                          state_[0,15,t_], Irange, dI, C, precalc_r) / C
+        jacobian_[18,15,t_] = - d_tau_func_sigma(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
+                                          state_[0,15,t_], Irange, dI, C, precalc_r)
+        
+        jacobian_[19,3,t_] = - d_tau_func_mu(state_[0,3,t_], sigmarange, ds,
+                                          state_[0,16,t_], Irange, dI, C, precalc_r)
+        jacobian_[19,16,t_] = - d_tau_func_sigma(state_[0,3,t_], sigmarange, ds,
+                                          state_[0,16,t_], Irange, dI, C, precalc_r)
 
     
     return jacobian_
@@ -1127,7 +1155,7 @@ def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
 
 @numba.njit
 def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
-    return 0.
+    #return 1.
     #result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
     mu_shift = - 1.1
     sigma_scale = 0.5
@@ -1140,7 +1168,7 @@ def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
 
 @numba.njit
 def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
-    return 0.
+    #return 1.
     #result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
     mu_shift = - 1.1
     sigma_scale = 0.5
@@ -1165,7 +1193,7 @@ def d_V_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
 
 @numba.njit
 def d_V_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
-    return 0.
+    return 1.
     #result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
     y_scale2 = 2.
     mu_shift2 = 0.5

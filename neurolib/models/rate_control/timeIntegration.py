@@ -562,7 +562,7 @@ def timeIntegration_njit_elementwise(
 
             rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
             Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
-            tau_exc[no,i-1] = tau_func(mufe[no,i-1] , sigmae_f[no,i-1]) #- IA[no,i-1] / C
+            tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
                                     
             rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
             tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
@@ -681,8 +681,27 @@ def timeIntegration_njit_elementwise(
     )  # external rate input to inh. population
     z2ii = cii ** 2 * Ki * rd_inh[no]
 
-    sigmae = 1e1 * seev[no,-1] + 1./(1. + z2ei) + 1./(1. + z2ee)
-    sigmai = 1./(1. + z2ie) + 1./(1. + z2ii) 
+    arg = ( 
+        2. * sq_Jee_max * seev[no,-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
+        + 2. * sq_Jei_max * seiv[no,-1] * tau_si * taum / ((1 + z1ei) * taum + tau_si)
+        + sigmae_ext ** 2
+        ) # mV/sqrt(ms)
+    
+    if arg > 0.:
+        sigmae = np.sqrt( arg  )
+    else:
+        sigmae = 0.
+                            
+    arg = ( 
+        2 * sq_Jie_max * siev[no,-1] * tau_se * taum / ((1 + z1ie) * taum + tau_se)
+        + 2 * sq_Jii_max * siiv[no,-1] * tau_si * taum / ((1 + z1ii) * taum + tau_si)
+        + sigmai_ext ** 2
+        )  # mV/sqrt(ms)
+    
+    if arg > 0.:
+        sigmai = np.sqrt( arg  )
+    else:
+        sigmai = 0. 
 
 
     if not filter_sigma:
@@ -889,7 +908,7 @@ def r_func(mu, sigma):
 
 @numba.njit
 def tau_func(mu, sigma):
-    return 1.
+    #return 1. + mu + sigma
     mu_shift = - 1.1
     sigma_scale = 0.5
     mu_scale = - 10
@@ -900,7 +919,7 @@ def tau_func(mu, sigma):
    
 @numba.njit
 def V_func(mu, sigma):
-    return -80. + mu
+    return -80. + mu + sigma
     y_scale1 = 30.
     mu_shift1 = 1.
     y_shift = - 85.
