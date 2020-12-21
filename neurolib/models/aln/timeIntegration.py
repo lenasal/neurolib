@@ -486,8 +486,6 @@ def timeIntegration_njit_elementwise(
                     rd_exc[l, no] = rates_exc[no, i - Dmat_ndt[l, no] - 1] * 1e-3  # convert Hz to kHz
                 # Warning: this is a vector and not a matrix as rd_exc
                 rd_inh[no] = rates_inh[no, i - ndt_di - 1] * 1e-3  # convert Hz to kHz
-               # print("excitatory and inhibitory rates : ", rates_exc[no, i - Dmat_ndt[l, no] - 1], " index ",  no, i - Dmat_ndt[l, no] - 1)
-                #print("inh =", rates_inh[no, i - ndt_di - 1], " index ", no, i - ndt_di - 1)
 
         # loop through all the nodes
         for no in range(N):
@@ -503,8 +501,6 @@ def timeIntegration_njit_elementwise(
             mui = (Jie_max * siem[no,i-1] + Jii_max * siim[no,i-1] + mui_ou[no,i-1] + ext_inh_current[no, i]
                    + control_ext[no, 1, i-startind+1]
                    )
-            #if (i in range(startind, startind + 3,1)):
-            #print("mue computation: ",no, i-startind, control_ext[no, 0, i-startind], control_ext[no, 1, i-startind])
 
             # compute row sum of Cmat*rd_exc and Cmat**2*rd_exc
             rowsum = 0
@@ -564,7 +560,6 @@ def timeIntegration_njit_elementwise(
             )
             xid1, yid1 = int(xid1), int(yid1)
 
-            #print("integration: xid1, yid1, dxid, dyid = ", xid1, yid1, dxid, dyid)
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
             
@@ -599,13 +594,9 @@ def timeIntegration_njit_elementwise(
 
             # now everything available for r.h.s:
 
-            mufe_rhs = (mue - mufe[no,i-1] 
-                        #+ control_ext[no, 0, i-startind+1]
-                        ) / tau_exc[no,i-1]
+            mufe_rhs = (mue - mufe[no,i-1] ) / tau_exc[no,i-1]
             
-            mufi_rhs = (mui - mufi[no,i-1] 
-                        #+ control_ext[no, 1, i-startind+1]
-                        ) / tau_inh[no,i-1]
+            mufi_rhs = (mui - mufi[no,i-1] ) / tau_inh[no,i-1]
 
             # rate has to be kHz
             IA_rhs = (a * (Vmean_exc[no,i] - EA) - IA[no, i - 1] + tauA * b * rates_exc[no, i] * 1e-3) / tauA
