@@ -10,11 +10,14 @@ from ..models import jacobian_aln as jac_aln
 
 np.set_printoptions(precision=8)
 
+model_name = "-aln"
+
 
 VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
 
 def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
-       cntrl_max_, cntrl_min_, t_sim_, t_sim_pre_, t_sim_post_, CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1]):
+       cntrl_max_, cntrl_min_, t_sim_, t_sim_pre_, t_sim_post_,
+       CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1], separate_comp = True):
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
@@ -296,82 +299,50 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                           ndt_de,
                           ndt_di,
                      )
-        
-        #print("adj rate e = ", phi0_[0,0,:])
-        #print("adj rate i = ", phi0_[0,1,:])
-        #print("adj mue = ", phi0_[0,2,:])
-        #print("adj mui = ", phi0_[0,3,:])
-        #print("adj sigma i = ", phi0_[0,1
-        #print("adj sigma i = ", phi0_[0,16,:])
                 
         grad1_ = fo.compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables)
                 
         dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, tolerance_)
-                        
-        #dir0_[:,2:,-2] = 0. #pre-last rate control does not impact anything
-        
-        """
-        ########
-        # eliminate maximum absolute value of dir
-        indmax0 = [-1,-1]
-        indmax1 = [-1,-1]
-        maxdir0 = 0.
-        maxdir1 = 0.
-        for k in range(T):
-            for v in range(n_control_vars):
-                if np.abs(dir0_[0,v,k]) > maxdir0:
-                    indmax0 = [v,k]
-                    maxdir0 = np.abs(dir0_[0,v,k])
-                elif np.abs(dir0_[0,v,k]) > maxdir1:
-                    indmax1 = [v,k]
-                    maxdir1 = np.abs(dir0_[0,v,k])
-        print("max dir 0 and 1: ", maxdir0, indmax0, maxdir1, indmax1)
-        dir0_[0,indmax0[0], indmax0[1]] = 0.
-        """
         
         minCost = []
         tc_exc = -1
         tc_inh = -1
         joint_cost = -1
-        
-        """
-                       
-        # compute stepsize separately and then put together
-        if 0 in control_variables:
-            d_exc = dir0_.copy()
-            d_exc[:,1:,:] = 0.
             
-            s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                         best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_,
-                         min_control_ = cntrl_min_, variables_ = prec_variables)
-            minCost.append(tc_exc)
-        
-        #print("step size exc = ", s_exc)
-        
-        if 1 in control_variables:
-            d_inh = dir0_.copy()
-            d_inh[:,0,:] = 0.
-            d_inh[:,2:,:] = 0.
+        if separate_comp:
+            # compute stepsize separately and then put together
+            if 0 in control_variables:
+                d_exc = dir0_.copy()
+                d_exc[:,1:,:] = 0.
+                
+                s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+                             best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_,
+                             min_control_ = cntrl_min_, variables_ = prec_variables)
+                minCost.append(tc_exc)
             
-            s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                         best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_,
-                         min_control_ = cntrl_min_, variables_ = prec_variables)
-            minCost.append(tc_inh)
+            #print("step size exc = ", s_exc)
             
-            #print("step size inh = ", s_inh)
-        
-        if 0 in control_variables and 1 in control_variables:
-            joint_dir = dir0_.copy()
-            joint_dir[:,0,:] = s_exc * dir0_[:,0,:] #/ (s_exc + s_inh)
-            joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
+            if 1 in control_variables:
+                d_inh = dir0_.copy()
+                d_inh[:,0,:] = 0.
+                d_inh[:,2:,:] = 0.
+                
+                s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+                             best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_,
+                             min_control_ = cntrl_min_, variables_ = prec_variables)
+                minCost.append(tc_inh)
+                
+                #print("step size inh = ", s_inh)
             
-            joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                         best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000, max_control_ = cntrl_max_,
-                         min_control_ = cntrl_min_, variables_ = prec_variables)
-            minCost.append(joint_cost)
-            
-        #print(state1_[:,:2,:])
-        """
+            if 0 in control_variables and 1 in control_variables:
+                joint_dir = dir0_.copy()
+                joint_dir[:,0,:] = s_exc * dir0_[:,0,:] #/ (s_exc + s_inh)
+                joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
+                
+                joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:],
+                             target_state_, best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000,
+                             max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables)
+                minCost.append(joint_cost)
         
         step_, total_cost_[i], startStep_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, dir0_, start_step_ = startStep_, max_it_ = 10000, max_control_ = cntrl_max_,
@@ -379,37 +350,36 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         
         #print("step size = ", step_, total_cost_[i])
         
-        """
         minCost.append(total_cost_[i])
         
         #print("step size = ", step_, total_cost_[i])
         
-        costMin = np.amin( minCost )
+        if separate_comp:
+            costMin = np.amin( minCost )
+              
+            if (tc_exc ==  costMin):
+                #print("choose exc only")
+                step_ = s_exc
+                total_cost_[i] = tc_exc
+                dir0_ = d_exc.copy()
+                startStep_ = startstep_exc_
+                
+            elif (tc_inh ==  costMin):
+                #print("choose inh only")
+                step_ = s_inh
+                total_cost_[i] = tc_inh
+                dir0_ = d_inh.copy()
+                startStep_ = startstep_inh_
             
-        if (tc_exc ==  costMin):
-            #print("choose exc only")
-            step_ = s_exc
-            total_cost_[i] = tc_exc
-            dir0_ = d_exc.copy()
-            startStep_ = startstep_exc_
-            
-        elif (tc_inh ==  costMin):
-            #print("choose inh only")
-            step_ = s_inh
-            total_cost_[i] = tc_inh
-            dir0_ = d_inh.copy()
-            startStep_ = startstep_inh_
-        
-        elif (joint_cost ==  costMin):
-            #print("choose exc, inh combination")
-            step_ = joint_step_
-            total_cost_[i] = joint_cost
-            dir0_ = joint_dir.copy()
-            startStep_ = startstep_joint_ 
-        #else:
-            #print("choose adjoint")
-            #startStep_ = startstep_adj_
-        """
+            elif (joint_cost ==  costMin):
+                #print("choose exc, inh combination")
+                step_ = joint_step_
+                total_cost_[i] = joint_cost
+                dir0_ = joint_dir.copy()
+                startStep_ = startstep_joint_ 
+            #else:
+                #print("choose adjoint")
+                #startStep_ = startstep_adj_
             
         #print("found step ", step_)
         #print("continue with start steps ", startstep_exc_, startstep_inh_, startstep_joint_, startStep_)        
@@ -1028,7 +998,6 @@ def jacobian(V, state_, control_, T, state_pre_,
         jacobian_[2,6,t_] = - Jei_max / state_[0,18,t_]
         jacobian_[2,18,t_] = ( Jee_max * state_[0,5,t_] + Jei_max * state_[0,6,t_] + control_[0,0,t_+1] + ext_exc_current
                        + state_[0,13,t_] - state_[0,2,t_] ) / state_[0,18,t_]**2
-        #jacobian_[2,18,t_] = -1.
         
         jacobian_[3,3,t_] = 1. / state_[0,19,t_]
         jacobian_[3,7,t_] = - Jie_max / state_[0,19,t_]
@@ -1131,9 +1100,11 @@ def jacobian(V, state_, control_, T, state_pre_,
 
 @numba.njit
 def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
-    return 1. * 1e-3
-    return (1. + 3. * mu**2) * 1e-3
-    #result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+    #return 1. * 1e-3
+    #return (1. + 3. * mu**2) * 1e-3
+    if model_name == "aln":
+        result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+        return result
     x_shift_mu = - 2.
     x_scale_mu = 0.6
     y_scale_mu = 0.1
@@ -1143,9 +1114,11 @@ def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
 
 @numba.njit
 def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
-    return 1. * 1e-3
-    return (1. + 3. * sigma**2) * 1e-3
-    #result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+    #return 1. * 1e-3
+    #return (1. + 3. * sigma**2) * 1e-3
+    if model_name == "aln":
+        result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
+        return result
     x_shift_sigma = -1.
     x_scale_sigma = 0.6
     y_scale_sigma = 1./2500.
@@ -1155,8 +1128,10 @@ def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
 
 @numba.njit
 def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
-    #return 1.
-    #result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+    #return 1. - ( 1. + mu )**(-2.) #+ sigma
+    if model_name == "aln":
+        result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+        return result
     mu_shift = - 1.1
     sigma_scale = 0.5
     mu_scale = - 10
@@ -1168,8 +1143,10 @@ def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
 
 @numba.njit
 def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
-    #return 1.
-    #result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+    #return 1. - ( 1. + sigma )**(-2.) #+ mu
+    if model_name == "aln":
+        result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
+        return result
     mu_shift = - 1.1
     sigma_scale = 0.5
     mu_scale = - 10
@@ -1181,22 +1158,26 @@ def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
 
 @numba.njit
 def d_V_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
-    return 1.
-    #result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+    if model_name == "aln":
+        result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+        return result
     y_scale1 = 30.
     mu_shift1 = 1.
     y_scale2 = 2.
     mu_shift2 = 0.5
-    result = y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
+    sigma_shift = 0.1
+    result = y_scale1 / np.cosh( mu + mu_shift1 )**2 - y_scale2 * 2. * ( mu - mu_shift2 ) * np.exp( - ( mu - mu_shift2 )**2 ) / ( sigma + sigma_shift )
     #result = 1e-3
     return result
 
 @numba.njit
 def d_V_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
-    return 1.
-    #result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+    if model_name == "aln":
+        result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
+        return result
     y_scale2 = 2.
     mu_shift2 = 0.5
-    result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma**2
+    sigma_shift = 0.1
+    result = - y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / ( sigma + sigma_shift )**2
     #result = 1e-3
     return result

@@ -563,13 +563,9 @@ def timeIntegration_njit_elementwise(
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
             
-            #rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
-            #Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
-            
             # shift tau by one???
             tau_exc[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-            #tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
-                                    
+                        
             if filter_sigma:
                 tau_sigmae_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
 
@@ -580,12 +576,17 @@ def timeIntegration_njit_elementwise(
             xid1, yid1 = int(xid1), int(yid1)
 
             rates_inh[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3
-            #rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
-            
             
             # Vmean_inh = interpolate_values(precalc_V, xid1, yid1, dxid, dyid) # not used
             tau_inh[no,i-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-            #tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
+            
+            """
+            rates_exc[no,i] = r_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1]) * 1e3
+            Vmean_exc[no,i] = V_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+            tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
+            rates_inh[no,i] = r_func(mufi[no,i-1], sigmai_f[no,i-1]) * 1e3
+            tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
+            """
             
             if filter_sigma:
                 tau_sigmai_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
@@ -960,4 +961,5 @@ def V_func(mu, sigma):
     y_shift = - 85.
     y_scale2 = 2.
     mu_shift2 = 0.5
-    return y_shift + y_scale1 * np.tanh( mu + mu_shift1 ) + y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / sigma
+    sigma_shift = 0.1
+    return y_shift + y_scale1 * np.tanh( mu + mu_shift1 ) + y_scale2 * np.exp( - ( mu - mu_shift2 )**2 ) / ( sigma + sigma_shift )

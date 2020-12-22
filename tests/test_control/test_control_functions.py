@@ -97,7 +97,9 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.sigmai_ext = model_.params.mui_ext_mean * random.uniform(0.5, 1.)
         
     elif i == "rate_control":
-        model_ = RateModel()
+        #model_ = RateModel()
+        model_ = ALNModel()
+        
         dt = model_.params.dt
         maxDelay = 0.5 * min( max(0., dur_pre - 2 * dt), max(0., dur_post - 2 * dt) )
         model_.params.sigma_ou = 0.
@@ -107,8 +109,8 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.di = np.around( 0.1 + ( maxDelay - 0.1 ) * random.uniform(0., 1.), 1)
                         
         # should not have too big impact
-        model_.params.ext_exc_current = 0.#random.uniform(0., 1.2)
-        model_.params.ext_inh_current = 0.#random.uniform(0., 1.2)
+        model_.params.ext_exc_current = random.uniform(0.5, 1.2)
+        model_.params.ext_inh_current = random.uniform(0.5, 1.2)
         
         model_.params.mue_ext_mean = random.uniform(0., 4.)
         model_.params.mui_ext_mean = random.uniform(0., 4.)
@@ -116,6 +118,7 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.sigmae_ext = model_.params.mue_ext_mean * random.uniform(0.5, 1.)
         model_.params.sigmai_ext = model_.params.mui_ext_mean * random.uniform(0.5, 1.)
         
+        """
         model_.params.cee = 1.
         model_.params.cei = 1.
         model_.params.cie = 1.
@@ -136,6 +139,7 @@ def getmodel(i, dur_pre, dur_post):
         
         #model_.params.a = 0.
         #model_.params.b = 0.
+        """
         
         #setParametersALN(model_)
         

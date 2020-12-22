@@ -652,13 +652,13 @@ class Model:
     
     def A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10.,
            max_control_ = 20., min_control_ = -20., t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, CGVar = None,
-           control_variables_ = [0,1], prec_variables_ = [0,1]):
+           control_variables_ = [0,1], prec_variables_ = [0,1], separate_comp = True):
         if self.name == "fhn":
             return opti1_fhn.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
         elif self.name == "aln":
-            return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
+            return opti1_rate_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
                                         tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar,
-                                        control_variables_, prec_variables_)
+                                        control_variables_, prec_variables_, separate_comp)
         elif self.name == "aln-control":
             return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
                                     tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)

@@ -13,10 +13,10 @@ import test_control_functions as func
 np.set_printoptions(precision=4)
         
 c_controlmin, c_controlmax = -5., 5.
-r_controlmin, r_controlmax = 0., 0.1
+r_controlmin, r_controlmax = 0., 0.2
 algorithm_tolerance = 1e-24
-max_iteration = 2. * int(1e3)
-max_iteration_A2 = 200
+max_iteration = 5. * int(1e3)
+max_iteration_A2 = 20
 start_step = 10.
 test_step = 1e-6
 
@@ -35,18 +35,18 @@ ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 """
 
 variation = [ 
-              [0,0,1,False,4, 1.8],
-              [0,0,1,True,5, 3.6], 
-              #[0,1,4,False,5, 2.6],
-              [0,1,4,True,11, 4.4],
-              #[1,0,4,False,5, 2.6],
-              [1,0,4,True,10, 4.4], 
-              #[1,1,1,False,1, 1.8],
+              [0,0,1,False,3, 1.8],
+              [0,0,1,True,2, 3.6], 
+              [0,1,4,False,7, 2.6],
+              [0,1,4,True,5, 4.4],
+              [1,0,4,False,7, 2.6],
+              [1,0,4,True,5, 4.4], 
+              [1,1,1,False,2, 1.8],
               [1,1,1,True,2, 3.6],
-              #[2,0,1,False,2, 1.8],
-              [2,0,1,True,4, 3.6], 
-              #[2,1,4,False,6, 2.6],
-              [2,1,4,True,8, 4.4] 
+              [2,0,1,False,1,1.8],
+              [2,0,1,True,-1, 3.6], 
+              [2,1,4,False,5, 2.6],
+              [2,1,4,True,4, 4.4] 
               ]
 
 class TestA1A2Conv(unittest.TestCase):
@@ -55,7 +55,14 @@ class TestA1A2Conv(unittest.TestCase):
         
         ###############################################
         assertion_tolerance = 1
-        assertion_tolerance_grad = 5 + exponent_cost
+        assertion_tolerance_grad = 4 + exponent_cost
+        #assertion_tolerance_grad = -1 + exponent_cost
+        
+        if assertion_tolerance_grad > 10:
+            assertion_tolerance_grad -= 1
+            
+        if assertion_tolerance_grad > 14:
+            assertion_tolerance_grad -= 1
         
         testip = round(random.uniform(1., 10.),1)
         testie = round(random.uniform(0., 10.**(-exponent_cost)),exponent_cost+1)
@@ -110,8 +117,8 @@ class TestA1A2Conv(unittest.TestCase):
         func.setInitVarsZero(model, init_vars)
         
         if cntrl_var[0] == 0 or cntrl_var[0] == 1:
-            c_max = c_controlmax
-            c_min = c_controlmin
+            c_max = 1e4 * c_controlmax
+            c_min = 1e4 * c_controlmin
         else:
             c_max = 2. * r_controlmax
             c_min = 2. * r_controlmin
@@ -143,14 +150,14 @@ class TestA1A2Conv(unittest.TestCase):
         print("test weights ", testip, testie, testis)
         
         # make sure cost is decreasing monotonously
-        A1lastind = max_iteration-1
+        A1lastind = -1
         for t in range(len(A1_cost)-1):
             if (A1_cost[t+1] == 0.):
                 A1lastind = t
                 break
             self.assertLessEqual(A1_cost[t+1], A1_cost[t])
             
-        A2lastind = max_iteration_A2-1
+        A2lastind = -1
         for t in range(len(A2_cost)-1):
             if (A2_cost[t+1] == 0.):
                 A2lastind = t
@@ -174,8 +181,8 @@ class TestA1A2Conv(unittest.TestCase):
                 for t in range(0, A1_grad.shape[2]):
                     #print(n, v, t, A1_grad[n, v, t])
                     if not ( np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre]) < 1e-10
-                        or np.abs(np.amax(A1_bestControl[n,v,t+cntrl_zeros_pre]) - c_max) < 1e-4
-                        or np.abs(np.amin(A1_bestControl[n,v,t+cntrl_zeros_pre]) - c_min) < 1e-4):
+                        or np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre] - c_max) < 1e-4
+                        or np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre] - c_min) < 1e-4):
                         self.assertAlmostEqual(A1_grad[n, v, t], 0., assertion_tolerance_grad) 
                     #else:
                         #print("gradient could be nonvanishing because of absolute value, or because operating at boundary.")
