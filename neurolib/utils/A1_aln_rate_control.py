@@ -10,7 +10,7 @@ from ..models import jacobian_aln as jac_aln
 
 np.set_printoptions(precision=8)
 
-model_name = "-aln"
+model_name = "aln"
 
 
 VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
@@ -481,7 +481,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
     return bc_, bs_, total_cost_, runtime_, grad1_
 
-#@numba.njit
+@numba.njit
 def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxDelay, n_maxDelay, state_pre_,
                     ext_exc_current,
                     ext_inh_current,

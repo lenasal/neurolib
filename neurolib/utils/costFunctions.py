@@ -165,7 +165,7 @@ def f_cost_sparsity_int(N, V, T, dt, i_s, control_):
     cost =  numba_cost_sparsity_int(N, V, T, i_s, dt, control_)
     return cost
 
-#@numba.njit
+@numba.njit
 def numba_cost_sparsity_int(N, V, T, i_s, dt, control_):
     int_ =  0.
     for ind_node in range(N):
