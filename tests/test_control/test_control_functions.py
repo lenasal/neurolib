@@ -44,21 +44,21 @@ def setTargetFromControl(model, control_, output_vars, target_vars):
     return target_
 
 def setParametersALN(model):
-    model.params.rates_exc_init = np.array( [[0. * 0.01 * 0.5 ]] )
-    model.params.rates_inh_init = np.array( [[0. * 0.01 * 0.5 ]] )
-    model.params.mufe_init = np.array( [[0. * 3. * 0.5 ]] )  # mV/ms
-    model.params.mufi_init = np.array( [[0. * 3. * 0.5 ]] )  # mV/ms
-    model.params.IA_init = np.array( [[0. * 200. * 0.5 ]] )  # pA
-    model.params.seem_init = np.array( [[0. * 0.5 * 0.5 ]] )
-    model.params.seim_init = np.array( [[0. * 0.5 * 0.5 ]] )   
-    model.params.seev_init = np.array( [[0. * 0.01 * 0.5 ]] )
-    model.params.seiv_init = np.array( [[0. * 0.01 * 0.5 ]] )
-    model.params.siim_init = np.array( [[0. * 0.5 * 0.5 ]] )
-    model.params.siem_init = np.array( [[0. * 0.5 * 0.5 ]] )
-    model.params.siiv_init = np.array( [[0. * 0.01 * 0.5 ]] )
-    model.params.siev_init = np.array( [[0. * 0.01 * 0.5 ]] )
-    model.params.mue_ou = np.array( [[0. * 0.4]] ) #* np.ones((model.params.N,))
-    model.params.mui_ou = np.array( [[0. * 0.3]] ) #* np.ones((model.params.N,))
+    model.params.rates_exc_init = np.array( [[1. * 0.01 * 0.5 ]] )
+    model.params.rates_inh_init = np.array( [[1. * 0.01 * 0.5 ]] )
+    model.params.mufe_init = np.array( [[1. * 3. * 0.5 ]] )  # mV/ms
+    model.params.mufi_init = np.array( [[1. * 3. * 0.5 ]] )  # mV/ms
+    model.params.IA_init = np.array( [[1. * 200. * 0.5 ]] )  # pA
+    model.params.seem_init = np.array( [[1. * 0.5 * 0.5 ]] )
+    model.params.seim_init = np.array( [[1. * 0.5 * 0.5 ]] )   
+    model.params.seev_init = np.array( [[1. * 0.01 * 0.5 ]] )
+    model.params.seiv_init = np.array( [[1. * 0.01 * 0.5 ]] )
+    model.params.siim_init = np.array( [[1. * 0.5 * 0.5 ]] )
+    model.params.siem_init = np.array( [[1. * 0.5 * 0.5 ]] )
+    model.params.siiv_init = np.array( [[1. * 0.01 * 0.5 ]] )
+    model.params.siev_init = np.array( [[1. * 0.01 * 0.5 ]] )
+    model.params.mue_ou = np.array( [[1. * 0.4]] ) #* np.ones((model.params.N,))
+    model.params.mui_ou = np.array( [[1. * 0.3]] ) #* np.ones((model.params.N,))
     
 def getSchemes(model):
     c_scheme = np.zeros((len(model.output_vars), len(model.output_vars) ))
