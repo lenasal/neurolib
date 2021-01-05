@@ -69,6 +69,10 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None, seed=None)
     params.c_gl = 0.3
     # number of incoming E connections (to E population) from each area
     params.Ke_gl = 250.0
+    
+    params.interpolate_rate = True
+    params.interpolate_V = True
+    params.interpolate_tau = True
 
     # ------------------------------------------------------------------------
     # local E-I node parameters

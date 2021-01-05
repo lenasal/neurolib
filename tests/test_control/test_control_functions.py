@@ -118,6 +118,10 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.sigmae_ext = model_.params.mue_ext_mean * random.uniform(0.5, 1.)
         model_.params.sigmai_ext = model_.params.mui_ext_mean * random.uniform(0.5, 1.)
         
+        model_.params.interpolate_rate = False
+        model_.params.interpolate_V = False
+        model_.params.interpolate_tau = False
+        
         """
         model_.params.cee = 1.
         model_.params.cei = 1.

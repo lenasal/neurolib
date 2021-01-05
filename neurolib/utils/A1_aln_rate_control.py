@@ -10,7 +10,7 @@ from ..models import jacobian_aln as jac_aln
 
 np.set_printoptions(precision=8)
 
-model_name = "aln"
+model_name = "-aln"
 
 
 VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
@@ -118,6 +118,12 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     precalc_r = model.params["precalc_r"]
     precalc_tau_mu = model.params["precalc_tau_mu"]
     precalc_V = model.params["precalc_V"]
+    
+    interpolate_rate = model.params["interpolate_rate"]
+    interpolate_V = model.params["interpolate_V"]
+    interpolate_tau = model.params["interpolate_tau"]
+    
+    print(interpolate_rate, interpolate_V, interpolate_tau)
     ##############################################
     
     if (startind_ > 1):
@@ -187,20 +193,6 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     state_maxDelay = np.zeros( (N, V, int( T + n_maxDelay ) ))
     control_maxDelay = np.zeros( (N, n_control_vars, int( T + n_maxDelay ) ))
     dur_maxDelay = t_sim_ + int( n_maxDelay ) * dt
-    phi_maxDelay = state_maxDelay.copy()
-    
-    """
-    control_maxDelay[:,:,:T] = best_control_
-    #print("control = ", control_maxDelay)
-    
-    #print("shapes = ", state_maxDelay.shape)
-    #print("dur = ", dur_maxDelay)
-    
-    model.params['duration'] = dur_maxDelay
-    state_maxDelay = fo.updateFullState(model, control_maxDelay, state_vars)
-    
-    #print("rate max delay = ", state_maxDelay[0,:2, :])
-    """
     
     model.params['duration'] = t_sim_
         
@@ -258,6 +250,9 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                     rd_inh,
                     sigmarange, ds, Irange, dI, 
                     precalc_r, precalc_tau_mu, precalc_V,
+                    interpolate_rate,
+                    interpolate_V,
+                    interpolate_tau,
                     )
         
         if ( total_cost_[i] < tolerance_ ):
@@ -311,7 +306,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
         if separate_comp:
             # compute stepsize separately and then put together
-            if 0 in control_variables:
+            if 0 in control_variables and len(control_variables) > 1:
                 d_exc = dir0_.copy()
                 d_exc[:,1:,:] = 0.
                 
@@ -322,7 +317,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
             
             #print("step size exc = ", s_exc)
             
-            if 1 in control_variables:
+            if 1 in control_variables and len(control_variables) > 1:
                 d_inh = dir0_.copy()
                 d_inh[:,0,:] = 0.
                 d_inh[:,2:,:] = 0.
@@ -525,24 +520,14 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
                     rd_inh,
                     sigmarange, ds, Irange, dI, 
                     precalc_r, precalc_tau_mu, precalc_V,
+                    interpolate_rate,
+                    interpolate_V,
+                    interpolate_tau,
                     ):
     
     phi_ = np.zeros(( N, V, T ))
     
-            
-    for ind_time in range(T-1, -1, -1):
-        
-        shift_e = 0
-        
-        if ind_time + ndt_de < T:
-            shift_e = ndt_de
-            
-        shift_i = 0
-    
-        if ind_time + ndt_di < T:
-            shift_i = ndt_di
-    
-        jac = jacobian(V, state_[:,:,:], control_[:,:,:], T, state_pre_,
+    jac = jacobian(V, state_[:,:,:], control_[:,:,:], T, state_pre_,
                        ext_exc_current,
                        ext_inh_current,
                        ext_exc_rate,
@@ -583,7 +568,12 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
                        precalc_r, precalc_tau_mu, precalc_V,
                        ndt_de,
                        ndt_di,
-                       )
+                       interpolate_rate,
+                       interpolate_V,
+                       interpolate_tau,
+                       ) 
+            
+    for ind_time in range(T-1, -1, -1):
         
         if ind_time + ndt_de >= T-1:
             phi_[0,0,ind_time] = - ( full_cost_grad[0,0,ind_time]
@@ -651,11 +641,8 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         res = - phi_[0,3,ind_time] * jac[3,19, ind_time-1]
         phi_[0,19,ind_time-1] = res
             
-        shift_mue = 1
         der = 0.
-        
-        if ind_time+shift_mue-1 < T:
-            der += phi_[0,0,ind_time+shift_mue-1] * jac[0,2,max(0,ind_time-1)]
+        der += phi_[0,0,ind_time] * jac[0,2,ind_time-1]
         
         # if not static state before simulation, should go back further in time
         
@@ -664,13 +651,9 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
         der += phi_[0,17,ind_time] * jac[17,2,ind_time-1]
         der += phi_[0,18,ind_time-1] * jac[18,2,ind_time-1]
         phi_[0,2,ind_time-1] = phi_[0,2,ind_time] - dt * der
-        
-        shift_mui = 1
+
         der = 0.
-        
-        if ind_time+shift_mui-1 < T:
-            der += phi_[0,1,ind_time+shift_mui-1] * jac[1,3,max(0,ind_time-1)]
-        
+        der += phi_[0,1,ind_time] * jac[1,3,ind_time-1]
         der += ( phi_[0,3,ind_time] * jac[3,3,ind_time-1] )
         der += phi_[0,19,ind_time-1] * jac[19,3,ind_time-1]
         phi_[0,3,ind_time-1] = phi_[0,3,ind_time] - dt * der
@@ -767,16 +750,6 @@ def phi1(N, V, T, n_control_vars, phi_, state_, control_, state_pre_,
     
     for ind_t in range(0, T):
         
-        shift_e = 0
-        
-        if ind_t - ndt_de >= 0:
-            shift_e = ndt_de
-            
-        shift_i = 0
-    
-        if ind_t - ndt_di >= 0:
-            shift_i = ndt_di
-        
         jac_u_ = D_u_h(V, state_, control_, ind_t, state_pre_,
                           sigmae_ext,
                           ext_exc_rate,
@@ -859,17 +832,13 @@ def D_u_h(V, state_, control_, t_, state_pre_,
     
     if t_-shift_e >= 0:
         z1ee = factor_ee1 * rd_exc[0,0,t_-shift_e] + factor_eec1 * ( control_[0,2,t_] )
-        z2ee = factor_ee2 * rd_exc[0,0,t_-shift_e] + factor_eec2 * ( control_[0,2,t_] )    
     else:
         z1ee = factor_ee1 * state_pre_[0,0,t_-shift_e-1] * 1e-3 + factor_eec1 * ( control_[0,2,t_] )
-        z2ee = factor_ee2 * state_pre_[0,0,t_-shift_e-1] * 1e-3  + factor_eec2 * ( control_[0,2,t_] )
         
     if t_-shift_i >= 0:
             z1ei = factor_ei1 * rd_inh[0,t_-shift_i]
-            z2ei = factor_ei2 * rd_inh[0,t_-shift_i]            
     else:
         z1ei = factor_ei1 * state_pre_[0,1,t_-shift_i-1] * 1e-3
-        z2ei = factor_ei2 * state_pre_[0,1,t_-shift_i-1] * 1e-3        
 
         
     #z1ee = max(z1ee,0.)
@@ -941,7 +910,10 @@ def jacobian(V, state_, control_, T, state_pre_,
               C,
               precalc_r, precalc_tau_mu, precalc_V,
               shift_e,
-              shift_i,              
+              shift_i,  
+              interpolate_rate,
+              interpolate_V,
+              interpolate_tau,
               ):
     
     jacobian_ = np.zeros(( V, V, T))
@@ -982,16 +954,16 @@ def jacobian(V, state_, control_, T, state_pre_,
         """
         
         jacobian_[0,2,t_] = - d_r_func_mu(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
-                                          state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
+                                          state_[0,15,t_], Irange, dI, C, precalc_r, interpolate_rate) * 1e3
         jacobian_[0,4,t_] = d_r_func_mu(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
-                                          state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3 / C
+                                          state_[0,15,t_], Irange, dI, C, precalc_r, interpolate_rate) * 1e3 / C
         jacobian_[0,15,t_] = - d_r_func_sigma(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
-                                              state_[0,15,t_], Irange, dI, C, precalc_r) * 1e3
+                                              state_[0,15,t_], Irange, dI, C, precalc_r, interpolate_rate) * 1e3
         
         jacobian_[1,3,t_] = - d_r_func_mu(state_[0,3,t_], sigmarange, ds,
-                                          state_[0,16,t_], Irange, dI, C, precalc_r) * 1e3
+                                          state_[0,16,t_], Irange, dI, C, precalc_r, interpolate_rate) * 1e3
         jacobian_[1,16,t_] = - d_r_func_sigma(state_[0,3,t_], sigmarange, ds,
-                                              state_[0,16,t_], Irange, dI, C, precalc_r) * 1e3
+                                              state_[0,16,t_], Irange, dI, C, precalc_r, interpolate_rate) * 1e3
         
         jacobian_[2,2,t_] = 1. / state_[0,18,t_]
         jacobian_[2,5,t_] = - Jee_max / state_[0,18,t_]
@@ -1077,32 +1049,30 @@ def jacobian(V, state_, control_, T, state_pre_,
         jacobian_[16,12,t_] = - 0.5 * 2. * Jii_sq * tau_si * taum * ( (1. + z1ii) * taum + tau_si )**(-1.) * sigma_sqrt_i
         
         jacobian_[17,2,t_] = - d_V_func_mu(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
-                                          state_[0,15,t_], Irange, dI, C, precalc_r)
+                                          state_[0,15,t_], Irange, dI, C, precalc_V, interpolate_V)
         jacobian_[17,4,t_] = d_V_func_mu(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
-                                          state_[0,15,t_], Irange, dI, C, precalc_r) / C
+                                          state_[0,15,t_], Irange, dI, C, precalc_V, interpolate_V) / C
         jacobian_[17,15,t_] = - d_V_func_sigma(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
-                                          state_[0,15,t_], Irange, dI, C, precalc_r)
+                                          state_[0,15,t_], Irange, dI, C, precalc_V, interpolate_V)
         
         jacobian_[18,2,t_] = - d_tau_func_mu(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
-                                          state_[0,15,t_], Irange, dI, C, precalc_r)
+                                          state_[0,15,t_], Irange, dI, C, precalc_tau_mu, interpolate_tau)
         jacobian_[18,4,t_] = d_tau_func_mu(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
-                                          state_[0,15,t_], Irange, dI, C, precalc_r) / C
+                                          state_[0,15,t_], Irange, dI, C, precalc_tau_mu, interpolate_tau) / C
         jacobian_[18,15,t_] = - d_tau_func_sigma(state_[0,2,t_] - state_[0,4,t_]/C, sigmarange, ds,
-                                          state_[0,15,t_], Irange, dI, C, precalc_r)
+                                          state_[0,15,t_], Irange, dI, C, precalc_tau_mu, interpolate_tau)
         
         jacobian_[19,3,t_] = - d_tau_func_mu(state_[0,3,t_], sigmarange, ds,
-                                          state_[0,16,t_], Irange, dI, C, precalc_r)
+                                          state_[0,16,t_], Irange, dI, C, precalc_tau_mu, interpolate_tau)
         jacobian_[19,16,t_] = - d_tau_func_sigma(state_[0,3,t_], sigmarange, ds,
-                                          state_[0,16,t_], Irange, dI, C, precalc_r)
+                                          state_[0,16,t_], Irange, dI, C, precalc_tau_mu, interpolate_tau)
 
     
     return jacobian_
 
 @numba.njit
-def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
-    #return 1. * 1e-3
-    #return (1. + 3. * mu**2) * 1e-3
-    if model_name == "aln":
+def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r, interpolate_r):
+    if interpolate_r:
         result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
         return result
     x_shift_mu = - 2.
@@ -1113,10 +1083,10 @@ def d_r_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
     return result
 
 @numba.njit
-def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
+def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r, interpolate_r):
     #return 1. * 1e-3
     #return (1. + 3. * sigma**2) * 1e-3
-    if model_name == "aln":
+    if interpolate_r:
         result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_r)
         return result
     x_shift_sigma = -1.
@@ -1127,9 +1097,9 @@ def d_r_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_r):
     return result
 
 @numba.njit
-def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
+def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu, interpolate_tau):
     #return 1. - ( 1. + mu )**(-2.) #+ sigma
-    if model_name == "aln":
+    if interpolate_tau:
         result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
         return result
     mu_shift = - 1.1
@@ -1142,9 +1112,9 @@ def d_tau_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
     return result
 
 @numba.njit
-def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
+def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu, interpolate_tau):
     #return 1. - ( 1. + sigma )**(-2.) #+ mu
-    if model_name == "aln":
+    if interpolate_tau:
         result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_tau_mu)
         return result
     mu_shift = - 1.1
@@ -1157,8 +1127,8 @@ def d_tau_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_tau_mu):
     return result
 
 @numba.njit
-def d_V_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
-    if model_name == "aln":
+def d_V_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V, interpolate_V):
+    if interpolate_V:
         result = jac_aln.der_mu(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
         return result
     y_scale1 = 30.
@@ -1171,8 +1141,8 @@ def d_V_func_mu(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
     return result
 
 @numba.njit
-def d_V_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V):
-    if model_name == "aln":
+def d_V_func_sigma(mu, sigmarange, ds, sigma, Irange, dI, C, precalc_V, interpolate_V):
+    if interpolate_V:
         result = jac_aln.der_sigma(sigma, sigmarange, ds, mu, Irange, dI, C, precalc_V)
         return result
     y_scale2 = 2.
