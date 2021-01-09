@@ -3,6 +3,52 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 plt.rcParams['axes.grid'] = True
+plt.rcParams['hatch.linewidth'] = 1.
+
+def plot_gradient(grad_, dur, dt, path_, filename_ = "gradient.png", plot_vars = [0,1,2]):
+    
+    time = np.arange(0, dur+dt, dt)
+    plot_vars = [0,1,2]
+    n_col = len(plot_vars)
+    n_row = 2
+    
+    fig, ax = plt.subplots(n_row, n_col, figsize=(16, 10), linewidth=8, edgecolor='grey')
+    
+    ax[0,0].set_xlabel('Simulation time [ms]')
+    ax[0,0].set_ylabel('Cost grad exc current control')
+    ax[0,0].plot(time, grad_[0,0,:])
+    
+    ax[0,1].set_xlabel('Simulation time [ms]')
+    ax[0,1].set_ylabel('Cost grad inh current control')
+    ax[0,1].plot(time, grad_[0,1,:])
+    
+    ax[0,2].set_xlabel('Simulation time [ms]')
+    ax[0,2].set_ylabel('Cost grad exc rate control')
+    ax[0,2].plot(time, grad_[0,2,:])
+    
+    grad_abs = np.abs(grad_)
+    
+    if np.amax(grad_abs[0,0,:]) > 0.:
+        ax[1,0].set_xlabel('Simulation time [ms]')
+        ax[1,0].set_ylabel('Cost grad exc current control')
+        ax[1,0].plot(time, grad_abs[0,0,:])
+        ax[1,0].set_yscale('log')
+    
+    if np.amax(grad_abs[0,1,:]) > 0.:
+        ax[1,1].set_xlabel('Simulation time [ms]')
+        ax[1,1].set_ylabel('Cost grad inh current control')
+        ax[1,1].plot(time, grad_abs[0,1,:])
+        ax[1,1].set_yscale('log')
+    
+    if np.amax(grad_abs[0,2,:]) > 0.:
+        ax[1,2].set_xlabel('Simulation time [ms]')
+        ax[1,2].set_ylabel('Cost grad exc rate control')
+        ax[1,2].plot(time, grad_abs[0,2,:])
+        ax[1,2].set_yscale('log')
+
+    fig.tight_layout()  # otherwise the right y-label is slightly clipped
+    
+    plt.savefig(os.path.join(path_, filename_))
 
 def plot_conv_runtime(timeArray_, costArray_, labelArray_, path_, filename_ = "convergence_runtime.png"):
     
@@ -111,7 +157,8 @@ def plot_traces(model, control_):
     
     
 # plot uncontrolled dynamics, controlled dynamics
-def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_params_, target_, path_, filename_ = '', shading = False):
+def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_params_, target_, path_, filename_ = '',
+                 shading = False, transition_time_ = 0.):
     
     dt = model.params.dt
     if model.name == "aln" or model.name == "aln-control":
@@ -122,6 +169,7 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     model.params.duration = (control_.shape[2] - 1.) * dt
     i1 = int(round(t_sim_pre_/dt, 1))
     i2 = int(round(t_sim_post_/dt, 1))
+    i3 = int(round( (t_sim_pre_ + transition_time_ * t_sim_) / dt, 1) + 1 )
     
     init_vars = model.init_vars
     for iv in range(len(init_vars)):
@@ -157,13 +205,13 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     rows = 3
     n_vars = len(control_vars)
         
-    fig, ax = plt.subplots(rows, columns, figsize=(12, 14), linewidth=8, edgecolor='grey')
+    fig, ax = plt.subplots(rows, columns, figsize=(16, 14), linewidth=8, edgecolor='grey')
     plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.3, hspace=0.3)
     y_labels_rates = ['Rates exc. [Hz]', 'Rates inh. [Hz]', 'Adaptation current [pA]']
     y_labels_control = ['Control current exc. [nA]', 'Control current inh. [nA]', 'Control rate exc. [kHz]', 'Control rate inh. [kHz]']
-    sim_legend = ['Uncontrolled rate', 'Controlled rate', 'Control current']
+    sim_legend = ['Uncontrolled rate', 'Controlled rate', 'Control current', 'Control rate']
     target_legend = ['Target']
-    cntrl_time_legend = ['Control > {} pA'.format(cntrl_limit_scaled * 1000), 'Control active']
+    cntrl_time_legend = ['Control > {} pA'.format(cntrl_limit_scaled * 1000), 'Control active', 'Transition time']
     
     if len(model.output_vars) > 1:
         for i in range(columns):
@@ -181,10 +229,10 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
 
         for i in range(columns):
             ax[1,i].plot(model.t, control_[0,i,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
-            ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[i])
+            ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[2])
             ax[1,i].set_xlim([model.t[0],model.t[-1]])
             ax[2,i].plot(model.t, control_[0,i+2,:], label=sim_legend[2]) # divide by five to take into account capacitance
-            ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[i+2])
+            ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[3])
             ax[2,i].set_xlim([model.t[0],model.t[-1]])
     else:
         ax[0].plot(model.t, model[output_vars[0]][0,:], label=sim_legend[1])
@@ -201,8 +249,10 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
         
         for i in range(rows):
             for j in range(columns):
-                ax[i,j].axvspan(t_sim_pre_, t_sim_pre_ + t_sim_, facecolor='0.4', alpha=0.1, zorder=-2,
+                ax[i,j].axvspan(t_sim_pre_, t_sim_pre_ + t_sim_, facecolor='g', alpha=0.1, zorder=-2,
                             label=cntrl_time_legend[1])
+                ax[i,j].axvspan(t_sim_pre_, t_sim_pre_ + transition_time_ * t_sim_, facecolor='g', alpha=0.1, zorder=-1, hatch='///',
+                                edgecolor = 'g',  label=cntrl_time_legend[2])
         
         if shading:
             facecol = 'grey'
@@ -222,11 +272,11 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     
         if (i2 == 0):
             for j in range(len(model.target_output_vars)):
-                ax[0,j].plot(model.t[i1:], target_[0,j,:], '--', linewidth = 2, label=target_legend[0])
+                ax[0,j].plot(model.t[i3:], target_[0,j,i3-i1:], '--', linewidth = 2, label=target_legend[0])
                 #ax[1,j].plot(model.t[i1:], target_[0,j,:], '--', label=target_legend[0])
         else:
             for j in range(len(model.target_output_vars)):
-                ax[0,j].plot(model.t[i1:-i2], target_[0,j,:], '--', linewidth = 2, label=target_legend[0])
+                ax[0,j].plot(model.t[i3:-i2], target_[0,j,i3-i1:], '--', linewidth = 2, label=target_legend[0])
                 #ax[1,j].plot(model.t[i1:-i2], target_[0,j,:], '--', label=target_legend[0])
     
     else:
@@ -237,10 +287,10 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
         """
     
         if (i2 == 0):
-            ax[0].plot(model.t[i1:], target_[0,0,:], '--', label=target_legend[0])
+            ax[0].plot(model.t[i3:], target_[0,0,:], '--', label=target_legend[0])
             #ax[1].plot(model.t[i1:], target_[0,0,:], '--', label=target_legend[0])
         else:
-            ax[0].plot(model.t[i1:-i2], target_[0,0,:], '--', label=target_legend[0])
+            ax[0].plot(model.t[i3:-i2], target_[0,0,:], '--', label=target_legend[0])
             #ax[1].plot(model.t[i1:-i2], target_[0,0,:], '--', label=target_legend[0])
     
     """    
@@ -258,6 +308,7 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
         
     ax[0,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
     ax[1,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
+    ax[2,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
 
     cols = ['Excitatory', 'Inhibitory']
             

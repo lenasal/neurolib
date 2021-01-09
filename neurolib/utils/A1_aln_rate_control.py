@@ -15,9 +15,9 @@ model_name = "-aln"
 
 VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
 
-def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
+def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
        cntrl_max_, cntrl_min_, t_sim_, t_sim_pre_, t_sim_post_,
-       CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1], separate_comp = True):
+       CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1], separate_comp = True, transition_time_ = 0.):
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
@@ -33,6 +33,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     n_maxDelay = model.getMaxDelay()
         
     startind_ = int(n_maxDelay + 1)
+    target_state_ = target_state.copy()
             
     state_vars = model.state_vars
     init_vars = model.init_vars
@@ -123,7 +124,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     interpolate_V = model.params["interpolate_V"]
     interpolate_tau = model.params["interpolate_tau"]
     
-    print(interpolate_rate, interpolate_V, interpolate_tau)
+    print("interpolate adjoint : ", interpolate_rate, interpolate_V, interpolate_tau)
     ##############################################
     
     if (startind_ > 1):
@@ -156,13 +157,20 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     state1_ = state0_.copy()
     u_opt0_ = control_.copy()
     best_control_ = control_.copy()
+    #print("adj control = ", best_control_, cntrl_max_, cntrl_min_)
     
     # set max control
     #best_control_ = fo.scalemaxcontrol(best_control_, cntrl_max_, cntrl_min_)
-    best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)
-    
+    best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)  
+    #print("adj control = ", best_control_)
 
-    
+    # set precision penalty to zero for transition time
+    for t_ in range(T):
+        if t_ < transition_time_ * T:
+            for n_ in range(N):
+                for v_ in range(2):
+                        target_state_[n_,v_,t_] = - 1000.
+                        
     total_cost_ = np.zeros((max_iteration_+1))
     #print("into initial cost")
     #print("exc rate = ", state0_[0,0,:])
@@ -183,6 +191,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     
     startstep_exc_ = startStep_
     startstep_inh_ = startStep_
+    startstep_exc_r_ = startStep_
     startstep_joint_ = startStep_
     
     grad0_ = np.zeros(( N, n_control_vars, T ))
@@ -195,6 +204,12 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
     dur_maxDelay = t_sim_ + int( n_maxDelay ) * dt
     
     model.params['duration'] = t_sim_
+    
+    minCost = []
+    tc_exc = -1
+    tc_inh = -1
+    joint_cost = -1
+    tc_exc_r = -1
         
     while( i < max_iteration_ ):
         
@@ -206,7 +221,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         for ind_time in range(T):
             rd_exc[0,0, ind_time] = state0_[0,0,ind_time] * 1e-3        
             rd_inh[0, ind_time] = state0_[0,1,ind_time] * 1e-3
-                        
+                                    
         phi0_ = phi(N, V, T, dt, state0_, target_state_, best_control_, full_cost_grad, state_maxDelay, n_maxDelay, state_pre_, 
                     ext_exc_current,
                     ext_inh_current,
@@ -254,7 +269,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                     interpolate_V,
                     interpolate_tau,
                     )
-        
+                
         if ( total_cost_[i] < tolerance_ ):
             print("Cost negligibly small.")
             max_iteration_ = i
@@ -273,6 +288,7 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
         grad0_ = grad1_.copy()
         
         #print("prefactor = ", factor_eec2)
+        
                 
         phi1_ = phi1(N, V, T, n_control_vars, phi0_, state1_, best_control_, state_pre_,
                           sigmae_ext,
@@ -294,15 +310,14 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                           ndt_de,
                           ndt_di,
                      )
-                
+                        
         grad1_ = fo.compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables)
+        
+        #print("1")
                 
         dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, tolerance_)
         
-        minCost = []
-        tc_exc = -1
-        tc_inh = -1
-        joint_cost = -1
+        #print("1")
             
         if separate_comp:
             # compute stepsize separately and then put together
@@ -311,11 +326,13 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 d_exc[:,1:,:] = 0.
                 
                 s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                             best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 1000, max_control_ = cntrl_max_,
+                             best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 500, max_control_ = cntrl_max_,
                              min_control_ = cntrl_min_, variables_ = prec_variables)
                 minCost.append(tc_exc)
             
-            #print("step size exc = ", s_exc)
+                #print("1.1")
+            
+                #print("step size exc = ", s_exc)
             
             if 1 in control_variables and len(control_variables) > 1:
                 d_inh = dir0_.copy()
@@ -323,11 +340,27 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 d_inh[:,2:,:] = 0.
                 
                 s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                             best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 1000, max_control_ = cntrl_max_,
+                             best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 500, max_control_ = cntrl_max_,
                              min_control_ = cntrl_min_, variables_ = prec_variables)
                 minCost.append(tc_inh)
                 
+                #print("1.1")
+                
                 #print("step size inh = ", s_inh)
+                
+            if 2 in control_variables and len(control_variables) > 1:
+                d_exc_r = dir0_.copy()
+                d_exc_r[:,0,:] = 0.
+                d_exc_r[:,1,:] = 0.
+                
+                s_exc_r, tc_exc_r, startstep_exc_r_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:],
+                            target_state_, best_control_, d_exc_r, start_step_ = startstep_exc_r_, max_it_ = 500,
+                            max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables)
+                minCost.append(tc_exc_r)
+                
+                #print("1.1")
+                
+                #print("step size exc_r = ", s_exc_r)
             
             if 0 in control_variables and 1 in control_variables:
                 joint_dir = dir0_.copy()
@@ -335,13 +368,17 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
                 
                 joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:],
-                             target_state_, best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 1000,
+                             target_state_, best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 500,
                              max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables)
                 minCost.append(joint_cost)
+                
+        #print("2")
         
         step_, total_cost_[i], startStep_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, dir0_, start_step_ = startStep_, max_it_ = 10000, max_control_ = cntrl_max_,
+                     best_control_, dir0_, start_step_ = startStep_, max_it_ = 500, max_control_ = cntrl_max_,
                          min_control_ = cntrl_min_, variables_ = prec_variables)
+        
+        #print("3")
         
         #print("step size = ", step_, total_cost_[i])
         
@@ -372,6 +409,13 @@ def A1(model, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iterati
                 total_cost_[i] = joint_cost
                 dir0_ = joint_dir.copy()
                 startStep_ = startstep_joint_ 
+            
+            elif (tc_exc_r ==  costMin):
+                #print("choose exc rate only")
+                step_ = s_exc_r
+                total_cost_[i] = tc_exc_r
+                dir0_ = d_exc_r.copy()
+                startStep_ = startstep_exc_r_
             #else:
                 #print("choose adjoint")
                 #startStep_ = startstep_adj_
@@ -744,10 +788,7 @@ def phi1(N, V, T, n_control_vars, phi_, state_, control_, state_pre_,
     phi1_ = np.zeros(( N, n_control_vars, T ))
             
         # could leave shift at zero in jacobian and algorithm would do almost equally well
-        
-    shift_e = 0
-    shift_i = 0
-    
+            
     for ind_t in range(0, T):
         
         jac_u_ = D_u_h(V, state_, control_, ind_t, state_pre_,
@@ -770,7 +811,7 @@ def phi1(N, V, T, n_control_vars, phi_, state_, control_, state_pre_,
                           ndt_de,
                           ndt_di,
                            )
-        
+                
         phi = np.ascontiguousarray(phi_[0,:,ind_t])
         #phi_shift = np.ascontiguousarray(phi_[0,:,ind_t-1])#, dtype=np.float64)
         #phi_shift = np.ascontiguousarray(phi_[0,:,ind_t])
@@ -862,7 +903,7 @@ def D_u_h(V, state_, control_, t_, state_pre_,
         sigma_sqrt_e = arg**(-1./2.)
     else:
         sigma_sqrt_e = 0.
-        print("WARNING: sigma e smaller zero")
+        #print("WARNING: sigma e smaller zero")
     
     duh_[2,15] = ( 0.5 * ( (1. + z1ee) * taum + tau_se )**(-2.) * factor_eec1 * taum *
                   ( 2. * Jee_sq * tau_se * taum * state_[0,9,t_] ) * sigma_sqrt_e )
@@ -1021,7 +1062,7 @@ def jacobian(V, state_, control_, T, state_pre_,
             sigma_sqrt_e = arg**(-1./2.)
         else:
             sigma_sqrt_e = 0.
-            print("WARNING: sigma e smaller zero")
+            #print("WARNING: sigma e smaller zero")
         
         jacobian_[15,0,t_] = ( 0.5 * ( (1. + z1ee) * taum + tau_se )**(-2.) * factor_ee1 * 1e-3 * taum
                               * ( 2. * Jee_sq * tau_se * taum * state_[0,9,t_] ) * sigma_sqrt_e )

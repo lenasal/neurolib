@@ -132,10 +132,10 @@ def test_step(model, N, V, T, dt, state_, target_, control_, dir_, cost0_, test_
 def setmaxcontrol(n_control_vars, control_, max_control_, min_control_):
     for j in range(len(control_[0,0,:])):
         for v in range(n_control_vars):
-            if control_[0,v,j] > max_control_:
-                control_[0,v,j] = max_control_
-            elif control_[0,v,j] < min_control_:
-                control_[0,v,j] = min_control_
+            if control_[0,v,j] > max_control_[v]:
+                control_[0,v,j] = max_control_[v]
+            elif control_[0,v,j] < min_control_[v]:
+                control_[0,v,j] = min_control_[v]
     return control_
 
 @numba.njit
@@ -151,8 +151,8 @@ def scalemaxcontrol(control_, max_control_, min_control_):
     return control_
     
 def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
-              bisec_factor_ = 2., max_control_ = 20., min_control_ = -20., tolerance_ = 1e-16, substep_ = 0.1,
-              variables_ = [0,1], alg = "A1"):
+              bisec_factor_ = 2., max_control_ = [20., 20., 0.2, 0.2], min_control_ = [-20., -20., 0., 0.],
+              tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1"):
     
     """
     print("into step size computation cost")
@@ -165,7 +165,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
     
     cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
     
-    #print("first cot = ", cost0_int_)
+    #print("first cost = ", cost0_int_)
     cost_min_int_ = cost0_int_
     step_ = start_step_
     step_min_ = 0.
@@ -181,15 +181,16 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         test_control_ = control_ + step_ * dir_
         
         # include maximum control value to assure no divergence
-        if ( np.amax(test_control_) > max_control_ or np.amin(test_control_) < min_control_):
-            #test_control_ = scalemaxcontrol(test_control_, max_control_, min_control_)
-            test_control_ = setmaxcontrol(V, test_control_, max_control_, min_control_)
+        #if ( np.amax(test_control_) > max_control_ or np.amin(test_control_) < min_control_):
+        #test_control_ = scalemaxcontrol(test_control_, max_control_, min_control_)
+        test_control_ = setmaxcontrol(V, test_control_, max_control_, min_control_)
         
         state1_ = updateState(model, test_control_)
                 
         
         cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = variables_)
         
+        #print("test control = ", test_control_[0,2,5:10])
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
         
         if (step_ * np.amax(np.absolute(dir_)) < tolerance_ * 1e-3):
@@ -344,6 +345,7 @@ def adapt_step(control_, ind_node, ind_var, start_step_, dir_, max_control_, min
     min_index = -1
     max_cntrl = max_control_
     min_cntrl = min_control_
+    
     for k in range(control_.shape[2]):
         if ( control_[ind_node,ind_var,k] + start_step_ * dir_[ind_node,ind_var,k] > max_cntrl ):
             max_index = k

@@ -16,7 +16,7 @@ c_controlmin, c_controlmax = -5., 5.
 r_controlmin, r_controlmax = 0., 0.2
 algorithm_tolerance = 1e-24
 max_iteration = 5. * int(1e3)
-max_iteration_A2 = 20
+max_iteration_A2 = 80
 start_step = 10.
 test_step = 1e-6
 
@@ -35,18 +35,58 @@ ind_timeshift = 4   # for c=0 and p=1, c=1 and p=0, c=2 and p=1
 """
 
 variation = [ 
-              [0,0,1,False,0, 1.8],
-              [0,0,1,True,0, 3.6], 
-              #[0,1,4,False,2, 2.6],
-              #[0,1,4,True,2, 4.4],
-              #[1,0,4,False,3, 2.6],
-              #[1,0,4,True,3, 4.4], 
-              #[1,1,1,False,1, 1.8],
-              #[1,1,1,True,-1, 3.6],
-              #[2,0,1,False,-1,1.8],
-              #[2,0,1,True,-1, 3.6], 
-              #[2,1,4,False,3, 2.6],
-              #[2,1,4,True,2, 4.4] 
+              #############################
+              # 1- dimensional output
+              # 1-dimensional input
+              #[[0],[0],1,False,0, 1.8],
+              [[0],[0],1,True,-1, 3.6], 
+              #[[0],[1],4,False,1, 2.6],
+              #[[0],[1],4,True,1, 4.4],
+              #[[1],[0],4,False,3, 2.6],
+              [[1],[0],4,True,3, 4.4], 
+              #[[1],[1],1,False,0, 1.8],
+              #[[1],[1],1,True,-2, 3.6],
+              #[[2],[0],1,False,0,1.8],
+              [[2],[0],1,True,0, 3.6], 
+              #[[2],[1],4,False,2, 2.6],
+              [[2],[1],4,True,0, 4.4],
+              # 2-dimensional input
+              #[[0,1],[0],4,False,0, 2.6],
+              #[[0,1],[0],4,True,-1, 4.4],
+              #[[0,1],[1],4,False,0, 2.6],
+              #[[0,1],[1],4,True,-1, 4.4],
+              #[[0,2],[0],4,False,0, 2.6],
+              #[[0,2],[0],4,True,-1, 4.4],
+              #[[0,2],[1],4,False,1, 2.6],
+              #[[0,2],[1],4,True,1, 4.4],
+              #[[1,2],[0],4,False,0, 2.6],
+              #[[1,2],[0],4,True,0, 4.4],
+              #[[1,2],[1],4,False,0, 2.6],
+              #[[1,2],[1],4,True,-1, 4.4],
+              # 3-dimensional input
+              #[[0,1,2],[0],4,False,0, 2.6],
+              #[[0,1,2],[0],4,True,0, 4.4],
+              #[[0,1,2],[1],4,False,0, 2.6],
+              #[[0,1,2],[1],4,True,0, 4.4],
+              #############################
+              # 2- dimensional output
+              # 1-dimensional input
+              #[[0],[0,1],4,False,0, 2.6],
+              #[[0],[0,1],4,True,0, 4.4],
+              #[[1],[0,1],4,False,0, 2.6],
+              #[[1],[0,1],4,True,-1, 4.4],
+              #[[2],[0,1],4,False,0, 2.6],
+              #[[2],[0,1],4,True,0, 4.4],
+              # 2-dimensional input
+              #[[0,1],[0,1],4,False,0, 2.6],
+              #[[0,1],[0,1],4,True,-1, 4.4],
+              #[[0,2],[0,1],4,False,-1, 2.6],
+              #[[0,2],[0,1],4,True,0, 4.4],
+              #[[1,2],[0,1],4,False,-1, 2.6],
+              #[[1,2],[0,1],4,True,-1, 4.4],
+              # 3-dimensional input
+              #[[0,1,2],[0,1],4,False,-1, 2.6],
+              #[[0,1,2],[0,1],4,True,-1, 4.4],
               ]
 
 class TestA1A2Conv(unittest.TestCase):
@@ -105,23 +145,20 @@ class TestA1A2Conv(unittest.TestCase):
         func.setInitVarsZero(model, init_vars)
                     
         target = func.setTargetFromControl(model, control1, output_vars, target_vars)[:,:, cntrl_zeros_pre:]
+        
+        print("target = ", target)
                     
         model.params.duration = duration
         control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
                                          control_variables_ = cntrl_var) 
         
-        control2 = control1[:,:,cntrl_zeros_pre:] * random.uniform(0.9,1.1)
+        control2 = control1[:,:,cntrl_zeros_pre:] #* random.uniform(0.9,1.1)
         
         cost.setParams(testip, testie, testis)
         
         func.setInitVarsZero(model, init_vars)
         
-        if cntrl_var[0] == 0 or cntrl_var[0] == 1:
-            c_max = 1e4 * c_controlmax
-            c_min = 1e4 * c_controlmin
-        else:
-            c_max = 2. * r_controlmax
-            c_min = 2. * r_controlmin
+        c_max, c_min = func.setmaxmincontrol(cntrl_var, c_controlmax, c_controlmin, r_controlmax, r_controlmin)
         
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat, u_scheme,
                         max_iteration, algorithm_tolerance, start_step, c_max, c_min, duration, dur_pre, dur_post,
@@ -143,10 +180,12 @@ class TestA1A2Conv(unittest.TestCase):
         self.assertEqual(A1_bestControl.shape[2], cntrl_len)
         self.assertEqual(A2_bestControl.shape[2], cntrl_len)
         
-        print("control1 = ", control1[0,cntrl_var,cntrl_zeros_pre:])
-        print("best control a1 = ", A1_bestControl[0,cntrl_var,cntrl_zeros_pre:-cntrl_zeros_post])
-        print("best control a2 = ", A2_bestControl[0,cntrl_var,cntrl_zeros_pre:-cntrl_zeros_post])
-        print("grad = ", A1_grad[0,cntrl_var,:])
+        for v in cntrl_var:
+            print("control var = ", v)
+            print("control1 = ", control1[0,v,cntrl_zeros_pre:])
+            print("best control a1 = ", A1_bestControl[0,v,cntrl_zeros_pre:-cntrl_zeros_post])
+            print("best control a2 = ", A2_bestControl[0,v,cntrl_zeros_pre:-cntrl_zeros_post])
+            print("grad = ", A1_grad[0,v,:])
         print("test weights ", testip, testie, testis)
         
         # make sure cost is decreasing monotonously
@@ -181,8 +220,8 @@ class TestA1A2Conv(unittest.TestCase):
                 for t in range(0, A1_grad.shape[2]):
                     #print(n, v, t, A1_grad[n, v, t])
                     if not ( np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre]) < 1e-10
-                        or np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre] - c_max) < 1e-4
-                        or np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre] - c_min) < 1e-4):
+                        or np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre] - c_max[v]) < 1e-4
+                        or np.abs(A1_bestControl[n,v,t+cntrl_zeros_pre] - c_min[v]) < 1e-4):
                         self.assertAlmostEqual(A1_grad[n, v, t], 0., assertion_tolerance_grad) 
                     #else:
                         #print("gradient could be nonvanishing because of absolute value, or because operating at boundary.")
@@ -214,8 +253,8 @@ if __name__ == '__main__':
             for ind_v in range(len(variation)):
                 model = func.getmodel(testcaseind, dur_pre, dur_post)
                 
-                cntrl_var = [ variation[ind_v][0] ]#, [ [0,1], [2,3] ]
-                prec_var = [ variation[ind_v][1] ]
+                cntrl_var = variation[ind_v][0] #, [ [0,1], [2,3] ]
+                prec_var = variation[ind_v][1] 
                 ind_timeshift = variation[ind_v][2]
                 exponent_cost = variation[ind_v][4]
                 duration = variation[ind_v][5]
@@ -235,7 +274,7 @@ if __name__ == '__main__':
                     success = False
                     errors += 1
                     failures += 1
-                    failedTests.append(testcaseind)
+                    failedTests.append(str(testcaseind) + str("_") + str(ind_v))
         
     print("Run", runs, "tests with", errors, "errors and", failures, "failures.")
     

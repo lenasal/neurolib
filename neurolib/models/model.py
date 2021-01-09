@@ -206,6 +206,7 @@ class Model:
             EXPLOSION_THRESHOLD = 1e20
             if (self.output > EXPLOSION_THRESHOLD).any() > 0:
                 logging.error("explosion in model output!")
+                print("explosion in model output")
 
         # check nans in BOLD
         if "BOLD" in self.outputs:
@@ -652,13 +653,13 @@ class Model:
     
     def A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_ = 100, tolerance_ = 1e-5, startStep_ = 10.,
            max_control_ = 20., min_control_ = -20., t_sim_ = 100, t_sim_pre_ = 50, t_sim_post_ = 50, CGVar = None,
-           control_variables_ = [0,1], prec_variables_ = [0,1], separate_comp = True):
+           control_variables_ = [0,1], prec_variables_ = [0,1], separate_comp = True, transition_time_ = 0.):
         if self.name == "fhn":
             return opti1_fhn.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_, max_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
         elif self.name == "aln":
             return opti1_rate_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
                                         tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar,
-                                        control_variables_, prec_variables_, separate_comp)
+                                        control_variables_, prec_variables_, separate_comp, transition_time_)
         elif self.name == "aln-control":
             return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
                                     tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)

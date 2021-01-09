@@ -12,6 +12,42 @@ def setInitVarsZero(model, init_vars):
             model.params[init_vars[iv]] = np.zeros(( model.params[init_vars[iv]].shape ))
     else:
        setParametersALN(model)
+       
+def setmaxmincontrol(cntrl_vars_, max_cntrl_c, min_cntrl_c, max_cntrl_r, min_cntrl_r):
+    max_cntrl = np.zeros(( 4 ))
+    min_cntrl = np.zeros(( 4 ))
+    if cntrl_vars_ == [0]:
+        max_cntrl[0] = 1e2 * max_cntrl_c
+        min_cntrl[0] = 1e2 * min_cntrl_c
+    elif cntrl_vars_ == [1]:
+        max_cntrl[1] = 1e2 * max_cntrl_c
+        min_cntrl[1] = 1e2 * min_cntrl_c
+    elif cntrl_vars_ == [2]:
+        max_cntrl[2] = 2. * max_cntrl_r
+        min_cntrl[2] = 2. * min_cntrl_r
+    elif cntrl_vars_ == [0,1]:
+        max_cntrl[0] = 1e2 * max_cntrl_c
+        min_cntrl[0] = 1e2 * min_cntrl_c
+        max_cntrl[1] = 1e2 * max_cntrl_c
+        min_cntrl[1] = 1e2 * min_cntrl_c
+    elif cntrl_vars_ == [0,2]:
+        max_cntrl[0] = 1e2 * max_cntrl_c
+        min_cntrl[0] = 1e2 * min_cntrl_c
+        max_cntrl[2] = 2. * max_cntrl_r
+        min_cntrl[2] = 2. * min_cntrl_r
+    elif cntrl_vars_ == [1,2]:
+        max_cntrl[1] = 1e2 * max_cntrl_c
+        min_cntrl[1] = 1e2 * min_cntrl_c
+        max_cntrl[2] = 2. * max_cntrl_r
+        min_cntrl[2] = 2. * min_cntrl_r
+    elif cntrl_vars_ == [0,1,2]:
+        max_cntrl[0] = 1e2 * max_cntrl_c
+        min_cntrl[0] = 1e2 * min_cntrl_c
+        max_cntrl[1] = 1e2 * max_cntrl_c
+        min_cntrl[1] = 1e2 * min_cntrl_c
+        max_cntrl[2] = 2. * max_cntrl_r
+        min_cntrl[2] = 2. * min_cntrl_r
+    return max_cntrl, min_cntrl
         
 def getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = [0,1]):
     control_ = model.getZeroControl()        
@@ -20,9 +56,9 @@ def getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_contr
     for n in range(control_.shape[0]):
         for v in control_variables_:
             for t in range(cntrl_zeros_pre+1, control_.shape[2]-1-maxDelay_ndt):
-                if v in [0,1]:
+                if v == 0 or v == 1:
                     control_[n, v, t] = random.uniform(c_controlmin, c_controlmax)
-                elif v in [2,3]:
+                elif v == 2:
                     control_[n, v, t] = random.uniform(r_controlmin, r_controlmax)
     return control_
     
@@ -108,17 +144,17 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.de = np.around( 0.1 + ( maxDelay - 0.1 ) * random.uniform(0., 1.), 1)
         model_.params.di = np.around( 0.1 + ( maxDelay - 0.1 ) * random.uniform(0., 1.), 1)
                         
-        # should not have too big impact
-        model_.params.ext_exc_current = random.uniform(0.5, 1.2)
-        model_.params.ext_inh_current = random.uniform(0.5, 1.2)
+        # derivative of interpolation function wrt mu close to zero for mu < 0.6
+        model_.params.ext_exc_current = 0.3 * random.uniform(0.6, 1.2)
+        model_.params.ext_inh_current = 0.3 * random.uniform(0.6, 1.2)
         
         model_.params.mue_ext_mean = random.uniform(0., 4.)
         model_.params.mui_ext_mean = random.uniform(0., 4.)
         
-        model_.params.sigmae_ext = model_.params.mue_ext_mean * random.uniform(0.5, 1.)
-        model_.params.sigmai_ext = model_.params.mui_ext_mean * random.uniform(0.5, 1.)
+        model_.params.sigmae_ext = max(0.5, model_.params.mue_ext_mean * random.uniform(0.5, 1.) )
+        model_.params.sigmai_ext = max(0.5, model_.params.mui_ext_mean * random.uniform(0.5, 1.) )
         
-        model_.params.interpolate_rate = False
+        model_.params.interpolate_rate = True
         model_.params.interpolate_V = False
         model_.params.interpolate_tau = False
         

@@ -140,6 +140,8 @@ def timeIntegration(params, control):
     interpolate_rate = params["interpolate_rate"]
     interpolate_V = params["interpolate_V"]
     interpolate_tau = params["interpolate_tau"]
+    
+    #print("interpolate integration : ", interpolate_rate, interpolate_V, interpolate_tau)
 
     # ------------------------------------------------------------------------
 
@@ -756,12 +758,15 @@ def timeIntegration_njit_elementwise(
     xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmae_f[no,-1], Irange, dI, mufe[no,-1] - IA[no,-1] / C)
     xid1, yid1 = int(xid1), int(yid1)
     tau_exc[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-    #tau_exc[no,-1] = tau_func(mufe[no,-1], sigmae_f[no,-1])
+    
 
     xid1, yid1, dxid, dyid = fast_interp2_opt(sigmarange, ds, sigmai_f[no,-1], Irange, dI, mufi[no,-1])
     xid1, yid1 = int(xid1), int(yid1)
     tau_inh[no,-1] = interpolate_values(precalc_tau_mu, xid1, yid1, dxid, dyid)
-    #tau_inh[no,-1] = tau_func(mufi[no,-1], sigmai_f[no,-1])
+    
+    if not interpolate_tau:
+        tau_exc[no,-1] = tau_func(mufe[no,-1] - IA[no,-1] / C, sigmae_f[no,-1])
+        tau_inh[no,-1] = tau_func(mufi[no,-1], sigmai_f[no,-1])
 
     return t, rates_exc, rates_inh, mufe, mufi, IA, seem, seim, siem, siim, seev, seiv, siev, siiv, mue_ou, mui_ou, sigmae_f, sigmai_f, Vmean_exc, tau_exc, tau_inh
 
