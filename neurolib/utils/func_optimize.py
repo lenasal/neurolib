@@ -149,10 +149,49 @@ def scalemaxcontrol(control_, max_control_, min_control_):
         scale_factor_ = np.abs(min_control_ / min_val_)
         control_ *= scale_factor_
     return control_
+
+def StrongWolfePowellLineSearch():
+    # would require to compute new gradient for each step
+    return None
+
+# backtracking according to Armijo-Goldstein
+def AG_line_search(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
+              bisec_factor_ = 0.5, max_control_ = [20., 20., 0.2, 0.2], min_control_ = [-20., -20., 0., 0.],
+              tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1", control_parameter = 0.02, grad_ = None):
+    
+    m_ = np.zeros(( N, V ))
+    for n_ in range(N):
+        for v_ in range(V):
+            m_[n_, v_] = np.dot(dir_[n_,v_,:], grad_[n_,v_,:])
+    
+    t_ = - control_parameter * np.sum(m_)
+    cost0_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
+    step_ = start_step_
+    
+    for j in range(max_it_):
+                
+        test_control_ = control_ + step_ * dir_
+        test_control_ = setmaxcontrol(V, test_control_, max_control_, min_control_)
+        state1_ = updateState(model, test_control_)
+        cost1_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = variables_)
+        
+        #print("cost0 = ", cost0_)
+        #print("cost1 = ", cost1_)
+        #print("step, t_ = ", step_, t_)
+        
+        if cost0_ - cost1_ - step_ * t_ >= 0.:
+            return step_, cost1_, start_step_
+        
+        step_ *= bisec_factor_
+        
+    print("max iteration reached, condition not satisfied")
+    return 0., cost0_, start_step_
+    
+    
     
 def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
-              bisec_factor_ = 2., max_control_ = [20., 20., 0.2, 0.2], min_control_ = [-20., -20., 0., 0.],
-              tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1"):
+              bisec_factor_ = 1.15, max_control_ = [20., 20., 0.2, 0.2], min_control_ = [-20., -20., 0., 0.],
+              tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1", control_parameter = 0.2, grad_ = None):
     
     """
     print("into step size computation cost")
@@ -359,7 +398,7 @@ def adapt_step(control_, ind_node, ind_var, start_step_, dir_, max_control_, min
         start_st_ = ( min_control_ - control_[ind_node,ind_var,min_index] ) / dir_[ind_node,ind_var,min_index]
     return start_st_
 
-# update rule for conjugate directions according to Hestenes-Stiefel
+# update rule for direction according to Hestenes-Stiefel
 def betaHS(N, n_control_vars, grad0_, grad1_, dir0_):
     betaHS = np.zeros(( N, n_control_vars ))
     for n in range(N):
@@ -372,7 +411,7 @@ def betaHS(N, n_control_vars, grad0_, grad1_, dir0_):
                 betaHS[n,v] = numerator / denominator
     return betaHS
 
-# update rule for conjugate directions according to Fletcher-Reeves
+# update rule for direction according to Fletcher-Reeves
 def betaFR(N, n_control_vars, grad0_, grad1_):
     betaFR = np.zeros(( N, n_control_vars ))
     for n in range(N):
@@ -383,7 +422,7 @@ def betaFR(N, n_control_vars, grad0_, grad1_):
                 betaFR[n,v] = numerator / denominator
     return betaFR
 
-# update rule for conjugate directions according to Polak-Ribiere
+# update rule for direction according to Polak-Ribiere
 def betaPR(N, n_control_vars, grad0_, grad1_):
     betaPR = np.zeros(( N, n_control_vars ))
     for n in range(N):
@@ -394,7 +433,53 @@ def betaPR(N, n_control_vars, grad0_, grad1_):
                 betaPR[n,v] = numerator / denominator
     return betaPR
 
-# update rule for conjugate directions according to Hager-Zhang
+# update rule for direction "conjugate descent"
+def betaCD(N, n_control_vars, grad0_, grad1_, dir0_):
+    betaCD = np.zeros(( N, n_control_vars ))
+    for n in range(N):
+        for v in range(n_control_vars):
+            numerator = np.dot( grad1_[n,v,:], grad1_[n,v,:] )
+            denominator = np.dot( dir0_[n,v,:], grad0_[n,v,:] )
+            if np.abs(denominator) > 1e-6 :
+                betaCD[n,v] = - numerator / denominator
+    return betaCD
+
+# update rule for direction according to Liu-Storey
+def betaLS(N, n_control_vars, grad0_, grad1_, dir0_):
+    betaLS = np.zeros(( N, n_control_vars ))
+    for n in range(N):
+        for v in range(n_control_vars):
+            numerator = np.dot( grad1_[n,v,:], ( grad1_[n,v,:] - grad0_[n,v,:] ) )
+            denominator = np.dot( dir0_[n,v,:], grad0_[n,v,:] )
+            if np.abs(denominator) > 1e-6 :
+                betaLS[n,v] = - numerator / denominator
+    return betaLS
+
+# update rule for direction according to Dai-Yuan
+def betaDY(N, n_control_vars, grad0_, grad1_, dir0_):
+    betaDY = np.zeros(( N, n_control_vars ))
+    for n in range(N):
+        for v in range(n_control_vars):
+            numerator = np.dot( grad1_[n,v,:], grad1_[n,v,:] )
+            denominator = np.dot( dir0_[n,v,:], ( grad1_[n,v,:] - grad0_[n,v,:] ) )
+            if np.abs(denominator) > 1e-6 :
+                betaDY[n,v] = numerator / denominator
+    return betaDY
+
+# update rule for direction according to Wei et al.
+def betaWYL(N, n_control_vars, grad0_, grad1_):
+    betaWYL = np.zeros(( N, n_control_vars ))
+    for n in range(N):
+        for v in range(n_control_vars):
+            g0abs = np.sqrt( np.dot( grad0_[n,v,:], grad0_[n,v,:] ) )
+            g1abs = np.sqrt( np.dot( grad1_[n,v,:], grad1_[n,v,:] ) )
+            numerator = np.dot( grad1_[n,v,:], grad1_[n,v,:] - grad0_[n,v,:] * ( g1abs / g0abs ) )
+            denominator = np.dot( grad0_[n,v,:], grad0_[n,v,:] )
+            if np.abs(denominator) > 1e-6 :
+                betaWYL[n,v] = numerator / denominator
+    return betaWYL
+
+# update rule for direction according to Hager-Zhang
 def betaHZ(N, n_control_vars, grad0_, grad1_, dir0_):
     betaHZ = np.zeros(( N, n_control_vars ))
     eta = 0.01
@@ -441,6 +526,14 @@ def set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, toleran
             beta = betaFR(N, n_control_vars, grad0_, grad1_)
         elif CGVar == "PR":        # Polak-Ribiere
             beta = betaPR(N, n_control_vars, grad0_, grad1_)
+        elif CGVar == "CD":        # conjugate descent
+            beta = betaCD(N, n_control_vars, grad0_, grad1_, dir0_)
+        elif CGVar == "LS":        # Liu-Storey
+            beta = betaLS(N, n_control_vars, grad0_, grad1_, dir0_)
+        elif CGVar == "DY":        # Dai-Yuan
+            beta = betaDY(N, n_control_vars, grad0_, grad1_, dir0_)
+        elif CGVar == "WYL":        # Wei et al.
+            beta = betaWYL(N, n_control_vars, grad0_, grad1_)
         elif CGVar == "HZ":        # Hager-Zhang
             beta = betaHZ(N, n_control_vars, grad0_, grad1_, dir0_)
             

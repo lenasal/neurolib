@@ -162,7 +162,7 @@ class TestA1A2Conv(unittest.TestCase):
         
         A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad = model.A1(control2, target, c_scheme, u_mat, u_scheme,
                         max_iteration, algorithm_tolerance, start_step, c_max, c_min, duration, dur_pre, dur_post,
-                        CGVar = None, control_variables_ = cntrl_var, prec_variables_ = prec_var)
+                        CGVar = None, control_variables_ = cntrl_var, prec_variables_ = prec_var, transition_time_ = 0.)
         
         if A1_cost[-1] > 0.:
             testAtMaxIt[ind_v] = 1

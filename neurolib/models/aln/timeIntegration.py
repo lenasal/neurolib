@@ -182,6 +182,7 @@ def timeIntegration(params, control):
     rates_exc = np.zeros((N, startind + len(t)))
     rates_inh = np.zeros((N, startind + len(t)))
     IA = np.zeros((N, startind + len(t)))
+    IA_init = np.zeros((N, startind ))
     
     mufe  = np.zeros((N, startind + len(t)))
     mufi  = np.zeros((N, startind + len(t)))
@@ -200,20 +201,21 @@ def timeIntegration(params, control):
     
     # ------------------------------------------------------------------------
     # Set initial values
-    mufe[:,:startind] = params["mufe_init"].copy()  # Filtered mean input (mu) for exc. population
-    mufi[:,:startind] = params["mufi_init"].copy()  # Filtered mean input (mu) for inh. population
-    IA_init = params["IA_init"].copy()  # Adaptation current (pA)
-    seem[:,:startind] = params["seem_init"].copy()  # Mean exc synaptic input
-    seim[:,:startind] = params["seim_init"].copy()
-    seev[:,:startind] = params["seev_init"].copy()  # Exc synaptic input variance
-    seiv[:,:startind] = params["seiv_init"].copy()
-    siim[:,:startind] = params["siim_init"].copy()  # Mean inh synaptic input
-    siem[:,:startind] = params["siem_init"].copy()
-    siiv[:,:startind] = params["siiv_init"].copy()  # Inh synaptic input variance
-    siev[:,:startind] = params["siev_init"].copy()
-
-    mue_ou[:,:startind] = params["mue_ou"].copy()  # Mean of external exc OU input (mV/ms)
-    mui_ou[:,:startind] = params["mui_ou"].copy()  # Mean of external inh ON inout (mV/ms)
+    for n in range(N):
+        mufe[n,:startind] = params["mufe_init"][n]  # Filtered mean input (mu) for exc. population
+        mufi[n,:startind] = params["mufi_init"][n]  # Filtered mean input (mu) for inh. population
+        IA_init[n] = params["IA_init"][n]  # Adaptation current (pA)
+        seem[n,:startind] = params["seem_init"][n]  # Mean exc synaptic input
+        seim[n,:startind] = params["seim_init"][n]
+        seev[n,:startind] = params["seev_init"][n]  # Exc synaptic input variance
+        seiv[n,:startind] = params["seiv_init"][n]
+        siim[n,:startind] = params["siim_init"][n]  # Mean inh synaptic input
+        siem[n,:startind] = params["siem_init"][n]
+        siiv[n,:startind] = params["siiv_init"][n]  # Inh synaptic input variance
+        siev[n,:startind] = params["siev_init"][n]
+    
+        mue_ou[n,:startind] = params["mue_ou"][n]  # Mean of external exc OU input (mV/ms)
+        mui_ou[n,:startind] = params["mui_ou"][n]  # Mean of external inh ON inout (mV/ms)
 
     # Set the initial firing rates.
     # if initial values are just N array:
@@ -691,11 +693,12 @@ def timeIntegration_njit_elementwise(
                 mui_ou[no,i-1] + (mui_ext_mean - mui_ou[no,i-1]) * dt / tau_ou + sigma_ou * sqrt_dt * noise_inh[no]
             )  # mV/ms
                         
-    
-    if a == 0.:
-        Vmean_exc[:,:startind] = Vmean_exc[:,startind]
-    else:
-        Vmean_exc[:,:startind] = EA + ( 1./a ) * ( tauA * ( IA[:,startind] - IA[:,startind-1] ) / dt - tauA * b * rates_exc[:,startind] * 1e-3 + IA[:,startind-1]) 
+    for n in range(N):
+        if a == 0.:
+            Vmean_exc[n,:startind] = Vmean_exc[n,startind]
+        else:
+            Vmean_exc[n,:startind] = EA + ( 1./a ) * ( tauA * ( IA[n,startind] - IA[n,startind-1] ) / dt
+                                                        - tauA * b * rates_exc[n,startind] * 1e-3 + IA[n,startind-1] )         
     
     if not distr_delay:
     # Get the input from one node into another from the rates at time t - connection_delay - 1

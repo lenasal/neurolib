@@ -13,11 +13,12 @@ np.set_printoptions(precision=8)
 model_name = "-aln"
 
 
-VALID_VAR = {None, "HS", "FR", "PR", "HZ"}
+VALID_VAR = {None, "HS", "FR", "PR", "CD", "LS", "DY", "WYL", "HZ"}
+VALID_LS = {None, "AG"}
 
 def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteration_, tolerance_, startStep_,
        cntrl_max_, cntrl_min_, t_sim_, t_sim_pre_, t_sim_post_,
-       CGVar = None, control_variables_ = [0,1], prec_variables_ = [0,1], separate_comp = True, transition_time_ = 0.):
+       CGVar = None, line_search_ = None, control_variables_ = [0,1], prec_variables_ = [0,1], separate_comp = True, transition_time_ = 0.):
         
     dt = model.params['dt']
     max_iteration_ = int(max_iteration_)
@@ -184,8 +185,10 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     print("RUN ", i, ", total integrated cost = ", total_cost_[i])
     
     if CGVar not in VALID_VAR:
-        print("No valid variant of conjugate gradient descent selected, use none instead.")
+        print("No valid variant of gradient descent selected, use None instead.")
         CGVar = None
+    else:
+        print("Gradient descend method: ", CGVar)
     
     full_cost_grad = np.zeros(( N, 2, T ))   
     
@@ -210,6 +213,15 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     tc_inh = -1
     joint_cost = -1
     tc_exc_r = -1
+    
+    
+    if line_search_ == None:
+        line_search_func = fo.step_size
+    elif line_search_ == "AG":
+        line_search_func = fo.AG_line_search
+    else:
+        print("No valid line search selected use bisection instead")
+        line_search_func = fo.step_size
         
     while( i < max_iteration_ ):
         
@@ -276,12 +288,15 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
             break
         
         if False:
-            print("adj exc rate =", phi0_[0,0,:])
-            #print("adj inh rate =", phi0_[0,1,:])
-            print("adj mue =", phi0_[0,2,:])
-            #print("adj mui =", phi0_[0,3,:])
-            print("adj sigma e =", phi0_[0,15,:])
-            #print("adj sigma i =", phi0_[0,16,:])
+            from_ = 900
+            to_ = -1
+            print("adj exc rate =", phi0_[0,0,from_:to_])
+            print("adj inh rate =", phi0_[0,1,from_:to_])
+            print("adj mue =", phi0_[0,2,from_:to_])
+            print("adj mui =", phi0_[0,3,from_:to_])
+            print("adj sigma e =", phi0_[0,15,from_:to_])
+            print("adj sigma i =", phi0_[0,16,from_:to_])
+            print("adj s ie =", phi0_[0,7,from_:to_])
             
         i += 1   
         
@@ -318,6 +333,8 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
         dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, tolerance_)
         
         #print("1")
+        
+        minCost = []
             
         if separate_comp:
             # compute stepsize separately and then put together
@@ -325,9 +342,9 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 d_exc = dir0_.copy()
                 d_exc[:,1:,:] = 0.
                 
-                s_exc, tc_exc, startstep_exc_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+                s_exc, tc_exc, startstep_exc_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                              best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 500, max_control_ = cntrl_max_,
-                             min_control_ = cntrl_min_, variables_ = prec_variables)
+                             min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(tc_exc)
             
                 #print("1.1")
@@ -339,9 +356,9 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 d_inh[:,0,:] = 0.
                 d_inh[:,2:,:] = 0.
                 
-                s_inh, tc_inh, startstep_inh_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+                s_inh, tc_inh, startstep_inh_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                              best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 500, max_control_ = cntrl_max_,
-                             min_control_ = cntrl_min_, variables_ = prec_variables)
+                             min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(tc_inh)
                 
                 #print("1.1")
@@ -353,9 +370,9 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 d_exc_r[:,0,:] = 0.
                 d_exc_r[:,1,:] = 0.
                 
-                s_exc_r, tc_exc_r, startstep_exc_r_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:],
+                s_exc_r, tc_exc_r, startstep_exc_r_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:],
                             target_state_, best_control_, d_exc_r, start_step_ = startstep_exc_r_, max_it_ = 500,
-                            max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables)
+                            max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(tc_exc_r)
                 
                 #print("1.1")
@@ -367,19 +384,15 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 joint_dir[:,0,:] = s_exc * dir0_[:,0,:] #/ (s_exc + s_inh)
                 joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
                 
-                joint_step_, joint_cost, startstep_joint_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:],
+                joint_step_, joint_cost, startstep_joint_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:],
                              target_state_, best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 500,
-                             max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables)
+                             max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(joint_cost)
-                
-        #print("2")
-        
-        step_, total_cost_[i], startStep_ = fo.step_size(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
+                        
+        step_, total_cost_[i], startStep_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
                      best_control_, dir0_, start_step_ = startStep_, max_it_ = 500, max_control_ = cntrl_max_,
-                         min_control_ = cntrl_min_, variables_ = prec_variables)
-        
-        #print("3")
-        
+                         min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
+                
         #print("step size = ", step_, total_cost_[i])
         
         minCost.append(total_cost_[i])
@@ -482,7 +495,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
         improvement = 100. - (100.*(total_cost_[max_iteration_]/total_cost_[0]))
         
     print("RUN ", max_iteration_, ", total integrated cost = ", total_cost_[max_iteration_])
-    print("Improved over ", max_iteration_, " iterations by ", improvement, " percent.")
+    print("Improved over ", max_iteration_, " iterations in ", runtime_[max_iteration_]," seconds by ", improvement, " percent.")
     
     """
     if max_iteration_ != 0:
@@ -518,7 +531,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     
     fo.set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_, state1_, state_post_, state_vars, model.params.a, model.params.b)
             
-    return bc_, bs_, total_cost_, runtime_, grad1_
+    return bc_, bs_, total_cost_, runtime_, grad1_#, phi0_, phi1_
 
 @numba.njit
 def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxDelay, n_maxDelay, state_pre_,
@@ -616,6 +629,10 @@ def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxD
                        interpolate_V,
                        interpolate_tau,
                        ) 
+    
+    #print("n_dt de = ", ndt_de)
+    #print("jac 7 = ", jac[7,0,900:])
+    #print("jac 2 = ", jac[0,2,400:])
             
     for ind_time in range(T-1, -1, -1):
         
@@ -1009,14 +1026,22 @@ def jacobian(V, state_, control_, T, state_pre_,
         jacobian_[2,2,t_] = 1. / state_[0,18,t_]
         jacobian_[2,5,t_] = - Jee_max / state_[0,18,t_]
         jacobian_[2,6,t_] = - Jei_max / state_[0,18,t_]
-        jacobian_[2,18,t_] = ( Jee_max * state_[0,5,t_] + Jei_max * state_[0,6,t_] + control_[0,0,t_+1] + ext_exc_current
-                       + state_[0,13,t_] - state_[0,2,t_] ) / state_[0,18,t_]**2
+        if t_ < T - 1:
+            jacobian_[2,18,t_] = ( Jee_max * state_[0,5,t_] + Jei_max * state_[0,6,t_] + control_[0,0,t_+1] + ext_exc_current
+                           + state_[0,13,t_] - state_[0,2,t_] ) / state_[0,18,t_]**2
+        else:
+            jacobian_[2,18,t_] = ( Jee_max * state_[0,5,t_] + Jei_max * state_[0,6,t_] + ext_exc_current
+                           + state_[0,13,t_] - state_[0,2,t_] ) / state_[0,18,t_]**2
         
         jacobian_[3,3,t_] = 1. / state_[0,19,t_]
         jacobian_[3,7,t_] = - Jie_max / state_[0,19,t_]
         jacobian_[3,8,t_] = - Jii_max / state_[0,19,t_]
-        jacobian_[3,19,t_] = ( Jie_max * state_[0,7,t_] + Jii_max * state_[0,8,t_] + control_[0,1,t_+1] + ext_inh_current
-                       + state_[0,14,t_] - state_[0,3,t_] ) / state_[0,19,t_]**2
+        if t_ < T - 1:
+            jacobian_[3,19,t_] = ( Jie_max * state_[0,7,t_] + Jii_max * state_[0,8,t_] + control_[0,1,t_+1] + ext_inh_current
+                           + state_[0,14,t_] - state_[0,3,t_] ) / state_[0,19,t_]**2
+        else:
+            jacobian_[3,19,t_] = ( Jie_max * state_[0,7,t_] + Jii_max * state_[0,8,t_] + ext_inh_current
+                           + state_[0,14,t_] - state_[0,3,t_] ) / state_[0,19,t_]**2
         
         jacobian_[4,0,t_] = - b * 1e-3
         jacobian_[4,4,t_] = 1. / tauA

@@ -23,11 +23,34 @@ def der_sigma(sigma_f, sigmarange, ds, muf, Irange, dI, C, precalc_table):
 # gradient of transfer function wrt changes in mu
 @numba.njit
 def der_mu(sigma_f, sigmarange, ds, muf, Irange, dI, C, precalc_table):
+    
+    """
+    if muf >= Irange[-1]:
+        return der_mu(sigma_f, sigmarange, ds, Irange[-2], Irange, dI, C, precalc_table)
+    if sigma_f >= sigmarange[-1]:
+        return der_mu(sigmarange[-2], sigmarange, ds, Irange[-2], Irange, dI, C, precalc_table)
+    """
+    
+    """
+    lim_a = -0.6
+    lim_b = 0.5
+    if sigma_f <= lim_a * muf + lim_b:
+        return 1e-10
+    """
+    
     delta_I = dI * 0.01    
     result0 = interpolate(sigma_f, sigmarange, ds, muf, Irange, dI, C, precalc_table)
     result1 = interpolate(sigma_f, sigmarange, ds, muf + delta_I, Irange, dI, C, precalc_table)
     
     der = ( result1 - result0) / delta_I
+    
+    """
+    if np.abs(der) < 1e-10:
+        if der >= 0.:
+            return 1e-10
+        elif der < 0.:
+            return - 1e-10
+    """
     
     #if (np.abs(der1 - der2) > 10-8):    
     #    print("WARNING: Large difference in der : ", der1 - der2)

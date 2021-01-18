@@ -149,7 +149,7 @@ def cost_sparsity_gradient(N, V, T, dt, control_):
     cost_grad =  numba_cost_sparsity_gradient(N, V, T, i_s, control_, control_energy)
     return cost_grad
 
-@numba.njit
+#@numba.njit
 def numba_cost_sparsity_gradient(N, V, T, i_s, control_, control_energy):
     cost_grad =  np.zeros(( N, V, T ))
     for ind_node in range(N):
