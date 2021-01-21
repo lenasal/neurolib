@@ -106,13 +106,13 @@ def get_osc_params(rate):
 def cost_energy_gradient(control_):
     # state_t: [N,dim_Model] dimensional array containing all nodes and state variables for all times
     i_p, i_e, i_s = getParams()
-    cost_gradient_ = numba_energy_gradient(i_e, control_)
-    return cost_gradient_
+    cost_gradient_e_ = numba_energy_gradient(i_e, control_)
+    return cost_gradient_e_
 
 @numba.njit
 def numba_energy_gradient(i_e, control_):
-    cost_gradient_ = i_e * control_
-    return cost_gradient_
+    cost_grad_ = i_e * control_.copy()
+    return cost_grad_
 
 def cost_energy_int(N, V, T, dt, i_e, control_, va_ = [0,1]):
     cost_ = numba_cost_energy_int(N, V, T, dt, i_e, control_)
@@ -146,19 +146,22 @@ def control_energy_components(N, V, T, dt, control_):
 def cost_sparsity_gradient(N, V, T, dt, control_):
     i_p, i_e, i_s = getParams()
     control_energy = control_energy_components(N, V, T, dt, control_)
-    cost_grad =  numba_cost_sparsity_gradient(N, V, T, i_s, control_, control_energy)
-    return cost_grad
+    cost_gradient_s_ =  numba_cost_sparsity_gradient(N, V, T, i_s, control_, control_energy)
+    return cost_gradient_s_
 
-#@numba.njit
+@numba.njit
 def numba_cost_sparsity_gradient(N, V, T, i_s, control_, control_energy):
     cost_grad =  np.zeros(( N, V, T ))
-    for ind_node in range(N):
-        for ind_var in range(V):
-            if control_energy[ind_node, ind_var] == 0.:
-                cost_grad[ind_node, ind_var, :] = 0.
-            else:
-                cost_grad[ind_node, ind_var, :] = i_s * control_[ind_node, ind_var,:] / control_energy[ind_node, ind_var]
-    #cost_grad[ind_node, ind_var, 0] = 0.
+    
+    if i_s != 0.:
+        for ind_node in range(N):
+            for ind_var in range(V):
+                if control_energy[ind_node, ind_var] == 0.:
+                    cost_grad[ind_node, ind_var, :] = 0.
+                else:
+                    cost_grad[ind_node, ind_var, :] = i_s * control_[ind_node, ind_var,:] / control_energy[ind_node, ind_var]
+        #cost_grad[ind_node, ind_var, 0] = 0.
+        
     return cost_grad
 
 def f_cost_sparsity_int(N, V, T, dt, i_s, control_):

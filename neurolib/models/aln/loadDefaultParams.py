@@ -67,8 +67,8 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None, seed=None)
     # PSP current amplitude in (mV/ms) (or nA/[C]) for global coupling
     # connections between areas
     params.c_gl = 0.3
-    # number of incoming E connections (to E population) from each area
-    params.Ke_gl = 250.0
+    params.Ke_gl = 250.0 # number of incoming E connections (to E or I population) from each area
+    params.Ki_gl = 250.0 # number of incoming I connections (to E or I population) from each area
     
     params.interpolate_rate = True
     params.interpolate_V = True
@@ -89,9 +89,11 @@ def loadDefaultParams(Cmat=None, Dmat=None, lookupTableFileName=None, seed=None)
     params.mue_ou = params.mue_ext_mean * np.ones((params.N,))  # np.zeros((params.N,))
     params.mui_ou = params.mui_ext_mean * np.ones((params.N,))  # np.zeros((params.N,))
 
-    # external neuronal firing rate input
-    params.ext_exc_rate = 0.0  # kHz external excitatory rate drive
-    params.ext_inh_rate = 0.0  # kHz external inhibiroty rate drive
+    # external neuronal firing rate input # ee, ei, ie, ii
+    params.ext_ee_rate = 0.0  # kHz external excitatory type rate drive to excitatory node
+    params.ext_ei_rate = 0.0  # kHz external inhibitory type rate drive to excitatory node
+    params.ext_ie_rate = 0.0  # # kHz external excitatory type rate drive to inhibitory node
+    params.ext_ii_rate = 0.0  # # kHz external inhibitory type rate drive to inhibitory node
 
     # externaln input currents, same as mue_ext_mean but can be time-dependent!
     params.ext_exc_current = 0.0  # external excitatory input current [mV/ms], C*[]V/s=[]nA

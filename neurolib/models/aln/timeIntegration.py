@@ -43,7 +43,8 @@ def timeIntegration(params, control):
     # Interareal relative coupling strengths (values between 0 and 1), Cmat(i,j) connnection from jth to ith
     Cmat = params["Cmat"]
     c_gl = params["c_gl"]  # EPSP amplitude between areas
-    Ke_gl = params["Ke_gl"]  # number of incoming E connections (to E population) from each area
+    Ke_gl = params["Ke_gl"]  # number of incoming E connections (to E or I population) from each area
+    Ki_gl = params["Ki_gl"]  # number of incoming I connections (to E or I population) from each area
 
     N = len(Cmat)  # Number of areas
 
@@ -119,7 +120,10 @@ def timeIntegration(params, control):
     cie = cie * tau_se / abs(Jie_max)  # ms
     cei = cei * tau_si / abs(Jei_max)  # ms
     cii = cii * tau_si / abs(Jii_max)  # ms
-    c_gl = c_gl * tau_se / Jee_max  # ms
+    c_gl_ee = c_gl * tau_se / abs(Jee_max)  # ms
+    c_gl_ei = c_gl * tau_si / abs(Jei_max)  # ms
+    c_gl_ie = c_gl * tau_se / abs(Jie_max)  # ms
+    c_gl_ii = c_gl * tau_si / abs(Jii_max)  # ms
 
     # neuron model parameters
     a = params["a"]  # Adaptation coupling term ( nS )
@@ -239,7 +243,7 @@ def timeIntegration(params, control):
     if type(params["IA_init"]) is not type(np.array([])):
         logging.error("wrong input for initial adaptation current")
     elif len(np.shape(params["IA_init"])) == 1:
-        A_init = np.ones((1, startind)) * params["IA_init"][0]
+        IA_init = np.ones((1, startind)) * params["IA_init"][0]
     # if initial values are just a Nx1 array
     elif np.shape(params["IA_init"])[1] == 1:
         # repeat the 1-dim value stardind times
@@ -266,9 +270,10 @@ def timeIntegration(params, control):
     # tile external inputs to appropriate shape
     ext_exc_current = adjust_shape(params["ext_exc_current"], rates_exc)
     ext_inh_current = adjust_shape(params["ext_inh_current"], rates_exc)
-    ext_exc_rate = adjust_shape(params["ext_exc_rate"], rates_exc)
-    ext_inh_rate = adjust_shape(params["ext_inh_rate"], rates_exc)
-    
+    ext_ee_rate = adjust_shape(params["ext_ee_rate"], rates_exc)
+    ext_ei_rate = adjust_shape(params["ext_ei_rate"], rates_exc)
+    ext_ie_rate = adjust_shape(params["ext_ie_rate"], rates_exc)
+    ext_ii_rate = adjust_shape(params["ext_ii_rate"], rates_exc)
     
     control_ext = control.copy()
 
@@ -281,8 +286,12 @@ def timeIntegration(params, control):
         filter_sigma,
         Cmat,
         Dmat,
-        c_gl,
+        c_gl_ee,
+        c_gl_ei,
+        c_gl_ie,
+        c_gl_ii,
         Ke_gl,
+        Ki_gl,
         tau_ou,
         sigma_ou,
         mue_ext_mean,
@@ -350,8 +359,10 @@ def timeIntegration(params, control):
         ndt_di,
         mue_ou,
         mui_ou,
-        ext_exc_rate,
-        ext_inh_rate,
+        ext_ee_rate,
+        ext_ei_rate,
+        ext_ie_rate,
+        ext_ii_rate,
         ext_exc_current,
         ext_inh_current,
         noise_exc,
@@ -371,8 +382,12 @@ def timeIntegration_njit_elementwise(
     filter_sigma,
     Cmat,
     Dmat,
-    c_gl,
+    c_gl_ee,
+    c_gl_ei,
+    c_gl_ie,
+    c_gl_ii,
     Ke_gl,
+    Ki_gl,
     tau_ou,
     sigma_ou,
     mue_ext_mean,
@@ -440,8 +455,10 @@ def timeIntegration_njit_elementwise(
     ndt_di,
     mue_ou,
     mui_ou,
-    ext_exc_rate,
-    ext_inh_rate,
+    ext_ee_rate,
+    ext_ei_rate,
+    ext_ie_rate,
+    ext_ii_rate,
     ext_exc_current,
     ext_inh_current,
     noise_exc,
@@ -512,6 +529,7 @@ def timeIntegration_njit_elementwise(
             mue = (Jee_max * seem[no,i-1] + Jei_max * seim[no,i-1] + mue_ou[no,i-1] + ext_exc_current[no, i]
                    + control_ext[no, 0, i-startind+1]
                    )
+            #print(seim[no,i-1])
             mui = (Jie_max * siem[no,i-1] + Jii_max * siim[no,i-1] + mui_ou[no,i-1] + ext_inh_current[no, i]
                    + control_ext[no, 1, i-startind+1]
                    )
@@ -523,30 +541,41 @@ def timeIntegration_njit_elementwise(
                 rowsum = rowsum + Cmat[no, col] * rd_exc[no, col]
                 rowsumsq = rowsumsq + Cmat[no, col] ** 2 * rd_exc[no, col]
                 
-            #print("input via coupling: time, node, rowsum = ", i, no, rowsum)
-
-            # z1: weighted sum of delayed rates, weights=c*K
+            # z1: weighted sum of delayed rates, weights=c*K # ee, ei, ie, ii
             z1ee = (
-                cee * Ke * rd_exc[no, no] + c_gl * Ke_gl * rowsum
-                + c_gl * Ke_gl * ( ext_exc_rate[no, i] + control_ext[no, 2, i-startind] )
-            )  # rate from other regions + exc_ext_rate
-            z1ei = cei * Ki * rd_inh[no]
+                cee * Ke * rd_exc[no, no] + c_gl_ee * Ke_gl * rowsum
+                + c_gl_ee * Ke_gl * ( ext_ee_rate[no, i] + control_ext[no, 2, i-startind] )
+                )  # rate from other regions + exc_ext_rate
+            z1ei = (
+                cei * Ki * rd_inh[no]
+                + c_gl_ei * Ki_gl * ( ext_ei_rate[no, i] + control_ext[no, 3, i-startind] )
+                )
             z1ie = (
-                cie * Ke * rd_exc[no, no] + c_gl * Ke_gl * ext_inh_rate[no, i]
-            )  # first test of external rate input to inh. population
-            z1ii = cii * Ki * rd_inh[no]
+                cie * Ke * rd_exc[no, no]
+                + c_gl_ie * Ke_gl * ( ext_ie_rate[no, i] + control_ext[no, 4, i-startind] )
+                )  # first test of external rate input to inh. population
+            z1ii = (
+                cii * Ki * rd_inh[no]
+                + c_gl_ii * Ki_gl * ( ext_ii_rate[no, i] + control_ext[no, 5, i-startind] )
+                )
             #print("parameters of calculation: rd_exc[no, no], rd_inh[no]", rd_exc[no, no], rd_inh[no])
             # z2: weighted sum of delayed rates, weights=c^2*K (see thesis last ch.)
             z2ee = (
-                cee ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * rowsumsq
-                + c_gl ** 2 * Ke_gl * ( ext_exc_rate[no, i] + control_ext[no, 2, i-startind] )
-            )
-            #print("parts of z2ee: ", cee ** 2 * Ke * rd_exc[no, no],  cee ** 2 * Ke, rd_exc[no, no])
-            z2ei = cei ** 2 * Ki * rd_inh[no]
+                cee ** 2 * Ke * rd_exc[no, no] + c_gl_ee ** 2 * Ke_gl * rowsumsq
+                + c_gl_ee ** 2 * Ke_gl * ( ext_ee_rate[no, i] + control_ext[no, 2, i-startind] )
+                )
+            z2ei = (
+                cei ** 2 * Ki * rd_inh[no]
+                + c_gl_ei ** 2 * Ki_gl * ( ext_ei_rate[no, i] + control_ext[no, 3, i-startind] )
+                )
             z2ie = (
-                cie ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * ext_inh_rate[no, i]
-            )  # external rate input to inh. population
-            z2ii = cii ** 2 * Ki * rd_inh[no]
+                cie ** 2 * Ke * rd_exc[no, no]
+                + c_gl_ie ** 2 * Ke_gl * ( ext_ie_rate[no, i] + control_ext[no, 4, i-startind] )
+                )  # external rate input to inh. population
+            z2ii = (
+                cii ** 2 * Ki * rd_inh[no]
+                + c_gl_ii ** 2 * Ki_gl * ( ext_ii_rate[no, i] + control_ext[no, 5, i-startind] )
+                )
 
             sigmae = np.sqrt(
                 2 * sq_Jee_max * seev[no,i-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)
@@ -573,6 +602,9 @@ def timeIntegration_njit_elementwise(
                 sigmarange, ds, sigmae_f[no,i-1], Irange, dI, mufe[no,i-1] - IA[no, i - 1] / C
             )
             xid1, yid1 = int(xid1), int(yid1)
+            
+            #if i < 3:
+            #    print(sigmae_f[no,i-1], mufe[no,i-1] - IA[no, i - 1] / C)
 
             rates_exc[no,i] = interpolate_values(precalc_r, xid1, yid1, dxid, dyid) * 1e3  # convert kHz to Hz
             Vmean_exc[no,i] = interpolate_values(precalc_V, xid1, yid1, dxid, dyid)
@@ -602,7 +634,6 @@ def timeIntegration_njit_elementwise(
             if not interpolate_tau:
                 tau_exc[no,i-1] = tau_func(mufe[no,i-1] - IA[no,i-1] / C, sigmae_f[no,i-1])
                 tau_inh[no,i-1] = tau_func(mufi[no,i-1], sigmai_f[no,i-1])
-            
             
             if filter_sigma:
                 tau_sigmai_eff = interpolate_values(precalc_tau_sigma, xid1, yid1, dxid, dyid)
@@ -642,7 +673,7 @@ def timeIntegration_njit_elementwise(
 
             mufe[no,i] = mufe[no,i-1] + dt * mufe_rhs
             mufi[no,i] = mufi[no,i-1] + dt * mufi_rhs
-            IA[no,i] = IA[no, i - 1] + dt * IA_rhs
+            IA[no,i] = IA[no,i-1] + dt * IA_rhs
 
             if distr_delay:
                 rd_exc[no, no] = rd_exc[no, no] + dt * rd_exc_rhs
@@ -651,7 +682,8 @@ def timeIntegration_njit_elementwise(
             if filter_sigma:
                 sigmae_f[no,i] = sigmae_f[no,i-1] + dt * sigmae_f_rhs
                 sigmai_f[no,i] = sigmai_f[no,i-1] + dt * sigmai_f_rhs
-
+            
+            # ee, ei, ie, ii
             seem[no,i] = seem[no,i-1] + dt * seem_rhs
             seim[no,i] = seim[no,i-1] + dt * seim_rhs
             siem[no,i] = siem[no,i-1] + dt * siem_rhs
@@ -701,12 +733,8 @@ def timeIntegration_njit_elementwise(
                                                         - tauA * b * rates_exc[n,startind] * 1e-3 + IA[n,startind-1] )         
     
     if not distr_delay:
-    # Get the input from one node into another from the rates at time t - connection_delay - 1
-    # remark: assume Kie == Kee and Kei == Kii
         for no in range(N):
-            # interareal coupling
             for l in range(N):
-                # rd_exc(i,j) delayed input rate from population j to population i
                 rd_exc[l,no] = rates_exc[no,-Dmat_ndt[l, no]-1] * 1e-3  # convert Hz to kHz
             # Warning: this is a vector and not a matrix as rd_exc
             rd_inh[no] = rates_inh[no,-ndt_di-1] * 1e-3  # convert Hz to kHz
@@ -718,28 +746,42 @@ def timeIntegration_njit_elementwise(
         rowsum = rowsum + Cmat[no,col] * rd_exc[no,col]
         rowsumsq = rowsumsq + Cmat[no,col] ** 2 * rd_exc[no,col]
 
-    # z1: weighted sum of delayed rates, weights=c*K
+    # z1: weighted sum of delayed rates, weights=c*K # ee, ei, ie, ii
     z1ee = (
-        cee * Ke * rd_exc[no,no] + c_gl * Ke_gl * rowsum
-        + c_gl * Ke_gl * ( ext_exc_rate[no,-1] + control_ext[no,2,-1] )
-    )  # rate from other regions + exc_ext_rate
-    z1ei = cei * Ki * rd_inh[no]
+        cee * Ke * rd_exc[no, no] + c_gl_ee * Ke_gl * rowsum
+        + c_gl_ee * Ke_gl * ( ext_ee_rate[no,-1] + control_ext[no, 2, -2] )
+        )  # rate from other regions + exc_ext_rate
+    z1ei_prev = z1ei
+    z1ei = (
+        cei * Ki * rd_inh[no]
+        + c_gl_ei * Ki_gl * ( ext_ei_rate[no,-1] + control_ext[no, 3, -2] )
+        )
     z1ie = (
-        cie * Ke * rd_exc[no, no] + c_gl * Ke_gl * ext_inh_rate[no,-1]
-    )  # first test of external rate input to inh. population
-    z1ii = cii * Ki * rd_inh[no]
+        cie * Ke * rd_exc[no, no]
+        + c_gl_ie * Ke_gl * ( ext_ie_rate[no,-1] + control_ext[no, 4, -2] )
+        )  # first test of external rate input to inh. population
+    z1ii = (
+        cii * Ki * rd_inh[no]
+        + c_gl_ii * Ki_gl * ( ext_ii_rate[no,-1] + control_ext[no, 5, -2] )
+        )
     #print("parameters of calculation: rd_exc[no, no], rd_inh[no]", rd_exc[no, no], rd_inh[no])
     # z2: weighted sum of delayed rates, weights=c^2*K (see thesis last ch.)
     z2ee = (
-        cee ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * rowsumsq
-        + c_gl ** 2 * Ke_gl * ( ext_exc_rate[no,-1] + control_ext[no,2,-1] )
-    )
-    #print("parts of z2ee: ", cee ** 2 * Ke * rd_exc[no, no],  cee ** 2 * Ke, rd_exc[no, no])
-    z2ei = cei ** 2 * Ki * rd_inh[no]
+        cee ** 2 * Ke * rd_exc[no, no] + c_gl_ee ** 2 * Ke_gl * rowsumsq
+        + c_gl_ee ** 2 * Ke_gl * ( ext_ee_rate[no,-1] + control_ext[no, 2, -2] )
+        )
+    z2ei = (
+        cei ** 2 * Ki * rd_inh[no]
+        + c_gl_ei ** 2 * Ki_gl * ( ext_ei_rate[no,-1] + control_ext[no, 3, -2] )
+        )
     z2ie = (
-        cie ** 2 * Ke * rd_exc[no, no] + c_gl ** 2 * Ke_gl * ext_inh_rate[no,-1]
-    )  # external rate input to inh. population
-    z2ii = cii ** 2 * Ki * rd_inh[no]
+        cie ** 2 * Ke * rd_exc[no, no]
+        + c_gl_ie ** 2 * Ke_gl * ( ext_ie_rate[no,-1] + control_ext[no, 4, -2] )
+        )  # external rate input to inh. population
+    z2ii = (
+        cii ** 2 * Ki * rd_inh[no]
+        + c_gl_ii ** 2 * Ki_gl * ( ext_ii_rate[no,-1] + control_ext[no, 5, -2] )
+        )
 
     sigmae = np.sqrt(
         2 * sq_Jee_max * seev[no,-1] * tau_se * taum / ((1 + z1ee) * taum + tau_se)

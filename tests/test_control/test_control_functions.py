@@ -14,8 +14,25 @@ def setInitVarsZero(model, init_vars):
        setParametersALN(model)
        
 def setmaxmincontrol(cntrl_vars_, max_cntrl_c, min_cntrl_c, max_cntrl_r, min_cntrl_r):
-    max_cntrl = np.zeros(( 4 ))
-    min_cntrl = np.zeros(( 4 ))
+    max_cntrl = np.zeros(( 6 ))
+    min_cntrl = np.zeros(( 6 ))
+    
+    max_cntrl[0] = 1e2 * max_cntrl_c
+    min_cntrl[0] = 1e2 * min_cntrl_c
+    max_cntrl[1] = 1e2 * max_cntrl_c
+    min_cntrl[1] = 1e2 * min_cntrl_c
+    max_cntrl[2] = 2. * max_cntrl_r
+    min_cntrl[2] = 2. * min_cntrl_r
+    max_cntrl[3] = 2. * max_cntrl_r
+    min_cntrl[3] = 2. * min_cntrl_r
+    max_cntrl[4] = 2. * max_cntrl_r
+    min_cntrl[4] = 2. * min_cntrl_r
+    max_cntrl[5] = 2. * max_cntrl_r
+    min_cntrl[5] = 2. * min_cntrl_r
+    
+    return max_cntrl, min_cntrl
+    
+    """
     if cntrl_vars_ == [0]:
         max_cntrl[0] = 1e2 * max_cntrl_c
         min_cntrl[0] = 1e2 * min_cntrl_c
@@ -23,6 +40,9 @@ def setmaxmincontrol(cntrl_vars_, max_cntrl_c, min_cntrl_c, max_cntrl_r, min_cnt
         max_cntrl[1] = 1e2 * max_cntrl_c
         min_cntrl[1] = 1e2 * min_cntrl_c
     elif cntrl_vars_ == [2]:
+        max_cntrl[2] = 2. * max_cntrl_r
+        min_cntrl[2] = 2. * min_cntrl_r
+    elif cntrl_vars_ == [3]:
         max_cntrl[2] = 2. * max_cntrl_r
         min_cntrl[2] = 2. * min_cntrl_r
     elif cntrl_vars_ == [0,1]:
@@ -35,6 +55,11 @@ def setmaxmincontrol(cntrl_vars_, max_cntrl_c, min_cntrl_c, max_cntrl_r, min_cnt
         min_cntrl[0] = 1e2 * min_cntrl_c
         max_cntrl[2] = 2. * max_cntrl_r
         min_cntrl[2] = 2. * min_cntrl_r
+    elif cntrl_vars_ == [0,3]:
+        max_cntrl[0] = 1e2 * max_cntrl_c
+        min_cntrl[0] = 1e2 * min_cntrl_c
+        max_cntrl[3] = 2. * max_cntrl_r
+        min_cntrl[3] = 2. * min_cntrl_r
     elif cntrl_vars_ == [1,2]:
         max_cntrl[1] = 1e2 * max_cntrl_c
         min_cntrl[1] = 1e2 * min_cntrl_c
@@ -48,9 +73,10 @@ def setmaxmincontrol(cntrl_vars_, max_cntrl_c, min_cntrl_c, max_cntrl_r, min_cnt
         max_cntrl[2] = 2. * max_cntrl_r
         min_cntrl[2] = 2. * min_cntrl_r
     return max_cntrl, min_cntrl
+    """
         
 def getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_controlmin, r_controlmax, control_variables_ = [0,1]):
-    control_ = model.getZeroControl()        
+    control_ = model.getZeroControl()     
     maxDelay_ndt = getDelay_ndt(model)
         
     for n in range(control_.shape[0]):
@@ -58,7 +84,7 @@ def getRandomControl(model, cntrl_zeros_pre, c_controlmin, c_controlmax, r_contr
             for t in range(cntrl_zeros_pre+1, control_.shape[2]-1-maxDelay_ndt):
                 if v == 0 or v == 1:
                     control_[n, v, t] = random.uniform(c_controlmin, c_controlmax)
-                elif v == 2:
+                elif v in [2,3,4,5]:
                     control_[n, v, t] = random.uniform(r_controlmin, r_controlmax)
     return control_
     

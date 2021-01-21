@@ -5,46 +5,89 @@ import matplotlib.pyplot as plt
 plt.rcParams['axes.grid'] = True
 plt.rcParams['hatch.linewidth'] = 1.
 
-def plot_gradient(grad_, dur, dt, path_, filename_ = "gradient.png", plot_vars = [0,1,2]):
+def plot_fullState(state_, dur, dt, state_vars, path_, filename_ = "full_state.png", plot_vars_ = np.arange(0,20,1)):
+    time = np.arange(0, dur+dt, dt)
+    
+    fig, ax = plt.subplots(10, 2, figsize=(16, 30), linewidth=8, edgecolor='grey')
+    
+    for i in [0,2,5,7,9,11,13,15,18]:
+        row_index = int( np.ceil(i/2) )
+        ax[row_index,0].plot(time, state_[0,i,:], label = state_vars[i])
+        ax[row_index,0].legend()
+        ax[row_index,1].plot(time, state_[0,i+1,:], label = state_vars[i+1])
+        ax[row_index,1].legend()
+        
+    ax[2,0].plot(time, state_[0,4,:], label = state_vars[4])
+    ax[2,0].legend()
+    ax[2,1].plot(time, state_[0,17,:], label = state_vars[17])
+    ax[2,1].legend()
+    
+    fig.tight_layout()
+    plt.savefig(os.path.join(path_, filename_))
+
+def plot_fullState_log(state_, dur, dt, state_vars, path_, filename_ = "full_state_log.png", plot_vars_ = np.arange(0,20,1)):
+    time = np.arange(0, dur+dt, dt)
+    state_ = np.abs(state_)
+        
+    fig, ax = plt.subplots(10, 2, figsize=(16, 30), linewidth=8, edgecolor='grey')
+    
+    for i in [0,2,5,7,9,11,13,15,18]:
+        row_index = int( np.ceil(i/2) )
+        ax[row_index,0].plot(time, state_[0,i,:], label = state_vars[i])
+        ax[row_index,0].legend()
+        ax[row_index,1].plot(time, state_[0,i+1,:], label = state_vars[i+1])
+        ax[row_index,1].legend()
+        
+        ax[row_index,0].set_yscale('log')
+        ax[row_index,1].set_yscale('log')
+        
+    ax[2,0].plot(time, state_[0,4,:], label = state_vars[4])
+    ax[2,0].legend()
+    ax[2,1].plot(time, state_[0,17,:], label = state_vars[17])
+    ax[2,1].legend()
+    
+    ax[2,0].set_yscale('log')
+    ax[2,1].set_yscale('log')
+    
+    fig.tight_layout()
+    plt.savefig(os.path.join(path_, filename_))
+
+def plot_gradient(grad_, dur, dt, path_, filename_ = "gradient.png", plot_vars = [0,1,2,3,4,5]):
     
     time = np.arange(0, dur+dt, dt)
-    plot_vars = [0,1,2]
-    n_col = len(plot_vars)
-    n_row = 2
-    
-    fig, ax = plt.subplots(n_row, n_col, figsize=(16, 10), linewidth=8, edgecolor='grey')
-    
-    ax[0,0].set_xlabel('Simulation time [ms]')
-    ax[0,0].set_ylabel('Cost grad exc current control')
-    ax[0,0].plot(time, grad_[0,0,:])
-    
-    ax[0,1].set_xlabel('Simulation time [ms]')
-    ax[0,1].set_ylabel('Cost grad inh current control')
-    ax[0,1].plot(time, grad_[0,1,:])
-    
-    ax[0,2].set_xlabel('Simulation time [ms]')
-    ax[0,2].set_ylabel('Cost grad exc rate control')
-    ax[0,2].plot(time, grad_[0,2,:])
-    
     grad_abs = np.abs(grad_)
+    n_col = 2
+    n_row = len(plot_vars)
+    fig_height = n_row * 4
     
-    if np.amax(grad_abs[0,0,:]) > 0.:
-        ax[1,0].set_xlabel('Simulation time [ms]')
-        ax[1,0].set_ylabel('Cost grad exc current control')
-        ax[1,0].plot(time, grad_abs[0,0,:])
-        ax[1,0].set_yscale('log')
+    fig, ax = plt.subplots(n_row, n_col, figsize=(16, fig_height), linewidth=8, edgecolor='grey')
     
-    if np.amax(grad_abs[0,1,:]) > 0.:
-        ax[1,1].set_xlabel('Simulation time [ms]')
-        ax[1,1].set_ylabel('Cost grad inh current control')
-        ax[1,1].plot(time, grad_abs[0,1,:])
-        ax[1,1].set_yscale('log')
+    label_y = ['Cost grad exc current control', 'Cost grad inh current control',
+               'Cost grad ee rate control', 'Cost grad ei rate control', 'Cost grad ie rate control', 'Cost grad ii rate control']
     
-    if np.amax(grad_abs[0,2,:]) > 0.:
-        ax[1,2].set_xlabel('Simulation time [ms]')
-        ax[1,2].set_ylabel('Cost grad exc rate control')
-        ax[1,2].plot(time, grad_abs[0,2,:])
-        ax[1,2].set_yscale('log')
+    if n_row > 1:
+        for i in range(len(plot_vars)):
+            ax[i,0].set_xlabel('Simulation time [ms]')
+            ax[i,0].set_ylabel(label_y[plot_vars[i]])
+            ax[i,0].plot(time, grad_[0,plot_vars[i],:])
+        
+            if np.amax(grad_abs[0,plot_vars[i],:]) > 0.:
+                ax[i,1].set_xlabel('Simulation time [ms]')
+                ax[i,1].set_ylabel(label_y[plot_vars[i]])
+                ax[i,1].plot(time, grad_abs[0,plot_vars[i],:])
+                ax[i,1].set_yscale('log')
+                
+    else:
+        ax[0].set_xlabel('Simulation time [ms]')
+        ax[0].set_ylabel(label_y[plot_vars[0]])
+        ax[0].plot(time, grad_[0,plot_vars[0],:])
+        
+        if np.amax(grad_abs[0,plot_vars[0],:]) > 0.:
+            ax[1].set_xlabel('Simulation time [ms]')
+            ax[1].set_ylabel(label_y[plot_vars[0]])
+            ax[1].plot(time, grad_abs[0,plot_vars[0],:])
+            ax[1].set_yscale('log')
+
 
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     
@@ -139,16 +182,18 @@ def plot_runtime(time_, path_, filename_ = "runtime.png"):
 def plot_traces(model, control_):
     model.run(control=control_)
     
-    rows = 3
+    rows = 4
     columns = 2
-    fig, ax = plt.subplots(rows, columns, figsize=(12, 4), linewidth=8, edgecolor='grey')
+    fig, ax = plt.subplots(rows, columns, figsize=(16, 8), linewidth=8, edgecolor='grey')
     
     ax[0,0].plot(model.t, model.rates_exc[0,:], label ="exc rates")
     ax[0,1].plot(model.t, model.rates_inh[0,:], label ="inh rates")
     ax[1,0].plot(model.t, control_[0,0,:], label ="exc current control")
     ax[1,1].plot(model.t, control_[0,1,:], label ="inh current control")
-    ax[2,0].plot(model.t, control_[0,2,:], label ="exc rate control")
-    ax[2,1].plot(model.t, control_[0,3,:], label ="inh rate control")
+    ax[2,0].plot(model.t, control_[0,2,:], label ="ee rate control")
+    ax[2,1].plot(model.t, control_[0,3,:], label ="ei rate control")
+    ax[3,0].plot(model.t, control_[0,4,:], label ="ie rate control")
+    ax[3,1].plot(model.t, control_[0,5,:], label ="ii rate control")
     
     for r in range(rows):
         for c in range(columns):
@@ -202,13 +247,13 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
                 control_time_inh.append(dt * t)
     
     columns = len(model.output_vars)-1
-    rows = 3
+    rows = 4
     n_vars = len(control_vars)
         
     fig, ax = plt.subplots(rows, columns, figsize=(16, 14), linewidth=8, edgecolor='grey')
     plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.3, hspace=0.3)
     y_labels_rates = ['Rates exc. [Hz]', 'Rates inh. [Hz]', 'Adaptation current [pA]']
-    y_labels_control = ['Control current exc. [nA]', 'Control current inh. [nA]', 'Control rate exc. [kHz]', 'Control rate inh. [kHz]']
+    y_labels_control = ['Control current [nA]', 'Control current [nA]', 'Control rate to E [kHz]', 'Control rate to I [kHz]']
     sim_legend = ['Uncontrolled rate', 'Controlled rate', 'Control current', 'Control rate']
     target_legend = ['Target']
     cntrl_time_legend = ['Control > {} pA'.format(cntrl_limit_scaled * 1000), 'Control active', 'Transition time']
@@ -229,11 +274,17 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
 
         for i in range(columns):
             ax[1,i].plot(model.t, control_[0,i,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
-            ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[2])
+            ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[1])
             ax[1,i].set_xlim([model.t[0],model.t[-1]])
-            ax[2,i].plot(model.t, control_[0,i+2,:], label=sim_legend[2]) # divide by five to take into account capacitance
-            ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[3])
+            
+            # ee, ei, ie, ii
+            ax[2,i].plot(model.t, control_[0,i+2,:], label=sim_legend[3]) # divide by five to take into account capacitance
+            ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[2])
             ax[2,i].set_xlim([model.t[0],model.t[-1]])
+            
+            ax[3,i].plot(model.t, control_[0,i+4,:], label=sim_legend[3]) # divide by five to take into account capacitance
+            ax[3,i].set(xlabel='t [ms]', ylabel=y_labels_control[3])
+            ax[3,i].set_xlim([model.t[0],model.t[-1]])
     else:
         ax[0].plot(model.t, model[output_vars[0]][0,:], label=sim_legend[1])
         ax[0].set(xlabel='t [ms]', ylabel=y_labels_rates[1])

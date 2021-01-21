@@ -132,6 +132,7 @@ def test_step(model, N, V, T, dt, state_, target_, control_, dir_, cost0_, test_
 def setmaxcontrol(n_control_vars, control_, max_control_, min_control_):
     for j in range(len(control_[0,0,:])):
         for v in range(n_control_vars):
+            #print("set control max ", v, max_control_[v], min_control_[v])
             if control_[0,v,j] > max_control_[v]:
                 control_[0,v,j] = max_control_[v]
             elif control_[0,v,j] < min_control_[v]:
@@ -190,7 +191,7 @@ def AG_line_search(model, N, V, T, dt, state_, target_, control_, dir_, start_st
     
     
 def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
-              bisec_factor_ = 1.15, max_control_ = [20., 20., 0.2, 0.2], min_control_ = [-20., -20., 0., 0.],
+              bisec_factor_ = 2., max_control_ = [20., 20., 0.2, 0.2], min_control_ = [-20., -20., 0., 0.],
               tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1", control_parameter = 0.2, grad_ = None):
     
     """
@@ -218,7 +219,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
     
     for i in range(max_it_):
         test_control_ = control_ + step_ * dir_
-        
+        #print("test control = ", test_control_[0,3,5:10], max_control_, min_control_)
         # include maximum control value to assure no divergence
         #if ( np.amax(test_control_) > max_control_ or np.amin(test_control_) < min_control_):
         #test_control_ = scalemaxcontrol(test_control_, max_control_, min_control_)
@@ -229,7 +230,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         
         cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = variables_)
         
-        #print("test control = ", test_control_[0,2,5:10])
+        #print("test control = ", test_control_[0,3,5:10])
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
         
         if (step_ * np.amax(np.absolute(dir_)) < tolerance_ * 1e-3):
@@ -508,9 +509,9 @@ def compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, con
     for j in range(n_control_vars):
         if j in control_variables:
             #print("j, adjoint, energy, sparsity gradient = ", j)
-            #print(phi1_[:,j,:])
-            #print(grad_cost_e_[:,j,:])
-            #print(grad_cost_s_[:,j,:])
+            #print(phi1_[:,j,:20])
+            #print(grad_cost_e_[:,j,:20])
+            #print(grad_cost_s_[:,j,:20])
             
             grad1_[:,j,:] = grad_cost_e_[:,j,:] + grad_cost_s_[:,j,:] + phi1_[:,j,:]
     return grad1_
