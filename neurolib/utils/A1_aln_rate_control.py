@@ -611,6 +611,10 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     print("RUN ", max_iteration_, ", total integrated cost = ", total_cost_[max_iteration_])
     print("Improved over ", max_iteration_, " iterations in ", runtime_[max_iteration_]," seconds by ", improvement, " percent.")
     
+    # compute node-wise cost in precision, energy, sparsity
+    cost_node = cost.cost_int_per_node(N, n_control_vars, T, dt, state0_, target_state_, best_control_, v_ = prec_variables )
+    print("cost per node = ", cost_node)
+    
     """
     if max_iteration_ != 0:
         max_g, min_g = np.amax(g0_min_), np.amin(g0_min_)
@@ -619,7 +623,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     """
         
     if (t_sim_pre_ < dt and t_sim_post_ < dt):
-        return best_control_, state1_, total_cost_, runtime_, grad1_, phi0_
+        return best_control_, state1_, total_cost_, runtime_, grad1_, phi0_, cost_node
     
     t_post_ndt = np.around(t_sim_post_ / dt).astype(int)
     
@@ -645,7 +649,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     
     fo.set_pre_post(i1, i2, bc_, bs_, best_control_, state_pre_, state1_, state_post_, state_vars, model.params.a, model.params.b)
             
-    return bc_, bs_, total_cost_, runtime_, grad1_, phi0_#, phi1_
+    return bc_, bs_, total_cost_, runtime_, grad1_, phi0_, cost_node
 
 @numba.njit
 def phi(N, V, T, dt, state_, target_state_, control_, full_cost_grad, state_maxDelay, n_maxDelay, state_pre_,

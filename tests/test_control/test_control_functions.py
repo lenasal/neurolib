@@ -180,7 +180,7 @@ def getmodel(i, dur_pre, dur_post):
         model_.params.sigmae_ext = max(0.5, model_.params.mue_ext_mean * random.uniform(0.5, 1.) )
         model_.params.sigmai_ext = max(0.5, model_.params.mui_ext_mean * random.uniform(0.5, 1.) )
         
-        model_.params.interpolate_rate = True
+        model_.params.interpolate_rate = False
         model_.params.interpolate_V = False
         model_.params.interpolate_tau = False
         

@@ -47,19 +47,19 @@ variation = [
               #[[1],[1],1,False,0, 1.8],
               #[[1],[1],1,True,-2, 3.6],
               #[[2],[0],1,False,0,1.8],
-              [[2],[0],1,True,0, 3.6], 
+              #[[2],[0],1,True,0, 3.6], 
               #[[2],[1],4,False,2, 2.6],
-              [[2],[1],4,True,0, 4.4],
-              [[3],[0],1,False,0,0.8],   # 3 : ei
+              #[[2],[1],4,True,0, 4.4],
+              #[[3],[0],1,False,0,2.6],   # 3 : ei
               #[[3],[0],1,True,0,3.6], 
               #[[3],[1],4,False,2,2.6],
               #[[3],[1],4,True,0,4.4],
-              #[[4],[0],1,False,0,1.8],   # 4 : ie
-              #[[4],[0],1,True,0,3.6], 
-              #[[4],[1],4,False,2,2.6],
-              #[[4],[1],4,True,0,4.4],
-              #[[5],[0],1,False,0,0.8],   # 5 : ii
-              #[[5],[0],1,True,0,3.6], 
+              #[[4],[0],1,False,4,1.8],   # 4 : ie
+              [[4],[0],1,True,1,3.6], 
+              #[[4],[1],4,False,0,2.6],
+              #[[4],[1],4,True,-1,4.4],
+              #[[5],[0],1,False,9,0.8],   # 5 : ii
+              #[[5],[0],1,True,3,3.6], 
               #[[5],[1],4,False,2,2.6],
               #[[5],[1],4,True,0,4.4],
               # 2-dimensional input
@@ -164,7 +164,7 @@ class TestA1A2Conv(unittest.TestCase):
         control2 = func.getRandomControl(model, 0, c_controlmin, c_controlmax, r_controlmin, r_controlmax,
                                          control_variables_ = cntrl_var) 
         
-        control2 = control1[:,:,cntrl_zeros_pre:] #* random.uniform(0.9,1.1)
+        control2 = control1[:,:,cntrl_zeros_pre:] * random.uniform(0.9,1.1)
         
         cost.setParams(testip, testie, testis)
         

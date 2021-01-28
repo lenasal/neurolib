@@ -1,9 +1,12 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 plt.rcParams['axes.grid'] = True
 plt.rcParams['hatch.linewidth'] = 1.
+
+cmap=cm.get_cmap('viridis')
 
 def plot_fullState(state_, dur, dt, state_vars, path_, filename_ = "full_state.png", plot_vars_ = np.arange(0,20,1)):
     time = np.arange(0, dur+dt, dt)
@@ -202,14 +205,16 @@ def plot_traces(model, control_):
     
     
 # plot uncontrolled dynamics, controlled dynamics
-def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_params_, target_, path_, filename_ = '',
-                 shading = False, transition_time_ = 0.):
+def plot_control(model, control_array, cost_node_array, t_sim_, t_sim_pre_, t_sim_post_, initial_params_, target_, path_, filename_ = '',
+                 shading = False, transition_time_ = 0., labels_ = []):
     
     dt = model.params.dt
     if model.name == "aln" or model.name == "aln-control":
         control_factor = model.params.C/1000.
     else:
         control_factor = 1.
+        
+    control_ = control_array[0]
         
     model.params.duration = (control_.shape[2] - 1.) * dt
     i1 = int(round(t_sim_pre_/dt, 1))
@@ -249,100 +254,100 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
     columns = len(model.output_vars)-1
     rows = 4
     n_vars = len(control_vars)
-        
-    fig, ax = plt.subplots(rows, columns, figsize=(16, 14), linewidth=8, edgecolor='grey')
+            
+    fig, ax = plt.subplots(rows, columns, figsize=(16, 14) )#, linewidth=8, edgecolor='grey')
     plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.3, hspace=0.3)
     y_labels_rates = ['Rates exc. [Hz]', 'Rates inh. [Hz]', 'Adaptation current [pA]']
     y_labels_control = ['Control current [nA]', 'Control current [nA]', 'Control rate to E [kHz]', 'Control rate to I [kHz]']
-    sim_legend = ['Uncontrolled rate', 'Controlled rate', 'Control current', 'Control rate']
+    sim_legend = ['Uncontrolled rate', 'Control', 'Control current', 'Control rate']
     target_legend = ['Target']
     cntrl_time_legend = ['Control > {} pA'.format(cntrl_limit_scaled * 1000), 'Control active', 'Transition time']
     
-    if len(model.output_vars) > 1:
-        for i in range(columns):
-            ax[0,i].plot(model.t, model[output_vars[i]][0,:], linewidth = 0.5, label=sim_legend[0])
-            ax[0,i].set(xlabel='t [ms]', ylabel=y_labels_rates[i])
-            ax[0,i].set_xlim([model.t[0],model.t[-1]])
+    if labels_ == []:
+        for control_ in control_array:
+            labels_.append("")
+            
+    n_colors = len(control_array)
+    color_array = np.zeros(( 2 + len(control_array) ))
+    color_array[0] = 0.0
+    color_array[1] = 0.95
+    color_distance = 0.25
+    color_array[2:] = np.linspace(color_array[0] + color_distance, color_array[1] - color_distance, n_colors)
+    colors_ = cmap(color_array)
+    ### 0: target, 1: uncontrolled rate, 2...: control inputs
+    
+    #### UNCONTROLLED ACTIVITY
+    ax[0,0].plot(model.t, model[output_vars[0]][0,:], linewidth = 1., label=sim_legend[0], color=colors_[0])
+    ax[0,1].plot(model.t, model[output_vars[1]][0,:], linewidth = 1., color=colors_[0])
+    for i in range(columns):
+        ax[0,i].set(xlabel='t [ms]', ylabel=y_labels_rates[i])
+        ax[0,i].set_xlim([model.t[0],model.t[-1]])
         #ax[0,0].axvspan(control_time_exc[0], control_time_exc[1], facecolor='0.1', alpha=0.2, zorder=-100)
         #ax[0,0].axvspan(0, 50, facecolor='0.7', alpha=0.2, zorder=-100)
         
+    ##### PLOT TARGET
+    i3 = i1 # plot full target
+    if (i2 == 0):
+        ax[0,0].plot(model.t[i3:], target_[0,0,i3-i1:], '--', linewidth = 3, label=target_legend[0], color=colors_[1])
+        ax[0,1].plot(model.t[i3:], target_[0,1,i3-i1:], '--', linewidth = 3, color=colors_[1])
+    else:
+        ax[0,0].plot(model.t[i3:-i2], target_[0,0,i3-i1:], '--', linewidth = 3, label=target_legend[0], color=colors_[1])
+        ax[0,1].plot(model.t[i3:-i2], target_[0,1,i3-i1:], '--', linewidth = 3, color=colors_[1])
+    
+    ##################### go through all controls in control array
+    for c_ind in range(len(control_array)):
+        control_ = control_array[c_ind]
+        
         model.run(control=control_)
         
-        for i in range(columns):
-            ax[0,i].plot(model.t, model[output_vars[i]][0,:], label=sim_legend[1])
+        ax[0,0].plot(model.t, model[output_vars[0]][0,:], linewidth = 1., color=colors_[c_ind+2],
+                     label=labels_[c_ind] )
+        ax[0,1].plot(model.t, model[output_vars[1]][0,:], linewidth = 1., color=colors_[c_ind+2])
             #ax[0,i].set(xlabel='t [ms]', ylabel=y_labels_rates[i])
 
         for i in range(columns):
-            ax[1,i].plot(model.t, control_[0,i,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
+            ax[1,i].plot(model.t, control_[0,i,:] * control_factor, linewidth = 1., color=colors_[c_ind+2] ) # divide by five to take into account capacitance
             ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[1])
             ax[1,i].set_xlim([model.t[0],model.t[-1]])
             
             # ee, ei, ie, ii
-            ax[2,i].plot(model.t, control_[0,i+2,:], label=sim_legend[3]) # divide by five to take into account capacitance
+            ax[2,i].plot(model.t, control_[0,i+2,:], linewidth = 1., color=colors_[c_ind+2] )
             ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[2])
             ax[2,i].set_xlim([model.t[0],model.t[-1]])
             
-            ax[3,i].plot(model.t, control_[0,i+4,:], label=sim_legend[3]) # divide by five to take into account capacitance
+            ax[3,i].plot(model.t, control_[0,i+4,:], linewidth = 1., color=colors_[c_ind+2] )
             ax[3,i].set(xlabel='t [ms]', ylabel=y_labels_control[3])
             ax[3,i].set_xlim([model.t[0],model.t[-1]])
-    else:
-        ax[0].plot(model.t, model[output_vars[0]][0,:], label=sim_legend[1])
-        ax[0].set(xlabel='t [ms]', ylabel=y_labels_rates[1])
+            
+    #####################
+    
+    ax[0,0].axvspan(t_sim_pre_, t_sim_pre_ + t_sim_, facecolor='grey', alpha=0.1, zorder=-2, label=cntrl_time_legend[1])
+    ax[0,0].axvspan(t_sim_pre_, t_sim_pre_ + transition_time_ * t_sim_, facecolor='grey', alpha=0.1, zorder=-1, hatch='///',
+                            edgecolor = 'g', label=cntrl_time_legend[2])
+    ax[0,1].axvspan(t_sim_pre_, t_sim_pre_ + t_sim_, facecolor='grey', alpha=0.1, zorder=-2)
+    ax[0,1].axvspan(t_sim_pre_, t_sim_pre_ + transition_time_ * t_sim_, facecolor='grey', alpha=0.1, zorder=-1, hatch='///',
+                            edgecolor = 'g')
         
-        model.run(control=control_)
-        
-        ax[0].plot(model.t, model[output_vars[0]][0,:], label=sim_legend[1])
-        #ax[1].set(xlabel='t [ms]', ylabel=y_labels_rates[1])
-        ax[1].plot(model.t, control_[0,0,:] * control_factor, label=sim_legend[2]) # divide by five to take into account capacitance
-        ax[1].set(xlabel='t [ms]', ylabel=y_labels_control[1])
-        
-    if len(model.output_vars) > 1:
-        
+    for i in range(1,rows):
+        for j in range(columns):
+            ax[i,j].axvspan(t_sim_pre_, t_sim_pre_ + t_sim_, facecolor='grey', alpha=0.1, zorder=-2)
+            ax[i,j].axvspan(t_sim_pre_, t_sim_pre_ + transition_time_ * t_sim_, facecolor='grey', alpha=0.1, zorder=-1, hatch='///',
+                            edgecolor = 'grey')
+    
+    if shading:
+        facecol = 'grey'
+        al = 0.5
         for i in range(rows):
-            for j in range(columns):
-                ax[i,j].axvspan(t_sim_pre_, t_sim_pre_ + t_sim_, facecolor='g', alpha=0.1, zorder=-2,
-                            label=cntrl_time_legend[1])
-                ax[i,j].axvspan(t_sim_pre_, t_sim_pre_ + transition_time_ * t_sim_, facecolor='g', alpha=0.1, zorder=-1, hatch='///',
-                                edgecolor = 'g',  label=cntrl_time_legend[2])
-        
-        if shading:
-            facecol = 'grey'
-            al = 0.5
-            for i in range(rows):
-                for times in control_time_exc:
-                    if (times == control_time_exc[0]):
-                        ax[i,0].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1, label=cntrl_time_legend[0])
-                    else:
-                        ax[i,0].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1)
-                for times in control_time_inh:
-                    if (times == control_time_inh[0]):
-                        ax[i,1].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1, label=cntrl_time_legend[0])
-                    else:
-                        ax[i,1].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1)
-    
-    
-        if (i2 == 0):
-            for j in range(len(model.target_output_vars)):
-                ax[0,j].plot(model.t[i3:], target_[0,j,i3-i1:], '--', linewidth = 2, label=target_legend[0])
-                #ax[1,j].plot(model.t[i1:], target_[0,j,:], '--', label=target_legend[0])
-        else:
-            for j in range(len(model.target_output_vars)):
-                ax[0,j].plot(model.t[i3:-i2], target_[0,j,i3-i1:], '--', linewidth = 2, label=target_legend[0])
-                #ax[1,j].plot(model.t[i1:-i2], target_[0,j,:], '--', label=target_legend[0])
-    
-    else:
-        """
-        for i in range(3):
-            ax[i].axvspan(t_sim_pre_, t_sim_pre_ + t_sim_, facecolor='0.4', alpha=0.1, zorder=-2,
-                        label=cntrl_time_legend[1])
-        """
-    
-        if (i2 == 0):
-            ax[0].plot(model.t[i3:], target_[0,0,:], '--', label=target_legend[0])
-            #ax[1].plot(model.t[i1:], target_[0,0,:], '--', label=target_legend[0])
-        else:
-            ax[0].plot(model.t[i3:-i2], target_[0,0,:], '--', label=target_legend[0])
-            #ax[1].plot(model.t[i1:-i2], target_[0,0,:], '--', label=target_legend[0])
+            for times in control_time_exc:
+                if (times == control_time_exc[0]):
+                    ax[i,0].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1, label=cntrl_time_legend[0])
+                else:
+                    ax[i,0].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1)
+            for times in control_time_inh:
+                if (times == control_time_inh[0]):
+                    ax[i,1].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1, label=cntrl_time_legend[0])
+                else:
+                    ax[i,1].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1)
     
     """    
     for i in range(2):
@@ -357,9 +362,11 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
                 xycoords=a.yaxis.label, textcoords='offset points', size=20, ha='right', va='center', weight='bold')
     """
         
-    ax[0,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
-    ax[1,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
-    ax[2,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
+    #ax[0,0]
+    leg = fig.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol = 3)
+    leg.set_in_layout(True)
+    #ax[1,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
+    #ax[2,0].legend(loc='upper left', bbox_to_anchor=(1, 1.05))
 
     cols = ['Excitatory', 'Inhibitory']
             
@@ -368,6 +375,6 @@ def plot_control(model, control_, t_sim_, t_sim_pre_, t_sim_post_, initial_param
                    size=20, ha='center', va='baseline', weight='bold')
     
     fig.tight_layout()
-    
+        
     if not filename_ == '':
-        plt.savefig(os.path.join(path_, filename_))
+        plt.savefig(os.path.join(path_, filename_), bbox_inches='tight')
