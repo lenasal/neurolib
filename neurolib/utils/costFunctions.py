@@ -90,7 +90,8 @@ def numba_cost_precision_int(N, T, dt, i_p, state_, target_state_, var_):
     return cost
 
 def cost_precision_node(N, T, dt, i_p, state_, target_, va_):
-    cost_int = numba_cost_precision_node(N, T, dt, i_p, state_, target_, var_ = va_ )
+    var = makeList(va_)
+    cost_int = numba_cost_precision_node(N, T, dt, i_p, state_, target_, var_ = var )
     return cost_int
 
 #@numba.njit
@@ -149,7 +150,7 @@ def cost_energy_node(N, V, T, dt, i_e, control_, va_ = [0,1]):
     cost_ = numba_cost_energy_node(N, V, T, dt, i_e, control_)
     return cost_
 
-@numba.njit
+#@numba.njit
 def numba_cost_energy_node(N, V, T, dt, i_e, control_):
     cost =  np.zeros(( N, V ))
     for ind_node in range(N):
@@ -214,7 +215,7 @@ def f_cost_sparsity_node(N, V, T, dt, i_s, control_):
     cost =  numba_cost_sparsity_node(N, V, T, i_s, dt, control_)
     return cost
 
-@numba.njit
+#@numba.njit
 def numba_cost_sparsity_node(N, V, T, i_s, dt, control_):
     int_ =  np.zeros(( N, V ))
     for ind_var in range(V):
