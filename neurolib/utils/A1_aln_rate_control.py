@@ -176,6 +176,8 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     #best_control_ = fo.scalemaxcontrol(best_control_, cntrl_max_, cntrl_min_)
     best_control_ = fo.setmaxcontrol(n_control_vars, best_control_, cntrl_max_, cntrl_min_)  
     #print("adj control = ", best_control_)
+    
+    ip_, ie_, is_ = cost.getParams()
 
     # set precision penalty to zero for transition time
     for t_ in range(T):
@@ -189,7 +191,8 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     #print("exc rate = ", state0_[0,0,:])
     #print("target = ", target_state_[0,0,:])
     #print("control = ", control_[0,2,:])
-    total_cost_[i] = cost.f_int(N, n_control_vars, T, dt, state0_, target_state_, best_control_, v_ = prec_variables )
+    total_cost_[i] = cost.f_int(N, n_control_vars, T, dt, state0_, target_state_, best_control_,
+                                ip_, ie_, is_, v_ = prec_variables )
     #print("initial cost = ", total_cost_[i])
     runtime_ = np.zeros(( int(max_iteration_+1) ))
     runtime_start_ = timer()
@@ -230,8 +233,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     tc_ee_r = -1
     tc_ei_r = -1
     tc_ie_r = -1
-    tc_ii_r = -1
-    
+    tc_ii_r = -1    
     
     if line_search_ == None:
         line_search_func = fo.step_size
@@ -244,7 +246,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     while( i < max_iteration_ ):
         
         for ind_time in range(T):
-            f_p_grad_t_ = cost.cost_precision_gradient_t(N, V_target, state0_[:,:2,ind_time], target_state_[:,:,ind_time])
+            f_p_grad_t_ = cost.cost_precision_gradient_t(N, V_target, state0_[:,:2,ind_time], target_state_[:,:,ind_time], ip_)
             for v in prec_variables:
                 full_cost_grad[0,v,ind_time] = f_p_grad_t_[0,v] 
          
@@ -369,7 +371,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
         
         #print(phi1_[0,3,:])
                                         
-        grad1_ = fo.compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables)
+        grad1_ = fo.compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables, ie_, is_)
         dir0_ = fo.set_direction(N, T, n_control_vars, grad0_, grad1_, dir0_, i, CGVar, tolerance_)
                 
         #print(grad1_[0,3,:])
@@ -383,7 +385,8 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 d_exc[:,1:,:] = 0.
                 
                 s_exc, tc_exc, startstep_exc_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                             best_control_, d_exc, start_step_ = startstep_exc_, max_it_ = 500, max_control_ = cntrl_max_,
+                             best_control_, d_exc, ip_, ie_, is_, start_step_ = startstep_exc_, max_it_ = 500,
+                             max_control_ = cntrl_max_,
                              min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(tc_exc)
             
@@ -397,7 +400,8 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 d_inh[:,2:,:] = 0.
                 
                 s_inh, tc_inh, startstep_inh_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                             best_control_, d_inh, start_step_ = startstep_inh_, max_it_ = 500, max_control_ = cntrl_max_,
+                             best_control_, d_inh, ip_, ie_, is_, start_step_ = startstep_inh_, max_it_ = 500,
+                             max_control_ = cntrl_max_,
                              min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(tc_inh)
                 
@@ -412,7 +416,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 d_ee_r[:,3:,:] = 0.
                 
                 s_ee_r, tc_ee_r, startstep_ee_r_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:],
-                            target_state_, best_control_, d_ee_r, start_step_ = startstep_ee_r_, max_it_ = 500,
+                            target_state_, best_control_, d_ee_r, ip_, ie_, is_, start_step_ = startstep_ee_r_, max_it_ = 500,
                             max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(tc_ee_r)
                 
@@ -428,7 +432,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 d_ei_r[:,4:,:] = 0.
                 
                 s_ei_r, tc_ei_r, startstep_ei_r_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:],
-                            target_state_, best_control_, d_ei_r, start_step_ = startstep_ei_r_, max_it_ = 500,
+                            target_state_, best_control_, d_ei_r, ip_, ie_, is_, start_step_ = startstep_ei_r_, max_it_ = 500,
                             max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(tc_ei_r)
                 
@@ -445,7 +449,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 d_ie_r[:,5,:] = 0.
                 
                 s_ie_r, tc_ie_r, startstep_ie_r_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:],
-                            target_state_, best_control_, d_ie_r, start_step_ = startstep_ie_r_, max_it_ = 500,
+                            target_state_, best_control_, d_ie_r, ip_, ie_, is_, start_step_ = startstep_ie_r_, max_it_ = 500,
                             max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(tc_ie_r)
                 
@@ -462,7 +466,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 d_ii_r[:,4,:] = 0.
                 
                 s_ii_r, tc_ii_r, startstep_ii_r_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:],
-                            target_state_, best_control_, d_ii_r, start_step_ = startstep_ii_r_, max_it_ = 500,
+                            target_state_, best_control_, d_ii_r, ip_, ie_, is_, start_step_ = startstep_ii_r_, max_it_ = 500,
                             max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(tc_ii_r)
                 
@@ -476,13 +480,13 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
                 joint_dir[:,1,:] = s_inh * dir0_[:,1,:] #/ (s_exc + s_inh)
                 
                 joint_step_, joint_cost, startstep_joint_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:],
-                             target_state_, best_control_, joint_dir, start_step_ = startstep_joint_, max_it_ = 500,
+                             target_state_, best_control_, joint_dir, ip_, ie_, is_, start_step_ = startstep_joint_, max_it_ = 500,
                              max_control_ = cntrl_max_, min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 minCost.append(joint_cost)
          
                         
         step_, total_cost_[i], startStep_ = line_search_func(model, N, n_control_vars, T, dt, state1_[:,:2,:], target_state_,
-                     best_control_, dir0_, start_step_ = startStep_, max_it_ = 500, max_control_ = cntrl_max_,
+                     best_control_, dir0_, ip_, ie_, is_, start_step_ = startStep_, max_it_ = 500, max_control_ = cntrl_max_,
                          min_control_ = cntrl_min_, variables_ = prec_variables, grad_ = grad1_)
                 
         #print("step size = ", step_, total_cost_[i])
@@ -611,9 +615,9 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     print("RUN ", max_iteration_, ", total integrated cost = ", total_cost_[max_iteration_])
     print("Improved over ", max_iteration_, " iterations in ", runtime_[max_iteration_]," seconds by ", improvement, " percent.")
     
-    # compute node-wise cost in precision, energy, sparsity
-    cost_node = cost.cost_int_per_node(N, n_control_vars, T, dt, state0_, target_state_, best_control_, v_ = prec_variables )
-    print("cost per node = ", cost_node)
+    # compute node-wise cost in precision, energy, sparsity for weight = 1
+    cost_node = cost.cost_int_per_node(N, n_control_vars, T, dt, state0_, target_state_,
+                                     best_control_, 1., 1., 1., v_ = prec_variables )
     
     """
     if max_iteration_ != 0:

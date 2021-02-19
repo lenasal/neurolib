@@ -115,12 +115,12 @@ def update_init_delayed(model, delay_state_vars_, init_vars_, state_vars_, t_pre
             else:
                 model.params[init_vars_[iv]] = model.state[state_vars_[sv]]
 
-def test_step(model, N, V, T, dt, state_, target_, control_, dir_, cost0_, test_step_ = 1e-12, prec_variables_ = [0,1]):
+def test_step(model, N, V, T, dt, state_, target_, control_, dir_, cost0_, ip_, ie_, is_, test_step_ = 1e-12, prec_variables_ = [0,1]):
     cost0_int_ = cost0_
     
     test_control_ = control_ + test_step_ * dir_
     state1_ = updateState(model, test_control_)
-    cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = prec_variables_)
+    cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, ip_, ie_, is_, v_ = prec_variables_)
     #print("test step size computation : ------ step size, cost1, cost0 : ", test_step_, cost1_int_, cost0_int_)
         
     if (cost1_int_ < cost0_int_):
@@ -156,7 +156,7 @@ def StrongWolfePowellLineSearch():
     return None
 
 # backtracking according to Armijo-Goldstein
-def AG_line_search(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
+def AG_line_search(model, N, V, T, dt, state_, target_, control_, dir_, ip_, ie_, is_, start_step_ = 20., max_it_ = 1000,
               bisec_factor_ = 0.5, max_control_ = [20., 20., 0.2, 0.2], min_control_ = [-20., -20., 0., 0.],
               tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1", control_parameter = 0.02, grad_ = None):
     
@@ -166,7 +166,7 @@ def AG_line_search(model, N, V, T, dt, state_, target_, control_, dir_, start_st
             m_[n_, v_] = np.dot(dir_[n_,v_,:], grad_[n_,v_,:])
     
     t_ = - control_parameter * np.sum(m_)
-    cost0_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
+    cost0_ = cost.f_int(N, V, T, dt, state_, target_, control_, ip_, ie_, is_, v_ = variables_)
     step_ = start_step_
     
     for j in range(max_it_):
@@ -190,7 +190,7 @@ def AG_line_search(model, N, V, T, dt, state_, target_, control_, dir_, start_st
     
     
     
-def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = 20., max_it_ = 1000,
+def step_size(model, N, V, T, dt, state_, target_, control_, dir_, ip_, ie_, is_, start_step_ = 20., max_it_ = 1000,
               bisec_factor_ = 2., max_control_ = [20., 20., 0.2, 0.2], min_control_ = [-20., -20., 0., 0.],
               tolerance_ = 1e-16, substep_ = 0.1, variables_ = [0,1], alg = "A1", control_parameter = 0.2, grad_ = None):
     
@@ -203,7 +203,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
     print("variables = ", variables_)
     """
     
-    cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, v_ = variables_)
+    cost0_int_ = cost.f_int(N, V, T, dt, state_, target_, control_, ip_, ie_, is_, v_ = variables_)
     
     #print("first cost = ", cost0_int_)
     cost_min_int_ = cost0_int_
@@ -228,7 +228,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         state1_ = updateState(model, test_control_)
                 
         
-        cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, v_ = variables_)
+        cost1_int_ = cost.f_int(N, V, T, dt, state1_, target_, test_control_, ip_, ie_, is_, v_ = variables_)
         
         #print("test control = ", test_control_[0,3,5:10])
         #print("step, cost, initial cost = ", step_, cost1_int_, cost0_int_)
@@ -247,7 +247,8 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
             if (i == 1 and alg == "A1"):
                 step_ = factor * start_step_
                 #print("too small start step, increase to ", step_)
-                return step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ = step_, max_it_ = max_it_,
+                return step_size(model, N, V, T, dt, state_, target_, control_, dir_, ip_, ie_, is_,
+                                 start_step_ = step_, max_it_ = max_it_,
                                  bisec_factor_ = bisec_factor_, max_control_ = max_control_, min_control_ = min_control_,
                                  tolerance_ = tolerance_, substep_ = substep_, variables_ = variables_)
             elif (step_ < start_step_ / (2. * factor) and alg == "A1"):
@@ -259,11 +260,11 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
             substep = substep_
             
             step_min_up, cost_min_int_ = scan(model, N, V, T, dt, substep, control_, step_min_, dir_, target_,
-                                                  cost_min_int_, max_control_, min_control_, variables_)
+                                                  cost_min_int_, max_control_, min_control_, ip_, ie_, is_, variables_)
 
             substep = - substep_
             step_min_down, cost_min_int_ = scan(model, N, V, T, dt, substep, control_, step_min_, dir_, target_,
-                                                cost_min_int_, max_control_, min_control_, variables_)
+                                                cost_min_int_, max_control_, min_control_, ip_, ie_, is_, variables_)
 
             
             #print("scan done")
@@ -290,7 +291,7 @@ def step_size(model, N, V, T, dt, state_, target_, control_, dir_, start_step_ =
         step_ /= bisec_factor_
         
 def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cost_min_int_, max_control_,
-         min_control_, variables_ = [0,1]):
+         min_control_, ip_, ie_, is_, variables_ = [0,1]):
     #print("initial control = ", control_)
     #print("direction = ", dir_)
     i = 1.
@@ -300,7 +301,7 @@ def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cos
     cntrl_ = setmaxcontrol(V, cntrl_, max_control_, min_control_)
     #print("scan control after setting = ", cntrl_[0,2,:])
     state_ = updateState(model_, cntrl_)
-    cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
+    cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, ip_, ie_, is_, v_ = variables_)
     step_min1_ = step_min_
     #print("cost = ", cost_int)
     #print("previous step = ", step_min1_)
@@ -320,7 +321,7 @@ def scan(model_, N, V, T, dt_, substep_, control_, step_min_, dir_, target_, cos
         cntrl_ = setmaxcontrol(V, cntrl_, max_control_, min_control_)
         #print("scan control after setting = ", cntrl_[0,2,:])
         state_ = updateState(model_, cntrl_)
-        cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, v_ = variables_)
+        cost_int = cost.f_int(N, V, T, dt_, state_, target_, cntrl_, ip_, ie_, is_, v_ = variables_)
         #print("cost = ", cost_int)  
         
         
@@ -502,9 +503,9 @@ def betaHZ(N, n_control_vars, grad0_, grad1_, dir0_):
             betaHZ[n,v] = max(beta0, eta0)
     return betaHZ
 
-def compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables):
-    grad_cost_e_ = cost.cost_energy_gradient(best_control_)
-    grad_cost_s_ = cost.cost_sparsity_gradient(N, n_control_vars, T, dt, best_control_)
+def compute_gradient(N, n_control_vars, T, dt, best_control_, grad1_, phi1_, control_variables, ie_, is_):
+    grad_cost_e_ = cost.cost_energy_gradient(best_control_, ie_)
+    grad_cost_s_ = cost.cost_sparsity_gradient(N, n_control_vars, T, dt, best_control_, is_)
         
     for j in range(n_control_vars):
         if j in control_variables:
