@@ -718,6 +718,7 @@ def timeIntegration_njit_elementwise(
                 + sigmai_ext ** 2)
 
             # ornstein-uhlenbeck process
+            
             mue_ou[no,i] = (
                 mue_ou[no,i-1] + (mue_ext_mean - mue_ou[no,i-1]) * dt / tau_ou + sigma_ou * sqrt_dt * noise_exc[no]
             )  # mV/ms

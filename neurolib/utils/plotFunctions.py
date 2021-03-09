@@ -189,6 +189,42 @@ def plot_runtime(time_, path_, filename_ = "runtime.png"):
     plt.savefig(os.path.join(path_, filename_))
     plt.show()
     
+def plot_traces_control_current(model, control_, path_="", filename_=""):
+    model.run(control=control_)
+    
+    y_labels = ["Activity [Hz]", "External current [nA]"]
+    
+    rows = 2
+    columns = 2
+    fig, ax = plt.subplots(rows, columns, figsize=(12, 8), linewidth=8, edgecolor='grey')
+    fig.suptitle("System dynamics for external step current input", fontsize=20)
+    
+    ax[0,0].plot(model.t, model.rates_exc[0,:])
+    ax[0,1].plot(model.t, model.rates_inh[0,:])
+    ax[1,0].plot(model.t, control_[0,0,:]/5.)
+    ax[1,1].plot(model.t, control_[0,1,:]/5.)
+    
+    for r in range(rows):
+        for c in range(columns):
+            ax[r,c].set_xlabel(xlabel='t [ms]', fontsize=14)
+            ax[r,c].set_ylabel(ylabel=y_labels[r], fontsize=14)
+            ax[r,c].tick_params(axis="x", labelsize=10)
+            ax[r,c].tick_params(axis="y", labelsize=10)
+            
+    
+    cols = ['Excitatory', 'Inhibitory']
+            
+    for a, col in zip(ax[0,:], cols):
+        a.annotate(col, xy=(0.5, 1.05), xytext=(0,5), xycoords='axes fraction', textcoords='offset points',
+                   size=20, ha='center', va='baseline', weight='bold')
+
+    
+    if path_ == "" or filename_ == "" :
+        return
+    
+    plt.savefig(os.path.join(path_, filename_))
+    #plt.show()
+    
 def plot_traces(model, control_, path_="", filename_=""):
     model.run(control=control_)
     
@@ -210,6 +246,7 @@ def plot_traces(model, control_, path_="", filename_=""):
             ax[r,c].legend()
     
     if path_ == "" or filename_ == "" :
+        #plt.show()
         return
     
     plt.savefig(os.path.join(path_, filename_))
@@ -502,7 +539,7 @@ def plot_control_current(model, control_array, cost_node_array, weights_array, t
     columns = len(model.output_vars)-1
     rows = 2
             
-    fig, ax = plt.subplots(rows, columns, figsize=(12, 6) )#, linewidth=8, edgecolor='grey')
+    fig, ax = plt.subplots(rows, columns, figsize=(8, 6) )#, linewidth=8, edgecolor='grey')
     plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.3, hspace=0.3)
     y_labels_rates = ['Rates exc. [Hz]', 'Rates inh. [Hz]', 'Adaptation current [pA]']
     y_labels_control = ['Control current [nA]', 'Control current [nA]', 'Control rate to E [kHz]', 'Control rate to I [kHz]']

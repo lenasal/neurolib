@@ -246,7 +246,9 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     while( i < max_iteration_ ):
         
         for ind_time in range(T):
-            f_p_grad_t_ = cost.cost_precision_gradient_t(N, V_target, state0_[:,:2,ind_time], target_state_[:,:,ind_time], ip_)
+            f_p_grad_t_ = cost.cost_precision_gradient_t2(N, V_target, T, ind_time, state0_[:,:2,ind_time],
+                                                         target_state_[:,:,ind_time], ip_)
+            #f_p_grad_t_ = cost.cost_precision_gradient_t(N, V_target, state0_[:,:2,ind_time], target_state_[:,:,ind_time], ip_)
             for v in prec_variables:
                 full_cost_grad[0,v,ind_time] = f_p_grad_t_[0,v] 
          

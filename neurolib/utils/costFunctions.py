@@ -108,12 +108,66 @@ def numba_cost_precision_node(N, T, dt, i_p, state_, target_state_, var_):
                     cost[ind_node, ind_var] += dt * 0.5 * i_p * diff**2.
     return cost
 
-# oscillation: get mean, amplitude and period
-def get_osc_params(rate):
-    m = np.mean(rate)
-    a = (np.amax(rate) - np.amin(rate)) / 2.
-    p = 0.
-    return m, a, p
+###########################################################
+# cost functions for precision
+###########################################################
+
+# gradient of cost function for precision at time t
+# time interval for transition can be set by defining respective target state to -1.
+def cost_precision_gradient_t2(N, V_target, T, t_, state_t_, target_state_t_, i_p):
+    cost_gradient_ = numba_precision_gradient_t2(N, V_target, T, t_, i_p, state_t_, target_state_t_)
+    return cost_gradient_
+
+@numba.njit
+def numba_precision_gradient_t2(N, V_target, T, t_, i_p, state_t_, target_state_t_):
+    cost_gradient_ = np.zeros(( N, V_target ))
+    for ind_node in range(N):
+        for ind_var in range(V_target):
+            if target_state_t_[ind_node, ind_var] == -1000:
+                cost_gradient_[ind_node, ind_var] += 0.
+            else:
+                cost_gradient_[ind_node, ind_var] += i_p * t_ * (state_t_[ind_node, ind_var] - 
+                                               target_state_t_[ind_node, ind_var]) / T
+    return cost_gradient_
+
+def cost_precision_int2(N, T, dt, i_p, state_, target_, va_):
+    cost_int = numba_cost_precision_int2(N, T, dt, i_p, state_, target_, var_ = va_ )
+    return cost_int
+
+@numba.njit
+def numba_cost_precision_int2(N, T, dt, i_p, state_, target_state_, var_):
+    cost =  0.
+    for ind_time in range(T):
+        for ind_node in range(N):
+            for ind_var in var_:
+                diff = np.abs(state_[ind_node, ind_var, ind_time] - target_state_[ind_node, ind_var, ind_time])
+                if target_state_[ind_node, ind_var, ind_time] == -1000:
+                    cost += 0.
+                elif ( diff < tolerance ):
+                    cost += 0.
+                else:
+                    cost += dt * 0.5 * i_p * ind_time * diff**2. / T
+    return cost
+
+def cost_precision_node2(N, T, t_, dt, i_p, state_, target_, va_):
+    var = makeList(va_)
+    cost_int = numba_cost_precision_node2(N, T, t_, dt, i_p, state_, target_, var_ = var )
+    return cost_int
+
+@numba.njit
+def numba_cost_precision_node2(N, T, t_, dt, i_p, state_, target_state_, var_):
+    cost =  np.zeros(( N, 2 ))
+    for ind_node in range(N):
+        for ind_var in var_:
+            for ind_time in range(T):
+                diff = np.abs(state_[ind_node, ind_var, ind_time] - target_state_[ind_node, ind_var, ind_time])
+                if target_state_[ind_node, ind_var, ind_time] == -1000:
+                    cost[ind_node, ind_var] += 0.
+                elif ( diff < tolerance ):
+                    cost[ind_node, ind_var] += 0.
+                else:
+                    cost[ind_node, ind_var] += dt * 0.5 * i_p * t_ * diff**2. / T
+    return cost
         
     
 ###########################################################
@@ -270,6 +324,34 @@ def f_int(N, V, T, dt, state_, target_, control_, i_p, i_e, i_s, v_ = [0,1]):
             
     if not i_p < 1e-12:
         cost_prec = cost_precision_int(N, T, dt, i_p, state_, target_, va_ = var)
+    if not i_e < 1e-12:
+        cost_energy = cost_energy_int(N, V, T, dt, i_e, control_)
+    if not i_s < 1e-12:
+        cost_sparsity = f_cost_sparsity_int(N, V, T, dt, i_s, control_)
+    
+    """
+    print("cost precision = ", cost_prec)
+    print("cost energy = ", cost_energy)
+    print("cost sparsity = ", cost_sparsity)
+    """
+    
+    #if (cost_energy > 100.):
+    #    print("control = ", control_)
+    
+    cost_int = cost_prec + cost_energy + cost_sparsity
+    
+    return cost_int
+
+def f_int2(N, V, T, dt, state_, target_, control_, i_p, i_e, i_s, v_ = [0,1]):
+    # cost_: [t] dimensional array containing cost for all times
+    # return cost_int: integrated (total) cost
+        
+    var = makeList(v_)
+        
+    cost_prec, cost_energy, cost_sparsity = 0., 0., 0.
+            
+    if not i_p < 1e-12:
+        cost_prec = cost_precision_int2(N, T, dt, i_p, state_, target_, va_ = var)
     if not i_e < 1e-12:
         cost_energy = cost_energy_int(N, V, T, dt, i_e, control_)
     if not i_s < 1e-12:
