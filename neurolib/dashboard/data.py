@@ -1,6 +1,7 @@
 import numpy as np
 import plotly.graph_objs as go
 import pickle
+import os
 from pathlib import Path
 
 from . import layout as layout
@@ -170,7 +171,7 @@ def read_data(readpath, case):
     lenx_4_ = []
     leny_4_ = []
     
-    file_ = '/bi_' + str(case) + '.pickle'
+    file_ = os.sep + 'bi' + '.pickle'
     
     
     if not Path(readpath + file_).is_file():
@@ -282,7 +283,7 @@ def read_data(readpath, case):
 
 def read_control(readpath, case):
     
-    with open(readpath + '/control_init_' + str(case) + '.pickle','rb') as file:
+    with open(readpath + os.sep + 'control_init_' + str(case) + '.pickle','rb') as file:
         load_array = pickle.load(file)
 
     bestControl_init = load_array[0]
@@ -294,7 +295,7 @@ def read_control(readpath, case):
     costnode_init = load_array[6]
     weights_init = load_array[7] 
     
-    with open(readpath + '/control_0_' + str(case) + '.pickle','rb') as file:
+    with open(readpath + os.sep + 'control_0_' + str(case) + '.pickle','rb') as file:
         load_array = pickle.load(file)
 
     bestControl_0 = load_array[0]
@@ -306,7 +307,7 @@ def read_control(readpath, case):
     costnode_0 = load_array[6]
     weights_0 = load_array[7]    
     
-    return [bestControl_0, costnode_0]
+    return [bestControl_init, costnode_init, bestControl_0, costnode_0]
 
 def get_scatter_data(exc_1, inh_1, exc_2, inh_2, exc_3, inh_3, exc_4, inh_4):
 
