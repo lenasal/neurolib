@@ -187,7 +187,7 @@ def read_data(readpath, case):
     ext_exc = load_array[0]
     ext_inh = load_array[1]
 
-    [bestControl_0, costnode_0] = read_control(readpath, case)
+    [bestControl_init, costnode_init, bestControl_0, costnode_0] = read_control(readpath, case)
     
     cost_node = []
 
