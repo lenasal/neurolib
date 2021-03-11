@@ -343,7 +343,7 @@ def get_layout():
         anchor="x2",
         range=[-max_step_current-1., max_step_current+1.],
         constrain="domain",
-        tick0=-max_step_current,
+        tick0=0.,
         dtick=1.,
         gridcolor=midgrey,
         title=dict(
@@ -359,7 +359,7 @@ def get_layout():
     yaxis3=dict(
         domain=[y3_axis_start,y3_axis_end],
         anchor="x2",
-        range=[0.,200.],
+        range=[-0.,200.],
         constrain="domain",
         tick0=0.,
         dtick=25.,
