@@ -2,6 +2,7 @@ import numpy as np
 import plotly.graph_objs as go
 import matplotlib.cm as cm
 from pathlib import Path
+import os
 
 #### MEASURES FOR FIGURE LAYOUT
 
@@ -250,7 +251,6 @@ def get_label_cost():
         )
 
 def change_cost_layout(cost):
-    print(cost, cost[0].shape)
     return ("P:   " + str(round(cost[0][0][0],2)) + " (e) + " + str(round(cost[0][0][1],2)) + " (i)" + "<br>" # precision, network node, type node
             "S:   " + str(round(cost[2][0][0],2)) + " (e) + " + str(round(cost[2][0][1],2)) + " (i)" + "<br>"
             "E:   " + str(round(cost[1][0][0],2)) + " (e) + " + str(round(cost[1][0][1],2)) + " (i)" + "<br>")
@@ -492,7 +492,7 @@ def get_updatemenus():
     return [button0, button1, button2, button3, button4]
         
 def get_img(img_path, control_case, index):
-    img_source = img_path + str(control_case) + '/' + str(index) + '.png'
+    img_source = img_path + str(control_case) + os.sep + str(index) + '.png'
     
     if not Path(img_source).is_file():
         print("image not found")

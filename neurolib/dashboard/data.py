@@ -180,7 +180,7 @@ def read_data(readpath, case):
             exc_1_, inh_1_, lenx_1_, leny_1_ ,
             exc_2_, inh_2_, lenx_2_, leny_2_ ,
             exc_3_, inh_3_, lenx_3_, leny_3_ ,
-            exc_4_, inh_4_, lenx_4_, leny_4_, None]
+            exc_4_, inh_4_, lenx_4_, leny_4_, None, None, None, None]
     
 
     with open(readpath + file_,'rb') as file:
@@ -190,29 +190,32 @@ def read_data(readpath, case):
 
     [bestControl_init, costnode_init, bestControl_0, costnode_0] = read_control(readpath, case)
     
-    cost_node = []
+    cost_node1 = []
+    cost_node2 = []
+    cost_node3 = []
+    cost_node4 = []
 
     for i in range(len(ext_exc)):
         if type(bestControl_0[i]) is type(None):
             #print(i, " not checked yet")
             not_checked.append(i)
             continue
-        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-8:
-            inh__.append(i)
-            cost_node.append(costnode_0[i])
-            #print(i, " only inhibitory current")
         elif np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8:
             exc__.append(i)
-            cost_node.append(costnode_0[i])
+            cost_node1.append(costnode_0[i])
             #print(i, " only excitatory current")
-        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8:
-            #print(i, "no control input")
-            no_c__.append(i)
-            cost_node.append(costnode_0[i])
+        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-8:
+            inh__.append(i)
+            cost_node2.append(costnode_0[i])
+            #print(i, " only inhibitory current")
         elif np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-8:
             #print(i, " control input in both nodes")
             both_c__.append(i)
-            cost_node.append(costnode_0[i])
+            cost_node3.append(costnode_0[i])
+        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8:
+            #print(i, "no control input")
+            no_c__.append(i)
+            cost_node4.append(costnode_0[i])
         else:
             print(i, " no category")
         
@@ -274,12 +277,12 @@ def read_data(readpath, case):
             lenx_4_.append(lenx/5.)
             leny_4_.append(leny/5.)
                         
-    return [exc__, inh__, no_c__, both_c__,
+    return [exc__, inh__, both_c__, no_c__, 
             exc_1_, inh_1_, lenx_1_, leny_1_ ,
             exc_2_, inh_2_, lenx_2_, leny_2_ ,
             exc_3_, inh_3_, lenx_3_, leny_3_ ,
             exc_4_, inh_4_, lenx_4_, leny_4_,
-            cost_node]
+            cost_node1, cost_node2, cost_node3, cost_node4]
 
 def read_control(readpath, case):
     
