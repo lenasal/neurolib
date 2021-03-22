@@ -726,14 +726,9 @@ def plot_control_current(model, control_array, cost_node_array, weights_array, t
         
 def plot_control_rate(model, control_array, cost_node_array, weights_array, t_sim_, t_sim_pre_, t_sim_post_, initial_params_,
                          target_, path_, filename_ = '', shading = False, transition_time_ = 0., labels_ = [],
-                         precision_variables_ = [0,1]):
+                         precision_variables_ = [0,1], print_cost_ = False):
     
-    dt = model.params.dt
-    if model.name == "aln" or model.name == "aln-control":
-        control_factor = model.params.C/1000.
-    else:
-        control_factor = 1.
-        
+    dt = model.params.dt  
     control_ = control_array[0]
         
     model.params.duration = (control_.shape[2] - 1.) * dt
@@ -756,7 +751,6 @@ def plot_control_rate(model, control_array, cost_node_array, weights_array, t_si
             model.params[init_vars[iv]] = initial_params_[iv]
         elif model.params[init_vars[iv]].ndim == 2:
             model.params[init_vars[iv]][0,:] = initial_params_[iv]
-            #print("set initial vars = ", model.params[init_vars[iv]] )
         else:
             model.params[init_vars[iv]][0] = initial_params_[iv]
             
@@ -781,10 +775,10 @@ def plot_control_rate(model, control_array, cost_node_array, weights_array, t_si
     columns = len(model.output_vars)-1
     rows = 3
             
-    fig, ax = plt.subplots(rows, columns, figsize=(24, 10) )#, linewidth=8, edgecolor='grey')
+    fig, ax = plt.subplots(rows, columns, figsize=(8, 6) )#, linewidth=8, edgecolor='grey')
     plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.3, hspace=0.3)
     y_labels_rates = ['Rates exc. [Hz]', 'Rates inh. [Hz]', 'Adaptation current [pA]']
-    y_labels_control = ['Control rate to E [kHz]', 'Control rate to I [kHz]']
+    y_labels_control = ['Control rate to E [Hz]', 'Control rate to I [Hz]']
     sim_legend = ['Uncontrolled rate', 'Control', 'Control current', 'Control rate']
     target_legend = ['Target']
     cntrl_time_legend = ['Control > {} pA'.format(cntrl_limit_scaled * 1000), 'Control active', 'Transition time']
@@ -808,27 +802,11 @@ def plot_control_rate(model, control_array, cost_node_array, weights_array, t_si
             for n_ in range(N):
                 for v_ in range(2):
                         target_trans[n_,v_,t_] = - 1000.
-                        
-    cost_uncontrolled = cost.cost_precision_node(N, T, dt, 1., state_, target_trans, precision_variables_)
-    
+                            
     #### UNCONTROLLED ACTIVITY
-    str_cp_uncontrolled = [str(r'$C_p = 0.0$'), str(r'$C_p = 0.0$')]
-    if i_p != 0.:
-        #if cost_uncontrolled[0][0] > tolerance_cost_:
-        str_cp_uncontrolled[0] = str(r'$C_p = {:,.1f}$'.format(i_p) + r' s $\times {:,.0f}$'.format(cost_uncontrolled[0][0]) 
-                        + r' $s^{-1}$' + r'$ = {:,.0f}$'.format(cost_uncontrolled[0][0] * i_p) )
-        #if cost_uncontrolled[0][1] > tolerance_cost_:
-        str_cp_uncontrolled[1] = str(r'$C_p = {:,.1f}$'.format(i_p) + r' s $\times {:,.0f}$'.format(cost_uncontrolled[0][1])
-                        + r' $s^{-1}$' + r'$ = {:,.0f}$'.format(cost_uncontrolled[0][1] * i_p) )
     
     ax[0,0].plot(model.t, model[output_vars[0]][0,:], linewidth = 1., label=sim_legend[0], color=colors_[0])
-    ax[0,0].text(1.05, 1., str_cp_uncontrolled[0],
-                    transform=ax[0,0].transAxes, color = 'black', fontsize=14, verticalalignment='top',
-                    bbox=dict(boxstyle='round', facecolor=colors_[0], edgecolor = 'black', alpha=0.3))
     ax[0,1].plot(model.t, model[output_vars[1]][0,:], linewidth = 1., color=colors_[0])
-    ax[0,1].text(1.05, 1., str_cp_uncontrolled[1],
-                    transform=ax[0,1].transAxes, color = 'black', fontsize=14, verticalalignment='top',
-                    bbox=dict(boxstyle='round', facecolor=colors_[0], edgecolor = 'black', alpha=0.3))
     for i in range(columns):
         ax[0,i].set(xlabel='t [ms]', ylabel=y_labels_rates[i])
         ax[0,i].set_xlim([model.t[0],model.t[-1]])
@@ -848,67 +826,26 @@ def plot_control_rate(model, control_array, cost_node_array, weights_array, t_si
     
     for c_ind in range(len(control_array)):
         
-        weights_ = weights_array[c_ind]
-        str_cp_ = [str(r'$C_p = 0.0$'), str(r'$C_p = 0.0$')]
-        cp_ = [ [cost_node_array[c_ind][0][0,0], cost_node_array[c_ind][0][0,0]  * weights_[0]],
-               [cost_node_array[c_ind][0][0,1], cost_node_array[c_ind][0][0,1]  * weights_[0]] ]
-        #if cp_[0][1] > tolerance_cost_:
-        str_cp_[0] = str(r'$C_p = {:,.1f}$'.format(weights_[0]) + r' s $\times {:,.1f}$'.format(cp_[0][0])
-                        + r' $s^{-1}$' + r'$ = {:.1f}$'.format(cp_[0][1]) )
-        #if cp_[1][1] > tolerance_cost_:
-        str_cp_[1] =  str(r'$C_p = {:,.1f}$'.format(weights_[0]) + r' s $\times {:,.1f}$'.format(cp_[1][0])
-                        + r' $s^{-1}$' + r'$ = {:,.1f}$'.format(cp_[1][1]) ) 
-        
         control_ = control_array[c_ind]
-        
+                
         model.run(control=control_)
         
         ax[0,0].plot(model.t, model[output_vars[0]][0,:], linewidth = 1., color=colors_[c_ind+2],
                      label=labels_[c_ind] )
-        ax[0,0].text(1.05, 0.88 - c_ind * 0.13, str_cp_[0],
-                    transform=ax[0,0].transAxes, color = 'black', fontsize=14, verticalalignment='top',
-                    bbox=dict(boxstyle='round', facecolor=colors_[c_ind+2], edgecolor = 'black', alpha=0.3))
         ax[0,1].plot(model.t, model[output_vars[1]][0,:], linewidth = 1., color=colors_[c_ind+2])
-        ax[0,1].text(1.05, 0.88 - c_ind * 0.13, str_cp_[1],
-                    transform=ax[0,1].transAxes, color = 'black', fontsize=14, verticalalignment='top',
-                    bbox=dict(boxstyle='round', facecolor=colors_[c_ind+2], edgecolor = 'black', alpha=0.3))
-
         
-        # control, # cost type, # network node, # variable
-        ce_ = [ [], [] ]
-        str_ce_ = [str(r'$C_e = 0.0$'), str(r'$C_e = 0.0$') ]
-        
-        #if weights_[1] != 0.:
-        #if cost_node_array[c_ind][1][0,0] > tolerance_cost_:
-        ce_[0] = [cost_node_array[c_ind][1][0,0], cost_node_array[c_ind][1][0,0]  * weights_[1]]
-        str_ce_[0] = str(r'$C_e = {:,.0f}$'.format(weights_[1]) + r' $s V^{-2}$' + r' $\times {:,.2f}$'.format(ce_[0][0])
-                        + r' $V^2 s^{-1}$' + r'$ = {:,.0f}$'.format(ce_[0][1]) )
-        #if cost_node_array[c_ind][1][0,1] > tolerance_cost_:
-        ce_[1] = [cost_node_array[c_ind][1][0,1], cost_node_array[c_ind][1][0,1]  * weights_[1]]
-        str_ce_[1] = str(r'$C_e = {:,.0f}$'.format(weights_[1]) + r' $s V^{-2}$' + r' $\times {:,.2f}$'.format(ce_[1][0])
-                    + r' $V^2 s^{-1}$' + r'$ = {:,.0f}$'.format(ce_[1][1]) )
-            
-        cs_ = [ [], [] ]
-        str_cs_ = [str(r'$C_s = 0.0$'), str(r'$C_s = 0.0$') ]
                 
-        #if weights_[2] != 0.:
-        #if cost_node_array[c_ind][2][0,0] > tolerance_cost_:
-        cs_[0] = [cost_node_array[c_ind][2][0,0], cost_node_array[c_ind][2][0,0]  * weights_[2]]
-        str_cs_[0] = str(r'$C_s = {:,.0f}$'.format(weights_[2]) + r' $V s^{-1/2}$' + r' $\times {:,.2f}$'.format(cs_[0][0])
-                    + r' $V^{-1} \sqrt{s}$' + r'$ = {:,.0f}$'.format(cs_[0][1]) )
-        #if cost_node_array[c_ind][2][0,1] > tolerance_cost_:
-        cs_[1] = [cost_node_array[c_ind][2][0,1], cost_node_array[c_ind][2][0,1]  * weights_[2]]
-        str_cs_[1] = str(r'$C_s = {:,.0f}$'.format(weights_[2]) + r' $V s^{-1/2}$' + r' $\times {:,.2f}$'.format(cs_[1][0])
-                        + r' $V^{-1} \sqrt{s}$' + r'$ = {:,.0f}$'.format(cs_[1][1]) )
                                
         for i in range(columns):
-                        
-            ax[1,i].plot(model.t, control_[0,i,:] * control_factor, linewidth = 1., color=colors_[c_ind+2] ) # divide by five to take into account capacitance
-            ax[1,i].text(1.05, 1. - c_ind * 0.2, str(str_ce_[i] + '\n' + str_cs_[i]), 
-                transform=ax[1,i].transAxes, color = 'black', fontsize=14, verticalalignment='top',
-                    bbox=dict(boxstyle='round', facecolor=colors_[c_ind+2], edgecolor = 'black', alpha=0.3))
-            ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[1])
+                                    
+            ax[1,i].plot(model.t, control_[0,i+2,:]*1000., linewidth = 1., color=colors_[c_ind+2] )
+            ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[0])
             ax[1,i].set_xlim([model.t[0],model.t[-1]])
+            
+            ax[2,i].plot(model.t, control_[0,i+4,:]*1000., linewidth = 1., color=colors_[c_ind+2] )
+            
+            ax[2,i].set(xlabel='t [ms]', ylabel=y_labels_control[1])
+            ax[2,i].set_xlim([model.t[0],model.t[-1]])
             
     #####################
     

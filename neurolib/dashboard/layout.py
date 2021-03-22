@@ -11,6 +11,8 @@ dashboard_height = 1000 * 0.8
 x_plotrange = [0.,0.7]
 y_plotrange = [0.,1.]
 
+grid_resolution = 0.025
+
 x1_axis_end = 0.4
 y1_axis_end = x1_axis_end * ( dashboard_width / dashboard_height ) * ( y_plotrange[1] / x_plotrange[1] )
 
@@ -106,7 +108,7 @@ def get_info_text():
         text=("<b>Task:</b><br><br>"
               "<b>Cost measure:</b><br><br>"
               "<b>Control type:</b><br><br>"
-              "<b>Maximum control:</b><br><br>"
+              "<b>Cost weights:</b><br><br>"
               "<b>Initial guess:"),#"</b><br><br>"
               #"<b>Precision cost:"),
         xref="paper",
@@ -251,9 +253,9 @@ def get_label_cost():
         )
 
 def change_cost_layout(cost):
-    return ("P:   " + str(round(cost[0][0][0],2)) + " (e) + " + str(round(cost[0][0][1],2)) + " (i)" + "<br>" # precision, network node, type node
-            "S:   " + str(round(cost[2][0][0],2)) + " (e) + " + str(round(cost[2][0][1],2)) + " (i)" + "<br>"
-            "E:   " + str(round(cost[1][0][0],2)) + " (e) + " + str(round(cost[1][0][1],2)) + " (i)" + "<br>")
+    return ("P:   " + str(round(cost[0][0][0],4)) + " (e) + " + str(round(cost[0][0][1],4)) + " (i)" + "<br>" # precision, network node, type node
+            "S:   " + str(round(cost[2][0][0],4)) + " (e) + " + str(round(cost[2][0][1],4)) + " (i)" + "<br>"
+            "E:   " + str(round(cost[1][0][0],4)) + " (e) + " + str(round(cost[1][0][1],4)) + " (i)" + "<br>")
 
 
 def boundary_path(p_e, p_i):
@@ -446,12 +448,12 @@ def get_updatemenus():
     button3.update(buttons=list([
                 dict(
                     args=[{'updatemenus[3].active':0}],
-                    label="1 nA or 180 Hz",
+                    label='p = e, s',
                     method="relayout"
                 ),
                 dict(
                     args=[{'updatemenus[3].active':1}],
-                    label="No limit",
+                    label='e, s = max',
                     method="relayout"
                 ),
             ]))
@@ -493,12 +495,12 @@ def get_updatemenus():
         
 def get_img(img_path, control_case, index):
     img_source = img_path + str(control_case) + os.sep + str(index) + '.png'
-    
+        
     if not Path(img_source).is_file():
         print("image not found")
         return dict()
     
-    print("show image with path", img_source)
+    #print("show image with path", img_source)
     return dict(
         source=img_source,
         xref="paper",

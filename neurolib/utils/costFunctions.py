@@ -319,7 +319,7 @@ def f_int(N, V, T, dt, state_, target_, control_, i_p, i_e, i_s, v_ = [0,1]):
     # return cost_int: integrated (total) cost
         
     var = makeList(v_)
-        
+            
     cost_prec, cost_energy, cost_sparsity = 0., 0., 0.
             
     if not i_p < 1e-12:
