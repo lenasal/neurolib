@@ -26,9 +26,7 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
     prec_variables = List()
     for v in prec_variables_:
         prec_variables.append(v)
-        
-    print("precision variables = ", prec_variables)
-        
+                
     control_variables = List()
     for v in control_variables_:
         control_variables.append(v)

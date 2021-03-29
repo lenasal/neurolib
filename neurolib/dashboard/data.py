@@ -291,20 +291,28 @@ def read_data(readpath, case):
     ext_exc = load_array[0]
     ext_inh = load_array[1]
 
-    [bestControl_init, costnode_init, bestControl_0, costnode_0] = read_control(readpath, case)
+    [bestControl_init, costnode_init, bestControl_0, bestState_0, costnode_0] = read_control(readpath, case)
     
     cost_node1 = []
     cost_node2 = []
     cost_node3 = []
     cost_node4 = []
     
+        
     if case[2] == '0':
         # sort into categories
         for i in range(len(ext_exc)):
+            #if not type(bestControl_0[i]) is type(None):
+            #    print("means ", i, np.mean(bestState_0[i][0,0,:100]), np.mean(bestState_0[i][0,0,-50:]) )
+                
             if type(bestControl_0[i]) is type(None):
                 #print(i, " not checked yet")
                 not_checked.append(i)
                 continue
+                print("means ", i, np.mean(bestState_0[i][0,0,:100]), np.mean(bestState_0[i][0,0,-50:]) )
+            elif np.abs(np.mean(bestState_0[i][0,0,:100]) - np.mean(bestState_0[i][0,0,-50:])) < 1.:
+                no_c__.append(i)
+                cost_node4.append(costnode_0[i])
             elif np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8:
                 exc__.append(i)
                 cost_node1.append(costnode_0[i])
@@ -385,10 +393,15 @@ def read_data(readpath, case):
     else:
         # sort into categories
         for i in range(len(ext_exc)):
+            #if not type(bestControl_0[i]) is type(None):
+            #    print("means ", i, ext_exc[i], ext_inh[i], np.mean(bestState_0[i][0,0,:100]), np.mean(bestState_0[i][0,0,-50:]) )
             if type(bestControl_0[i]) is type(None):
                 #print(i, " not checked yet")
                 not_checked.append(i)
                 continue
+            elif np.abs(np.mean(bestState_0[i][0,0,:100]) - np.mean(bestState_0[i][0,0,50:])) < 1.:
+                no_c__.append(i)
+                cost_node4.append(costnode_0[i])
             elif np.amax(np.abs(bestControl_0[i][0,2,:])) > 1e-8 or np.amax(np.abs(bestControl_0[i][0,3,:])) > 1e-8:
                 if np.amax(np.abs(bestControl_0[i][0,4,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,5,:])) < 1e-8:
                     exc__.append(i)
@@ -492,9 +505,10 @@ def read_control(readpath, case):
         load_array = pickle.load(file)
 
     bestControl_0 = load_array[0]
+    bestState_0 = load_array[1]
     costnode_0 = load_array[6]
     
-    return [bestControl_init, costnode_init, bestControl_0, costnode_0]
+    return [bestControl_init, costnode_init, bestControl_0, bestState_0, costnode_0]
 
 def get_scatter_data(exc_1, inh_1, exc_2, inh_2, exc_3, inh_3, exc_4, inh_4):
 

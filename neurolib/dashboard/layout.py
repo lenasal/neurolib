@@ -107,9 +107,9 @@ def get_info_text():
         y=info_y,
         text=("<b>Task:</b><br><br>"
               "<b>Cost measure:</b><br><br>"
-              "<b>Control type:</b><br><br>"
               "<b>Cost weights:</b><br><br>"
-              "<b>Initial guess:"),#"</b><br><br>"
+              "<b>Initial guess:</b><br><br>"
+              "<b>Sim. duration:"),#"</b><br><br>"
               #"<b>Precision cost:"),
         xref="paper",
         yref="paper",
@@ -252,10 +252,15 @@ def get_label_cost():
         align="left",
         )
 
-def change_cost_layout(cost):
-    return ("P:   " + str(round(cost[0][0][0],4)) + " (e) + " + str(round(cost[0][0][1],4)) + " (i)" + "<br>" # precision, network node, type node
-            "S:   " + str(round(cost[2][0][0],4)) + " (e) + " + str(round(cost[2][0][1],4)) + " (i)" + "<br>"
-            "E:   " + str(round(cost[1][0][0],4)) + " (e) + " + str(round(cost[1][0][1],4)) + " (i)" + "<br>")
+def change_cost_layout(cost, case_):
+    if case_[2] == '0':
+        return ("P:   " + str(round(cost[0][0][0],4)) + " (e) + " + str(round(cost[0][0][1],4)) + " (i)" + "<br>" # precision, network node, type node
+                "S:   " + str(round(cost[2][0][0],4)) + " (e) + " + str(round(cost[2][0][1],4)) + " (i)" + "<br>"
+                "E:   " + str(round(cost[1][0][0],4)) + " (e) + " + str(round(cost[1][0][1],4)) + " (i)" + "<br>")
+    else:
+        return ("P:   " + str(round(cost[0][0][0],4)) + " (e) + " + str(round(cost[0][0][1],4)) + " (i)" + "<br>" # precision, network node, type node
+                "S:   " + str(round(cost[2][0][2],4)) + " (ee) + " + str(round(cost[2][0][3],4)) + " (ei) + " + str(round(cost[2][0][4],4)) + " (ie) + " + str(round(cost[2][0][5],4)) + " (ii)""<br>"
+                "E:   " + str(round(cost[1][0][2],4)) + " (ee) + " + str(round(cost[1][0][3],4)) + " (ei) + " + str(round(cost[1][0][4],4)) + " (ie) + " + str(round(cost[1][0][5],4)) + " (ii)""<br>")
 
 
 def boundary_path(p_e, p_i):
@@ -433,12 +438,12 @@ def get_updatemenus():
     button2.update(buttons=list([
                 dict(
                     args=[{'updatemenus[2].active':0}],
-                    label="Current",
+                    label='p = e, s',
                     method="relayout"
                 ),
                 dict(
                     args=[{'updatemenus[2].active':1}],
-                    label="Rate",
+                    label='e, s = max',
                     method="relayout"
                 ),
             ]))
@@ -448,12 +453,12 @@ def get_updatemenus():
     button3.update(buttons=list([
                 dict(
                     args=[{'updatemenus[3].active':0}],
-                    label='p = e, s',
+                    label="Excitatory node",
                     method="relayout"
                 ),
                 dict(
                     args=[{'updatemenus[3].active':1}],
-                    label='e, s = max',
+                    label="Inhibitory node",
                     method="relayout"
                 ),
             ]))
@@ -463,33 +468,16 @@ def get_updatemenus():
     button4.update(buttons=list([
                 dict(
                     args=[{'updatemenus[4].active':0}],
-                    label="Excitatory node",
+                    label="100 ms",
                     method="relayout"
                 ),
                 dict(
                     args=[{'updatemenus[4].active':1}],
-                    label="Inhibitory node",
+                    label="200 ms",
                     method="relayout"
                 ),
             ]))
-    button4.update(y=y_buttons-4.*dist_buttons)
-    
-    """
-    button5 = get_button()
-    button5.update(buttons=list([
-                dict(
-                    args=[{'updatemenus[5].active':0}],
-                    label="After 80 ms",
-                    method="relayout"
-                ),
-                dict(
-                    args=[{'updatemenus[5].active':1}],
-                    label="Linearly increasing",
-                    method="relayout"
-                ),
-            ]))
-    button5.update(y=y_buttons-5.*dist_buttons)
-    """        
+    button4.update(y=y_buttons-4.*dist_buttons)       
     
     return [button0, button1, button2, button3, button4]
         
