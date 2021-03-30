@@ -473,7 +473,7 @@ def get_updatemenus():
                 ),
                 dict(
                     args=[{'updatemenus[4].active':1}],
-                    label="200 ms",
+                    label="400 ms",
                     method="relayout"
                 ),
             ]))

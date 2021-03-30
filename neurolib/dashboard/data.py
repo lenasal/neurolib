@@ -125,7 +125,8 @@ def setinit(model, init_vars_):
                 else:
                     model.params[init_vars[iv]][0] = init_vars_[sv]
     
-def DC_trace(model, x_, y_, start_, dur_, amp_, case_, trans_time_, weights, plot_ = False):
+def DC_trace(model, x_, y_, start_, dur_, amp_, case_, trans_time_, weights,
+             optimal_control, optimal_cost_node, optimal_weights, plot_ = False):
     
     dt = model.params.dt
 
@@ -205,10 +206,10 @@ def DC_trace(model, x_, y_, start_, dur_, amp_, case_, trans_time_, weights, plo
     """
     
     if plot_:
-        plotFunc.plot_control_current(model, [DC_control_],
-            [cost_node], [weights], DC_duration,
+        plotFunc.plot_control_current(model, [DC_control_, optimal_control],
+            [cost_node, optimal_cost_node], [weights, optimal_weights], DC_duration,
             0., 0., init_state_vars, target_, '', filename_ = '', transition_time_ = trans_time_,
-            labels_ = ["DC control"], print_cost_=False)
+            labels_ = ["DC control", "Optimal control"], print_cost_=False)
     
     return cost_node
     
