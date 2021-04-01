@@ -101,8 +101,8 @@ def plot_trace(model, x_, y_, trace0, trace1):
     stepcontrol_ = model.getZeroControl()
     stepcontrol_ = functions.step_control(model, maxI_ = max_step_current)
 
-    model.params.ext_exc_current = x_ * 5.
-    model.params.ext_inh_current = y_ * 5.
+    model.params.mue_ext_mean = x_ * 5.
+    model.params.mui_ext_mean = y_ * 5.
     time_ = get_time(model, step_current_duration)
 
     model.run(control=stepcontrol_)
@@ -125,13 +125,13 @@ def setinit(model, init_vars_):
                 else:
                     model.params[init_vars[iv]][0] = init_vars_[sv]
     
-def DC_trace(model, x_, y_, start_, dur_, amp_, case_, trans_time_, weights,
+def DC_trace(model, x_, y_, start_, dur_, amp_, sim_dur, case_, trans_time_, weights,
              optimal_control, optimal_cost_node, optimal_weights, plot_ = False):
     
     dt = model.params.dt
 
-    model.params.ext_exc_current = x_ * 5.
-    model.params.ext_inh_current = y_ * 5.
+    model.params.mue_ext_mean = x_ * 5.
+    model.params.mui_ext_mean = y_ * 5.
     
     model.params.duration = 3000.
     
@@ -159,7 +159,7 @@ def DC_trace(model, x_, y_, start_, dur_, amp_, case_, trans_time_, weights,
         else:
             init_state_vars[j] = model.state[state_vars[j]][0,-1]
 
-    model.params.duration = DC_duration
+    model.params.duration = sim_dur
     target_ = model.getZeroTarget()
     target_[:,0,:] = target_rates[0]
     target_[:,1,:] = target_rates[1]
@@ -178,15 +178,15 @@ def DC_trace(model, x_, y_, start_, dur_, amp_, case_, trans_time_, weights,
         
     prec_variables = [0]
     
-    T = int(DC_duration/dt + 1)
+    T = int(sim_dur/dt + 1)
     target__ = target_.copy()
     for t in range(T):
         if t / T < trans_time_:
             target__[:,:,t] = -1000.
                 
-    cost_node = cost.cost_int_per_node(1, 6, int(DC_duration/dt + 1), dt, state0_, target__,
+    cost_node = cost.cost_int_per_node(1, 6, int(sim_dur/dt + 1), dt, state0_, target__,
                                      DC_control_, weights[0], weights[1], weights[2], v_ = prec_variables )
-    
+        
     #print('precision cost: ', cost_node[0][0][0])
     #print('sparsity cost: ', cost_node[2][0][:])
     #print('energy cost: ', cost_node[1][0][:])
@@ -207,11 +207,11 @@ def DC_trace(model, x_, y_, start_, dur_, amp_, case_, trans_time_, weights,
     
     if plot_:
         plotFunc.plot_control_current(model, [DC_control_, optimal_control],
-            [cost_node, optimal_cost_node], [weights, optimal_weights], DC_duration,
+            [cost_node, optimal_cost_node], [weights, optimal_weights], sim_dur,
             0., 0., init_state_vars, target_, '', filename_ = '', transition_time_ = trans_time_,
             labels_ = ["DC control", "Optimal control"], print_cost_=False)
     
-    return cost_node
+    return cost_node, DC_control_
     
 def get_step_current_traces(model):
     

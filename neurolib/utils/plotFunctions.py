@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import math
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from . import costFunctions as cost
@@ -708,7 +709,7 @@ def plot_control_current(model, control_array, cost_node_array, weights_array, t
                     ax[i,1].axvspan(times, times+dt, facecolor=facecol, alpha=al, zorder=-1)
     
     
-    leg_col_number = 2 + int(len(control_array)/2)
+    leg_col_number = 2 + int( math.ceil( len( control_array )/2. ) )
     leg = fig.legend(loc='upper center', bbox_to_anchor=(0.5, 1.07), ncol = leg_col_number)
     leg.set_in_layout(True)
 
