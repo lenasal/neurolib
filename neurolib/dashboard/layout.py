@@ -461,6 +461,11 @@ def get_updatemenus():
                     label="Inhibitory node",
                     method="relayout"
                 ),
+                dict(
+                    args=[{'updatemenus[3].active':2}],
+                    label="Two-node",
+                    method="relayout"
+                ),
             ]))
     button3.update(y=y_buttons-3.*dist_buttons)
     

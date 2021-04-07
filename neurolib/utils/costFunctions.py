@@ -329,11 +329,6 @@ def f_int(N, V, T, dt, state_, target_, control_, i_p, i_e, i_s, v_ = [0,1]):
     if not i_s < 1e-12:
         cost_sparsity = f_cost_sparsity_int(N, V, T, dt, i_s, control_)
     
-    """
-    print("cost precision = ", cost_prec)
-    print("cost energy = ", cost_energy)
-    print("cost sparsity = ", cost_sparsity)
-    """
     
     #if (cost_energy > 100.):
     #    print("control = ", control_)

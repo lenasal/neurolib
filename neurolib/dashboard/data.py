@@ -126,7 +126,7 @@ def setinit(model, init_vars_):
                     model.params[init_vars[iv]][0] = init_vars_[sv]
     
 def DC_trace(model, x_, y_, start_, dur_, amp_, sim_dur, case_, trans_time_, weights,
-             optimal_control, optimal_cost_node, optimal_weights, plot_ = False):
+             optimal_control, optimal_cost_node, optimal_weights, plot_ = False, max_it = 0):
     
     dt = model.params.dt
 
@@ -191,25 +191,46 @@ def DC_trace(model, x_, y_, start_, dur_, amp_, sim_dur, case_, trans_time_, wei
     #print('sparsity cost: ', cost_node[2][0][:])
     #print('energy cost: ', cost_node[1][0][:])
     
-    """
+    if max_it == 0:
+        if plot_:
+            plotFunc.plot_control_current(model, [DC_control_, optimal_control],
+                [cost_node, optimal_cost_node], [weights, optimal_weights, weights], sim_dur,
+                0., 0., init_state_vars, target_, '', filename_ = '', transition_time_ = trans_time_,
+                labels_ = ["DC control", "Optimal control"], print_cost_=False)
+    
+        return cost_node, DC_control_
+    
     c_scheme = np.zeros(( 1,1 ))
     c_scheme[0,0] = 1.
     u_mat = np.identity(1)
     u_scheme = np.array([[1.]])
     cost.setParams(1.0, 0., 1.)
     
+    setinit(model, init_state_vars)
+        
     bestControl_, bestState_, cost_, runtime_, grad_, phi_, costnode_ = model.A1(
-        DC_control_, target_, c_scheme, u_mat, u_scheme, max_iteration_ = 100, tolerance_ = 1e-16,
-        startStep_ = 10., max_control_ = np.array([5.,0.,0.,0.,0.,0.]), min_control_ = np.array([-5.,0.,0.,0.,0.,0.]), t_sim_ = DC_duration,
+        DC_control_, target_, c_scheme, u_mat, u_scheme, max_iteration_ = max_it, tolerance_ = 1e-16,
+        startStep_ = 10., max_control_ = np.array([5.,5.,0.,0.,0.,0.]), min_control_ = np.array([-5.,-5.,0.,0.,0.,0.]), t_sim_ = sim_dur,
         t_sim_pre_ = 10., t_sim_post_ = 10., CGVar = None, control_variables_ = [0],
         prec_variables_ = [0], transition_time_ = trans_time_)
-    """
+    
+    optimal_control_shift = np.zeros(( optimal_control.shape ))
+    optimal_control_shift[:,:,:-1100] = optimal_control[:,:,1100:]
+    
+    setinit(model, init_state_vars)
+    
+    bestControl_shift, bestState_shift, cost_shift, runtime_shift, grad_shift, phi_shift, costnode_shift = model.A1(
+        optimal_control_shift, target_, c_scheme, u_mat, u_scheme, max_iteration_ = max_it, tolerance_ = 1e-16,
+        startStep_ = 10., max_control_ = np.array([5.,5.,0.,0.,0.,0.]), min_control_ = np.array([-5.,-5.,0.,0.,0.,0.]), t_sim_ = sim_dur,
+        t_sim_pre_ = 10., t_sim_post_ = 10., CGVar = None, control_variables_ = [0],
+        prec_variables_ = [0], transition_time_ = trans_time_)
+        
     
     if plot_:
-        plotFunc.plot_control_current(model, [DC_control_, optimal_control],
-            [cost_node, optimal_cost_node], [weights, optimal_weights], sim_dur,
+        plotFunc.plot_control_current(model, [DC_control_, optimal_control, bestControl_[:,:,100:-100], bestControl_shift[:,:,100:-100]],
+            [cost_node, optimal_cost_node, costnode_, costnode_shift], [weights, optimal_weights, weights, weights], sim_dur,
             0., 0., init_state_vars, target_, '', filename_ = '', transition_time_ = trans_time_,
-            labels_ = ["DC control", "Optimal control"], print_cost_=False)
+            labels_ = ["DC control", "Optimal control", "Optimal from DC", "Optimal shift"], print_cost_=False)
     
     return cost_node, DC_control_
     
@@ -300,187 +321,95 @@ def read_data(readpath, case):
     cost_node4 = []
     
         
-    if case[2] == '0':
-        # sort into categories
-        for i in range(len(ext_exc)):
-            #if not type(bestControl_0[i]) is type(None):
-            #    print("means ", i, np.mean(bestState_0[i][0,0,:100]), np.mean(bestState_0[i][0,0,-50:]) )
-                
-            if type(bestControl_0[i]) is type(None):
-                #print(i, " not checked yet")
-                not_checked.append(i)
-                continue
-                print("means ", i, np.mean(bestState_0[i][0,0,:100]), np.mean(bestState_0[i][0,0,-50:]) )
-            elif np.abs(np.mean(bestState_0[i][0,0,:100]) - np.mean(bestState_0[i][0,0,-50:])) < 1.:
-                no_c__.append(i)
-                cost_node4.append(costnode_0[i])
-            elif np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8:
-                exc__.append(i)
-                cost_node1.append(costnode_0[i])
-                #print(i, " only excitatory current")
-            elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-8:
-                inh__.append(i)
-                cost_node2.append(costnode_0[i])
-                #print(i, " only inhibitory current")
-            elif np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-8:
-                #print(i, " control input in both nodes")
-                both_c__.append(i)
-                cost_node3.append(costnode_0[i])
-            elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8:
-                #print(i, "no control input")
-                no_c__.append(i)
-                cost_node4.append(costnode_0[i])
-            else:
-                print(i, " no category")
-         
-        # find arrow length
-        for i in range(len(ext_exc)):
-            if i in exc__:
-                exc_1_.append(ext_exc[i])
-                inh_1_.append(ext_inh[i])
+    # sort into categories
+    for i in range(len(ext_exc)):
+        #if not type(bestControl_0[i]) is type(None):
+        #    print("means ", i, np.mean(bestState_0[i][0,0,:100]), np.mean(bestState_0[i][0,0,-50:]) )
+                    
+        if type(bestControl_0[i]) is type(None):
+            #print(i, " not checked yet")
+            not_checked.append(i)
+            continue
+        elif np.abs(np.mean(bestState_0[i][0,0,:100]) - np.mean(bestState_0[i][0,0,-50:])) < 1.:
+            no_c__.append(i)
+            cost_node4.append(costnode_0[i])
+        elif np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8:
+            exc__.append(i)
+            cost_node1.append(costnode_0[i])
+            #print(i, " only excitatory current")
+        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-8:
+            inh__.append(i)
+            cost_node2.append(costnode_0[i])
+            #print(i, " only inhibitory current")
+        elif np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-8:
+            #print(i, " control input in both nodes")
+            both_c__.append(i)
+            cost_node3.append(costnode_0[i])
+        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8:
+            #print(i, "no control input")
+            no_c__.append(i)
+            cost_node4.append(costnode_0[i])
+        else:
+            print(i, " no category")
+     
+    # find arrow length
+    for i in range(len(ext_exc)):
+        if i in exc__:
+            exc_1_.append(ext_exc[i])
+            inh_1_.append(ext_inh[i])
+
+            lenx = np.amax(bestControl_0[i][0,0,:])
+            if np.abs(np.amin(bestControl_0[i][0,0,:])) > np.abs(lenx):
+                lenx = np.amin(bestControl_0[i][0,0,:])
+            leny = np.amax(bestControl_0[i][0,1,:])
+            if np.abs(np.amin(bestControl_0[i][0,1,:])) > np.abs(leny):
+                leny = np.amin(bestControl_0[i][0,1,:])
+            lenx_1_.append(lenx/5.)
+            leny_1_.append(leny/5.)
+
+
+    for i in range(len(ext_exc)):
+        if i in inh__:
+            exc_2_.append(ext_exc[i])
+            inh_2_.append(ext_inh[i])
+
+            lenx = np.amax(bestControl_0[i][0,0,:])
+            if np.abs(np.amin(bestControl_0[i][0,0,:])) > np.abs(lenx):
+                lenx = np.amin(bestControl_0[i][0,0,:])
+            leny = np.amax(bestControl_0[i][0,1,:])
+            if np.abs(np.amin(bestControl_0[i][0,1,:])) > np.abs(leny):
+                leny = np.amin(bestControl_0[i][0,1,:])
+            lenx_2_.append(lenx/5.)
+            leny_2_.append(leny/5.)      
+
+    for i in range(len(ext_exc)):
+        if i in both_c__:
+            exc_3_.append(ext_exc[i])
+            inh_3_.append(ext_inh[i])
+
+            lenx = np.amax(bestControl_0[i][0,0,:])
+            if np.abs(np.amin(bestControl_0[i][0,0,:])) > np.abs(lenx):
+                lenx = np.amin(bestControl_0[i][0,0,:])
+            leny = np.amax(bestControl_0[i][0,1,:])
+            if np.abs(np.amin(bestControl_0[i][0,1,:])) > np.abs(leny):
+                leny = np.amin(bestControl_0[i][0,1,:])
+            lenx_3_.append(lenx/5.)
+            leny_3_.append(leny/5.)
+            
+    for i in range(len(ext_exc)):
+        if i in no_c__:
+            exc_4_.append(ext_exc[i])
+            inh_4_.append(ext_inh[i])
+
+            lenx = np.amax(bestControl_0[i][0,0,:])
+            if np.abs(np.amin(bestControl_0[i][0,0,:])) > np.abs(lenx):
+                lenx = np.amin(bestControl_0[i][0,0,:])
+            leny = np.amax(bestControl_0[i][0,1,:])
+            if np.abs(np.amin(bestControl_0[i][0,1,:])) > np.abs(leny):
+                leny = np.amin(bestControl_0[i][0,1,:])
+            lenx_4_.append(lenx/5.)
+            leny_4_.append(leny/5.)
     
-                lenx = np.amax(bestControl_0[i][0,0,:])
-                if np.abs(np.amin(bestControl_0[i][0,0,:])) > np.abs(lenx):
-                    lenx = np.amin(bestControl_0[i][0,0,:])
-                leny = np.amax(bestControl_0[i][0,1,:])
-                if np.abs(np.amin(bestControl_0[i][0,1,:])) > np.abs(leny):
-                    leny = np.amin(bestControl_0[i][0,1,:])
-                lenx_1_.append(lenx/5.)
-                leny_1_.append(leny/5.)
-    
-    
-        for i in range(len(ext_exc)):
-            if i in inh__:
-                exc_2_.append(ext_exc[i])
-                inh_2_.append(ext_inh[i])
-    
-                lenx = np.amax(bestControl_0[i][0,0,:])
-                if np.abs(np.amin(bestControl_0[i][0,0,:])) > np.abs(lenx):
-                    lenx = np.amin(bestControl_0[i][0,0,:])
-                leny = np.amax(bestControl_0[i][0,1,:])
-                if np.abs(np.amin(bestControl_0[i][0,1,:])) > np.abs(leny):
-                    leny = np.amin(bestControl_0[i][0,1,:])
-                lenx_2_.append(lenx/5.)
-                leny_2_.append(leny/5.)      
-    
-        for i in range(len(ext_exc)):
-            if i in both_c__:
-                exc_3_.append(ext_exc[i])
-                inh_3_.append(ext_inh[i])
-    
-                lenx = np.amax(bestControl_0[i][0,0,:])
-                if np.abs(np.amin(bestControl_0[i][0,0,:])) > np.abs(lenx):
-                    lenx = np.amin(bestControl_0[i][0,0,:])
-                leny = np.amax(bestControl_0[i][0,1,:])
-                if np.abs(np.amin(bestControl_0[i][0,1,:])) > np.abs(leny):
-                    leny = np.amin(bestControl_0[i][0,1,:])
-                lenx_3_.append(lenx/5.)
-                leny_3_.append(leny/5.)
-                
-        for i in range(len(ext_exc)):
-            if i in no_c__:
-                exc_4_.append(ext_exc[i])
-                inh_4_.append(ext_inh[i])
-    
-                lenx = np.amax(bestControl_0[i][0,0,:])
-                if np.abs(np.amin(bestControl_0[i][0,0,:])) > np.abs(lenx):
-                    lenx = np.amin(bestControl_0[i][0,0,:])
-                leny = np.amax(bestControl_0[i][0,1,:])
-                if np.abs(np.amin(bestControl_0[i][0,1,:])) > np.abs(leny):
-                    leny = np.amin(bestControl_0[i][0,1,:])
-                lenx_4_.append(lenx/5.)
-                leny_4_.append(leny/5.)
-    
-    else:
-        # sort into categories
-        for i in range(len(ext_exc)):
-            #if not type(bestControl_0[i]) is type(None):
-            #    print("means ", i, ext_exc[i], ext_inh[i], np.mean(bestState_0[i][0,0,:100]), np.mean(bestState_0[i][0,0,-50:]) )
-            if type(bestControl_0[i]) is type(None):
-                #print(i, " not checked yet")
-                not_checked.append(i)
-                continue
-            elif np.abs(np.mean(bestState_0[i][0,0,:100]) - np.mean(bestState_0[i][0,0,50:])) < 1.:
-                no_c__.append(i)
-                cost_node4.append(costnode_0[i])
-            elif np.amax(np.abs(bestControl_0[i][0,2,:])) > 1e-8 or np.amax(np.abs(bestControl_0[i][0,3,:])) > 1e-8:
-                if np.amax(np.abs(bestControl_0[i][0,4,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,5,:])) < 1e-8:
-                    exc__.append(i)
-                    cost_node1.append(costnode_0[i])
-                    #print(i, " only excitatory rate")
-                else:
-                    #print(i, " control rate in both nodes")
-                    both_c__.append(i)
-                    cost_node3.append(costnode_0[i])
-            elif np.amax(np.abs(bestControl_0[i][0,2,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,3,:])) < 1e-8:
-                if np.amax(np.abs(bestControl_0[i][0,4,:])) > 1e-8 or np.amax(np.abs(bestControl_0[i][0,5,:])) > 1e-8:
-                    inh__.append(i)
-                    cost_node2.append(costnode_0[i])
-                    #print(i, " only inhibitory rate")
-                else:
-                    #print(i, "no control rate input")
-                    no_c__.append(i)
-                    cost_node4.append(costnode_0[i])
-            else:
-                print(i, " no category")
-        
-    
-        for i in range(len(ext_exc)):
-            if i in exc__:
-                exc_1_.append(ext_exc[i])
-                inh_1_.append(ext_inh[i])
-    
-                lenx = np.amax(bestControl_0[i][0,2,:])
-                if np.amax(bestControl_0[i][0,3,:]) > np.abs(lenx):
-                    lenx = - np.amax(bestControl_0[i][0,3,:])
-                leny = np.amax(bestControl_0[i][0,4,:])
-                if np.amax(bestControl_0[i][0,5,:]) > np.abs(leny):
-                    leny = - np.amax(bestControl_0[i][0,5,:])
-                lenx_1_.append(lenx)
-                leny_1_.append(leny)
-    
-    
-        for i in range(len(ext_exc)):
-            if i in inh__:
-                exc_2_.append(ext_exc[i])
-                inh_2_.append(ext_inh[i])
-    
-                lenx = np.amax(bestControl_0[i][0,2,:])
-                if np.amax(bestControl_0[i][0,3,:]) > np.abs(lenx):
-                    lenx = - np.amax(bestControl_0[i][0,3,:])
-                leny = np.amax(bestControl_0[i][0,4,:])
-                if np.amax(bestControl_0[i][0,5,:]) > np.abs(leny):
-                    leny = - np.amax(bestControl_0[i][0,5,:])
-                lenx_2_.append(lenx)
-                leny_2_.append(leny)     
-    
-        for i in range(len(ext_exc)):
-            if i in both_c__:
-                exc_3_.append(ext_exc[i])
-                inh_3_.append(ext_inh[i])
-    
-                lenx = np.amax(bestControl_0[i][0,2,:])
-                if np.amax(bestControl_0[i][0,3,:]) > np.abs(lenx):
-                    lenx = - np.amax(bestControl_0[i][0,3,:])
-                leny = np.amax(bestControl_0[i][0,4,:])
-                if np.amax(bestControl_0[i][0,5,:]) > np.abs(leny):
-                    leny = - np.amax(bestControl_0[i][0,5,:])
-                lenx_3_.append(lenx)
-                leny_3_.append(leny)
-                
-        for i in range(len(ext_exc)):
-            if i in no_c__:
-                exc_4_.append(ext_exc[i])
-                inh_4_.append(ext_inh[i])
-    
-                lenx = np.amax(bestControl_0[i][0,2,:])
-                if np.amax(bestControl_0[i][0,3,:]) > np.abs(lenx):
-                    lenx = - np.amax(bestControl_0[i][0,3,:])
-                leny = np.amax(bestControl_0[i][0,4,:])
-                if np.amax(bestControl_0[i][0,5,:]) > np.abs(leny):
-                    leny = - np.amax(bestControl_0[i][0,5,:])
-                lenx_4_.append(lenx)
-                leny_4_.append(leny)
                         
     return [exc__, inh__, both_c__, no_c__, 
             exc_1_, inh_1_, lenx_1_, leny_1_ ,
@@ -491,25 +420,24 @@ def read_data(readpath, case):
 
 def read_control(readpath, case):
     
-    with open(readpath + os.sep + 'control_init_' + str(case[:5]) + '.pickle','rb') as file:
+    with open(readpath + os.sep + 'control_init_' + case[0] + case[1] + '1' + case[3] + case[4] + '.pickle','rb') as file:
         load_array = pickle.load(file)
 
     bestControl_init = load_array[0]
     costnode_init = load_array[6]
     
-    readfile = 'control_1_' + str(case) + '.pickle'
-        
-    if case[-3:] == "max":
-        readfile = 'control_0_' + str(case[:5]) + '.pickle'
+    readfile = 'control_' + str(case) + '.pickle'
+    
+    print("readfile = ", readpath, readfile)
     
     with open(readpath + os.sep + readfile,'rb') as file:
         load_array = pickle.load(file)
 
-    bestControl_0 = load_array[0]
-    bestState_0 = load_array[1]
-    costnode_0 = load_array[6]
+    bestControl_ = load_array[0]
+    bestState_ = load_array[1]
+    costnode_ = load_array[6]
     
-    return [bestControl_init, costnode_init, bestControl_0, bestState_0, costnode_0]
+    return [bestControl_init, costnode_init, bestControl_, bestState_, costnode_]
 
 def get_scatter_data(exc_1, inh_1, exc_2, inh_2, exc_3, inh_3, exc_4, inh_4):
 
