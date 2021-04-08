@@ -297,7 +297,14 @@ def read_data(readpath, case):
     leny_4_ = []
     
     file_ = os.sep + 'bi.pickle'
+        
+    if readpath[-1] == os.sep:
+        readpath = readpath[:-1]
     
+    if readpath[-3] == '0':
+        readpath_final = readpath[-2:]
+        readpath = readpath[:-3]
+        readpath = readpath + '1' + readpath_final    
     
     if not Path(readpath + file_).is_file():
         print("data not found")
@@ -419,16 +426,15 @@ def read_data(readpath, case):
             cost_node1, cost_node2, cost_node3, cost_node4]
 
 def read_control(readpath, case):
-    
+        
     if readpath[-1] == os.sep:
         readpath = readpath[:-1]
     
     if readpath[-3] == '0':
         readpath_final = readpath[-2:]
         readpath = readpath[:-3]
-        print(readpath, readpath_final)
         readpath = readpath + '1' + readpath_final
-    
+        
     with open(readpath + os.sep + 'control_init_' + case[0] + case[1] + '1' + case[3] + case[4] + '.pickle','rb') as file:
         load_array = pickle.load(file)
 
@@ -436,8 +442,6 @@ def read_control(readpath, case):
     costnode_init = load_array[6]
     
     readfile = 'control_' + str(case) + '.pickle'
-    
-    print("readfile = ", readpath, readfile)
     
     with open(readpath + os.sep + readfile,'rb') as file:
         load_array = pickle.load(file)
