@@ -420,6 +420,15 @@ def read_data(readpath, case):
 
 def read_control(readpath, case):
     
+    if readpath[-1] == os.sep:
+        readpath = readpath[:-1]
+    
+    if readpath[-3] == '0':
+        readpath_final = readpath[-2:]
+        readpath = readpath[:-3]
+        print(readpath, readpath_final)
+        readpath = readpath + '1' + readpath_final
+    
     with open(readpath + os.sep + 'control_init_' + case[0] + case[1] + '1' + case[3] + case[4] + '.pickle','rb') as file:
         load_array = pickle.load(file)
 

@@ -466,6 +466,24 @@ def get_updatemenus():
                     label="Two-node",
                     method="relayout"
                 ),
+                dict(
+                    args=[{'updatemenus[3].active':3}],
+                    label="100ms exc",
+                    method="relayout",
+                    visible = False,
+                ),
+                dict(
+                    args=[{'updatemenus[3].active':4}],
+                    label="100ms inh",
+                    method="relayout",
+                    visible = False,
+                ),
+                dict(
+                    args=[{'updatemenus[3].active':5}],
+                    label="100ms two-node",
+                    method="relayout",
+                    visible = False,
+                ),
             ]))
     button3.update(y=y_buttons-3.*dist_buttons)
     
