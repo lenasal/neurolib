@@ -253,7 +253,7 @@ def get_label_cost():
         )
 
 def change_cost_layout(cost, case_):
-    if case_[2] == '0':
+    if True:
         return ("P:   " + str(round(cost[0][0][0],4)) + " (e) + " + str(round(cost[0][0][1],4)) + " (i)" + "<br>" # precision, network node, type node
                 "S:   " + str(round(cost[2][0][0],4)) + " (e) + " + str(round(cost[2][0][1],4)) + " (i)" + "<br>"
                 "E:   " + str(round(cost[1][0][0],4)) + " (e) + " + str(round(cost[1][0][1],4)) + " (i)" + "<br>")
