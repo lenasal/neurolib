@@ -710,6 +710,8 @@ def plot_control_current(model, control_array, cost_node_array, weights_array, t
     
     
     leg_col_number = 2 + int( math.ceil( len( control_array )/2. ) )
+    if len( control_array ) > 4:
+        leg_col_number -= 1
     leg = fig.legend(loc='upper center', bbox_to_anchor=(0.5, 1.07), ncol = leg_col_number)
     leg.set_in_layout(True)
 

@@ -434,7 +434,7 @@ def read_control(readpath, case):
         readpath_final = readpath[-2:]
         readpath = readpath[:-3]
         readpath = readpath + '1' + readpath_final
-        
+                
     with open(readpath + os.sep + 'control_init_' + case[0] + case[1] + '1' + case[3] + case[4] + '.pickle','rb') as file:
         load_array = pickle.load(file)
 
