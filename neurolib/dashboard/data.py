@@ -264,7 +264,34 @@ def get_step_current_traces(model):
     )
     return trace00, trace01
 
-def read_data(readpath, case):
+
+def get_target(model, x_, y_, case_):
+        
+        dt = model.params.dt
+        sim_duration = model.params.duration
+
+        model.params.mue_ext_mean = x_ * 5.
+        model.params.mui_ext_mean = y_ * 5.
+    
+        model.params.duration = 3000.
+    
+        if case_[0] == '0':
+            maxI = 3.
+        else:
+            maxI = -3.
+        control0 = model.getZeroControl()
+        control0 = functions.step_control(model, maxI_ = maxI)
+        model.run(control=control0)
+
+        target_rates = np.zeros((2))
+        target_rates[0] = model.rates_exc[0,-1] 
+        target_rates[1] = model.rates_inh[0,-1]
+
+        model.params.duration = sim_duration
+        
+        return target_rates
+
+def read_data(model, readpath, case):
     
     not_checked = []
     exc__ = []
@@ -325,8 +352,7 @@ def read_data(readpath, case):
     cost_node1 = []
     cost_node2 = []
     cost_node3 = []
-    cost_node4 = []
-    
+    cost_node4 = []    
         
     # sort into categories
     for i in range(len(ext_exc)):
@@ -337,9 +363,18 @@ def read_data(readpath, case):
             #print(i, " not checked yet")
             not_checked.append(i)
             continue
-        elif np.abs(np.mean(bestState_0[i][0,0,:100]) - np.mean(bestState_0[i][0,0,-50:])) < 1.:
+        
+        target_rates = get_target(model, ext_exc[i], ext_inh[i], case)
+            
+        if ( np.abs(np.mean(bestState_0[i][0,0,-50:]) - target_rates[0]) >
+        0.3 * np.abs(np.mean(bestState_0[i][0,0,:50]) - target_rates[0])
+        or np.abs(np.mean(bestState_0[i][0,1,-50:]) - target_rates[1]) >
+        0.5 * np.abs(np.mean(bestState_0[i][0,1,:50]) - target_rates[1]) ):
+            print(ext_exc[i], ext_inh[i])
             no_c__.append(i)
             cost_node4.append(costnode_0[i])
+            continue
+            
         elif np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8:
             exc__.append(i)
             cost_node1.append(costnode_0[i])
