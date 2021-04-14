@@ -370,7 +370,6 @@ def read_data(model, readpath, case):
         0.3 * np.abs(np.mean(bestState_0[i][0,0,:50]) - target_rates[0])
         or np.abs(np.mean(bestState_0[i][0,1,-50:]) - target_rates[1]) >
         0.5 * np.abs(np.mean(bestState_0[i][0,1,:50]) - target_rates[1]) ):
-            print(ext_exc[i], ext_inh[i])
             no_c__.append(i)
             cost_node4.append(costnode_0[i])
             continue
