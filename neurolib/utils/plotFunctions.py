@@ -610,6 +610,8 @@ def plot_control_current(model, control_array, cost_node_array, weights_array, t
     
     for c_ind in range(len(control_array)):
         
+        print('------- c_ind', c_ind)
+        
         control_ = control_array[c_ind]
         model.run(control=control_)
         
@@ -667,6 +669,8 @@ def plot_control_current(model, control_array, cost_node_array, weights_array, t
                             + r' $V^{-1} \sqrt{s}$' + r'$ = {:,.0f}$'.format(cs_[1][1]) )
                                
         for i in range(columns):
+            
+            print(model.t.shape, control_[0,i,:].shape)
                         
             ax[1,i].plot(model.t, control_[0,i,:] * control_factor, linewidth = 1., color=colors_[c_ind+2] ) # divide by five to take into account capacitance
             ax[1,i].set(xlabel='t [ms]', ylabel=y_labels_control[1])
