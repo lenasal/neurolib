@@ -275,7 +275,11 @@ def get_target(model, x_, y_, case_):
     
         model.params.duration = 3000.
     
-        if case_[0] == '0':
+        if case_ in ['1', '2']:
+            maxI = 3.
+        elif case_ in ['3', '4']:
+            maxI = -3.
+        elif case_[0] == '0':
             maxI = 3.
         else:
             maxI = -3.
@@ -328,10 +332,11 @@ def read_data(model, readpath, case):
     if readpath[-1] == os.sep:
         readpath = readpath[:-1]
     
-    if readpath[-3] == '0':
-        readpath_final = readpath[-2:]
-        readpath = readpath[:-3]
-        readpath = readpath + '1' + readpath_final    
+    if len(readpath) > 4:
+        if readpath[-3] == '0':
+            readpath_final = readpath[-2:]
+            readpath = readpath[:-3]
+            readpath = readpath + '1' + readpath_final    
     
     if not Path(readpath + file_).is_file():
         print("data not found")
@@ -372,6 +377,9 @@ def read_data(model, readpath, case):
         0.5 * np.abs(np.mean(bestState_0[i][0,1,:50]) - target_rates[1]) ):
             no_c__.append(i)
             cost_node4.append(costnode_0[i])
+            #print(i, 'no solution')
+            #print(np.mean(bestState_0[i][0,0,-50:]), np.mean(bestState_0[i][0,0,:50]))
+            #print(target_rates)
             continue
             
         elif np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8:
@@ -460,24 +468,38 @@ def read_data(model, readpath, case):
             cost_node1, cost_node2, cost_node3, cost_node4]
 
 def read_control(readpath, case):
-        
+    
+    print(readpath, case)
+    
     if readpath[-1] == os.sep:
         readpath = readpath[:-1]
     
-    if readpath[-3] == '0':
-        readpath_final = readpath[-2:]
-        readpath = readpath[:-3]
-        readpath = readpath + '1' + readpath_final
+    if case in ['1', '2', '3', '4']:
+        readfile = readpath + os.sep + 'control_' + case + '_init.pickle'
+    elif case == '':
+        readfile = readpath + os.sep + 'control_init.pickle'
+    else:        
+        if readpath[-3] == '0':
+            readpath_final = readpath[-2:]
+            readpath = readpath[:-3]
+            readpath = readpath + '1' + readpath_final
+            
+        readfile = readpath + os.sep + 'control_init_' + case[0] + case[1] + '1' + case[3] + case[4] + '.pickle'
                 
-    with open(readpath + os.sep + 'control_init_' + case[0] + case[1] + '1' + case[3] + case[4] + '.pickle','rb') as file:
+    with open(readfile,'rb') as file:
         load_array = pickle.load(file)
 
     bestControl_init = load_array[0]
     costnode_init = load_array[6]
     
-    readfile = 'control_' + str(case) + '.pickle'
+    if case in ['1', '2', '3', '4']:
+        readfile = readpath + os.sep + 'control_' + str(case) + '.pickle'
+    elif case == '':
+        readfile = readpath + os.sep + 'control.pickle'
+    else:
+        readfile = readpath + os.sep + 'control_' + str(case) + '.pickle'
     
-    with open(readpath + os.sep + readfile,'rb') as file:
+    with open(readfile,'rb') as file:
         load_array = pickle.load(file)
 
     bestControl_ = load_array[0]
