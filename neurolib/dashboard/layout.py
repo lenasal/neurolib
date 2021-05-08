@@ -503,6 +503,45 @@ def get_updatemenus():
     button4.update(y=y_buttons-4.*dist_buttons)       
     
     return [button0, button1, button2, button3, button4]
+
+def get_updatemenus_final():
+    
+    # relayout: args properties of annotation
+    # update: args properties of data
+    # animate: args properties of data
+    # restyle:
+    
+    button0 = get_button()
+    button0.update(buttons=list([
+                dict(
+                    args=[{'updatemenus[0].active':0}],
+                    label="Low to high",
+                    method="relayout",
+                ),
+                dict(
+                    args=[{'updatemenus[0].active':1}],
+                    label="High to low",
+                    method="relayout",
+                ),
+                ]))
+    button0.update(y=y_buttons)
+    
+    button1 = get_button()
+    button1.update(buttons=list([
+                dict(
+                    args=[{'updatemenus[1].active':0}],
+                    label="Sparsity",
+                    method="relayout"
+                ),
+                dict(
+                    args=[{'updatemenus[1].active':1}],
+                    label="Energy",
+                    method="relayout"
+                ),
+            ]))
+    button1.update(y=y_buttons-dist_buttons)     
+    
+    return [button0, button1]
         
 def get_img(img_path, control_case, index):
     img_source = img_path + str(control_case) + os.sep + str(index) + '.png'

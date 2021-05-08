@@ -29,7 +29,7 @@ def timeIntegration(params, control):
     :return: Integrated activity variables of the model
     :rtype: (numpy.ndarray,)
     """
-
+    
     dt = params["dt"]  # Time step for the Euler intergration (ms)
     duration = params["duration"]  # imulation duration (ms)
     RNGseed = params["seed"]  # seed for RNG
@@ -144,7 +144,7 @@ def timeIntegration(params, control):
     interpolate_rate = params["interpolate_rate"]
     interpolate_V = params["interpolate_V"]
     interpolate_tau = params["interpolate_tau"]
-    
+        
     #print("interpolate integration : ", interpolate_rate, interpolate_V, interpolate_tau)
 
     # ------------------------------------------------------------------------
@@ -220,7 +220,7 @@ def timeIntegration(params, control):
     
         mue_ou[n,:startind] = params["mue_ou"][n]  # Mean of external exc OU input (mV/ms)
         mui_ou[n,:startind] = params["mui_ou"][n]  # Mean of external inh ON inout (mV/ms)
-
+        
     # Set the initial firing rates.
     # if initial values are just N array:
     if type(params["rates_exc_init"]) is not type(np.array([])):
@@ -276,7 +276,7 @@ def timeIntegration(params, control):
     ext_ii_rate = adjust_shape(params["ext_ii_rate"], rates_exc)
     
     control_ext = control.copy()
-
+    
     # ------------------------------------------------------------------------
 
     return timeIntegration_njit_elementwise(
@@ -468,7 +468,7 @@ def timeIntegration_njit_elementwise(
     interpolate_V,
     interpolate_tau,
 ):
-
+    
     # squared Jee_max
     sq_Jee_max = Jee_max ** 2
     sq_Jei_max = Jei_max ** 2
@@ -480,7 +480,7 @@ def timeIntegration_njit_elementwise(
     rd_inh_rhs = 0.0
     sigmae_f_rhs = 0.0
     sigmai_f_rhs = 0.0
-    
+        
     sigmae_f = np.zeros((N, startind + len(t)))
     sigmai_f = np.zeros((N, startind + len(t)))
     Vmean_exc = np.zeros((N, startind + len(t)))
