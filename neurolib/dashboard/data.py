@@ -135,10 +135,15 @@ def DC_trace(model, x_, y_, start_, dur_, amp_, sim_dur, case_, trans_time_, wei
     
     model.params.duration = 3000.
     
-    if case_[0] == '0':
+    if case_ in ['1', '2']:
+        maxI = 3.
+    elif case_ in ['3', '4']:
+        maxI = -3.
+    elif case_[0] == '0':
         maxI = 3.
     else:
         maxI = -3.
+            
     control0 = model.getZeroControl()
     control0 = functions.step_control(model, maxI_ = maxI)
     model.run(control=control0)
@@ -175,6 +180,9 @@ def DC_trace(model, x_, y_, start_, dur_, amp_, sim_dur, case_, trans_time_, wei
     state0_ = model.getZeroState()
     state0_[0,0,:] = model.rates_exc[0,:]
     state0_[0,1,:] = model.rates_inh[0,:]
+    
+    #print(state0_[0,0,0], state0_[0,0,-1], state0_[0,1,0], state0_[0,1,-1])
+    #print(target_[0,0,0], target_[0,1,0])
         
     prec_variables = [0]
     
@@ -273,14 +281,19 @@ def get_target(model, x_, y_, case_):
         model.params.mue_ext_mean = x_ * 5.
         model.params.mui_ext_mean = y_ * 5.
     
-        model.params.duration = 3000.
+        model.params.duration = 3.
     
-        if case_[0] == '0':
+        if case_ in ['1', '2']:
+            maxI = 3.
+        elif case_ in ['3', '4']:
+            maxI = -3.
+        elif case_[0] == '0':
             maxI = 3.
         else:
             maxI = -3.
         control0 = model.getZeroControl()
         control0 = functions.step_control(model, maxI_ = maxI)
+        
         model.run(control=control0)
 
         target_rates = np.zeros((2))
@@ -328,10 +341,11 @@ def read_data(model, readpath, case):
     if readpath[-1] == os.sep:
         readpath = readpath[:-1]
     
-    if readpath[-3] == '0':
-        readpath_final = readpath[-2:]
-        readpath = readpath[:-3]
-        readpath = readpath + '1' + readpath_final    
+    if len(readpath) > 4:
+        if readpath[-3] == '0':
+            readpath_final = readpath[-2:]
+            readpath = readpath[:-3]
+            readpath = readpath + '1' + readpath_final    
     
     if not Path(readpath + file_).is_file():
         print("data not found")
@@ -363,15 +377,18 @@ def read_data(model, readpath, case):
             #print(i, " not checked yet")
             not_checked.append(i)
             continue
-        
+          
         target_rates = get_target(model, ext_exc[i], ext_inh[i], case)
-            
+                    
         if ( np.abs(np.mean(bestState_0[i][0,0,-50:]) - target_rates[0]) >
         0.3 * np.abs(np.mean(bestState_0[i][0,0,:50]) - target_rates[0])
         or np.abs(np.mean(bestState_0[i][0,1,-50:]) - target_rates[1]) >
         0.5 * np.abs(np.mean(bestState_0[i][0,1,:50]) - target_rates[1]) ):
             no_c__.append(i)
             cost_node4.append(costnode_0[i])
+            #print(i, 'no solution')
+            #print(np.mean(bestState_0[i][0,0,-50:]), np.mean(bestState_0[i][0,0,:50]))
+            #print(target_rates)
             continue
             
         elif np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8:
@@ -460,30 +477,46 @@ def read_data(model, readpath, case):
             cost_node1, cost_node2, cost_node3, cost_node4]
 
 def read_control(readpath, case):
-        
+    
+    print('case = ', readpath, case)
+    
     if readpath[-1] == os.sep:
         readpath = readpath[:-1]
     
-    if readpath[-3] == '0':
-        readpath_final = readpath[-2:]
-        readpath = readpath[:-3]
-        readpath = readpath + '1' + readpath_final
+    
+    if case in ['1', '2', '3', '4']:
+        readfile = readpath + os.sep + 'control_' + case + '_init.pickle'
+    elif case == '':
+        readfile = readpath + os.sep + 'control_init.pickle'
+    else:        
+        if readpath[-3] == '0':
+            readpath_final = readpath[-2:]
+            readpath = readpath[:-3]
+            readpath = readpath + '1' + readpath_final
+            
+        readfile = readpath + os.sep + 'control_init_' + case[0] + case[1] + '1' + case[3] + case[4] + '.pickle'
+        
                 
-    with open(readpath + os.sep + 'control_init_' + case[0] + case[1] + '1' + case[3] + case[4] + '.pickle','rb') as file:
+    with open(readfile,'rb') as file:
         load_array = pickle.load(file)
 
     bestControl_init = load_array[0]
     costnode_init = load_array[6]
     
-    readfile = 'control_' + str(case) + '.pickle'
+    if case in ['1', '2', '3', '4']:
+        readfile = readpath + os.sep + 'control_' + str(case) + '.pickle'
+    elif case == '':
+        readfile = readpath + os.sep + 'control.pickle'
+    else:
+        readfile = readpath + os.sep + 'control_' + str(case) + '.pickle'
     
-    with open(readpath + os.sep + readfile,'rb') as file:
+    with open(readfile,'rb') as file:
         load_array = pickle.load(file)
 
     bestControl_ = load_array[0]
     bestState_ = load_array[1]
     costnode_ = load_array[6]
-    
+        
     return [bestControl_init, costnode_init, bestControl_, bestState_, costnode_]
 
 def get_scatter_data(exc_1, inh_1, exc_2, inh_2, exc_3, inh_3, exc_4, inh_4):
