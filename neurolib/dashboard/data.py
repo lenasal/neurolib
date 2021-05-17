@@ -1,5 +1,6 @@
 import numpy as np
 import plotly.graph_objs as go
+import matplotlib.pyplot as plt
 import pickle
 import os
 from pathlib import Path
@@ -281,7 +282,7 @@ def get_target(model, x_, y_, case_):
         model.params.mue_ext_mean = x_ * 5.
         model.params.mui_ext_mean = y_ * 5.
     
-        model.params.duration = 3.
+        model.params.duration = 3000.
     
         if case_ in ['1', '2']:
             maxI = 3.
@@ -377,7 +378,7 @@ def read_data(model, readpath, case):
             #print(i, " not checked yet")
             not_checked.append(i)
             continue
-          
+                  
         target_rates = get_target(model, ext_exc[i], ext_inh[i], case)
                     
         if ( np.abs(np.mean(bestState_0[i][0,0,-50:]) - target_rates[0]) >
