@@ -6,31 +6,36 @@ import os
 
 #### MEASURES FOR FIGURE LAYOUT
 
-dashboard_width = 1200 * 0.8
-dashboard_height = 1000 * 0.8
+bifurcation_width = 700.
+bifurcation_height = 1000.
+
+traces_width = 600.
+traces_height = 300.
+
 x_plotrange = [0.,0.7]
 y_plotrange = [0.,1.]
 
 grid_resolution = 0.025
+grid_resolution_granular = 0.005
 
-x1_axis_end = 0.4
-y1_axis_end = x1_axis_end * ( dashboard_width / dashboard_height ) * ( y_plotrange[1] / x_plotrange[1] )
+x1_axis_end = 1.
+y1_axis_end = x1_axis_end * ( bifurcation_width / bifurcation_height ) * ( y_plotrange[1] / x_plotrange[1] )
 
 legend_x = x1_axis_end - 0.01
 legend_y = 0.01
 
 info_x = 0.
 info_y = 1.
-label_bistable_x = x1_axis_end * 0.63
-label_bistable_y = y1_axis_end * 0.75
-label_LC_x = x1_axis_end * 0.35
-label_LC_y = y1_axis_end * 0.15
-label_oscup_x = x1_axis_end * 0.34
-label_oscup_y = y1_axis_end * 0.3
-label_down_x = x1_axis_end * 0.2
-label_down_y = y1_axis_end * 0.6
-label_up_x = x1_axis_end * 0.75
-label_up_y = y1_axis_end * 0.3
+label_bistable_x = 0.78
+label_bistable_y = 0.75
+label_LC_x = 0.35
+label_LC_y = 0.15
+label_oscup_x = 0.48
+label_oscup_y = 0.3
+label_down_x = 0.3
+label_down_y = 0.5
+label_up_x = 0.75
+label_up_y = 0.25
 
 time_axis_length = 0.26
 y2_axis_height = 0.24
@@ -59,6 +64,10 @@ control_trace_size = 0.6
 
 markersize = 8
 background_markersize = 18
+
+step_current_duration = 2000.
+max_step_current = 3.
+simulation_duration = 400.
 
 
 def get_rgb_string_from_rgba(rgba_val):
@@ -95,9 +104,6 @@ font_buttons = dict(
         size=buttons_fontsize,
         color=darkgrey,
         )
-
-step_current_duration = 2000.
-max_step_current = 3.
 
 
 ##### LABELS
@@ -270,11 +276,11 @@ def boundary_path(p_e, p_i):
     polygon = polygon + ("Z")
     return polygon
 
-def get_layout():
+def get_layout_bifurcation():
     return go.Layout(
-    width = dashboard_width,
-    height = dashboard_height,
-    margin=dict(l=10, r=40, t=10, b=10, pad=0),
+    width = bifurcation_width,
+    height = bifurcation_height,
+    margin=dict(l=10, r=10, t=10, b=10, pad=0),
     paper_bgcolor=midgrey,
     plot_bgcolor=lightgrey,
     hovermode='closest',
@@ -287,7 +293,7 @@ def get_layout():
     #title=dict(text="Case 00000",font=dict(size=1,color=midgrey),pad=dict(l=2, r=2, t=2, b=2),),
     #legend_title="Legend Title",
     xaxis=dict(
-        domain=[0, x1_axis_end],
+        domain=[0., 1.],
         range=x_plotrange,
         constrain="domain",
         tick0=0.,
@@ -299,7 +305,7 @@ def get_layout():
                   ),
     ),
     yaxis=dict(
-        domain=[0,y1_axis_end],
+        domain=[0., 1.],
         range=y_plotrange,
         #scaleanchor = "x",
         scaleratio = 1,
@@ -312,8 +318,26 @@ def get_layout():
                   ),
         
     ),
-    xaxis2=dict(
-        domain=[x2_axis_start, x2_axis_end],
+    )
+
+def get_layout_exc():
+    
+    return go.Layout(
+    width = traces_width,
+    height = traces_height,
+    margin=dict(l=10, r=10, t=50, b=10, pad=0),
+    paper_bgcolor=midgrey,
+    plot_bgcolor=lightgrey,
+    hovermode='closest',
+    legend=dict(
+        yanchor="bottom",
+        y=legend_y,
+        xanchor="right",
+        x=legend_x,
+    ),
+    title=dict(text="Excitatory node",font=dict(size=24,color=darkgrey),pad=dict(l=00, r=2, t=2, b=2)),
+    xaxis=dict(
+        domain=[0., 1.],
         range=[0.,step_current_duration],
         constrain="domain",
         tick0=0.,
@@ -323,31 +347,14 @@ def get_layout():
             text="Simulation time [ms]",
             standoff=0.,
                   ),
-        position=y3_axis_start,
+        position=0.,
         zeroline=True,
         zerolinecolor=darkgrey,
-        zerolinewidth=1,
-        
-    ),
-    xaxis3=dict(
-        domain=[x3_axis_start, x3_axis_end],
-        range=[0.,step_current_duration],
-        constrain="domain",
-        tick0=0.,
-        dtick=step_current_duration/5.,
-        gridcolor=midgrey,
-        title=dict(
-            text="Simulation time [ms]",
-            standoff=0.,
-                  ),
-        position=y3_axis_start,
-        zeroline=True,
-        zerolinecolor=darkgrey,
-        zerolinewidth=1,
-    ),
-    yaxis2=dict(
-        domain=[y3_axis_start,y3_axis_end],
-        anchor="x2",
+        zerolinewidth=1, 
+    ), 
+    yaxis=dict(
+        domain=[0., 1.],
+        anchor="x",
         range=[-max_step_current-1., max_step_current+1.],
         constrain="domain",
         tick0=0.,
@@ -361,12 +368,11 @@ def get_layout():
         zeroline=True,
         zerolinecolor=darkgrey,
         zerolinewidth=1,
-        #overlaying="y",
     ),
-    yaxis3=dict(
-        domain=[y3_axis_start,y3_axis_end],
-        anchor="x2",
-        range=[-0.,200.],
+    yaxis2=dict(
+        domain=[0., 1.],
+        anchor="x",
+        range=[0.,200.],
         constrain="domain",
         tick0=0.,
         dtick=25.,
@@ -379,7 +385,89 @@ def get_layout():
         zeroline=True,
         zerolinecolor=darkgrey,
         zerolinewidth=1,
-        overlaying="y2",
+        overlaying="y",
+    ),
+    )
+
+def get_layout_cntrl_exc():
+    
+    return go.Layout(
+    width = traces_width,
+    height = 2. * traces_height,
+    margin=dict(l=10, r=10, t=50, b=10, pad=0),
+    paper_bgcolor=midgrey,
+    plot_bgcolor=lightgrey,
+    hovermode='closest',
+    legend=dict(
+        yanchor="bottom",
+        y=legend_y,
+        xanchor="right",
+        x=legend_x,
+    ),
+    title=dict(text="Excitatory node",font=dict(size=24,color=darkgrey),pad=dict(l=0, r=2, t=2, b=2)),
+    xaxis=dict(
+        domain=[0., 1.],
+        range=[0.,simulation_duration],
+        constrain="domain",
+        tick0=0.,
+        dtick=simulation_duration/8.,
+        gridcolor=midgrey,
+        title=dict(
+            text="Simulation time [ms]",
+            standoff=0.,
+                  ),
+        position=0.,
+        zeroline=True,
+        zerolinecolor=darkgrey,
+        zerolinewidth=1, 
+    ), 
+    yaxis=dict(
+        domain=[0.55, 1.],
+        anchor="x",
+        range=[0., 75.],
+        constrain="domain",
+        tick0=0.,
+        dtick=25.,
+        gridcolor=midgrey,
+        title=dict(
+            text="Activity [Hz]",
+            standoff=0.,
+                  ),
+        zeroline=True,
+        zerolinecolor=darkgrey,
+        zerolinewidth=1,
+    ),
+    xaxis2=dict(
+        domain=[0., 1.],
+        range=[0.,simulation_duration],
+        constrain="domain",
+        tick0=0.,
+        dtick=simulation_duration/8.,
+        gridcolor=midgrey,
+        title=dict(
+            text="Simulation time [ms]",
+            standoff=0.,
+                  ),
+        position=0.,
+        zeroline=True,
+        zerolinecolor=darkgrey,
+        zerolinewidth=1, 
+    ),
+    yaxis2=dict(
+        domain=[0., 0.45],
+        anchor="x",
+        range=[-0.2,2.],
+        constrain="domain",
+        tick0=0.,
+        dtick=0.4,
+        gridcolor=midgrey,
+        title=dict(
+            text="Control current [nA]",
+            standoff=10.,
+                  ),
+        zeroline=True,
+        zerolinecolor=darkgrey,
+        zerolinewidth=1,
     ),
     )
 
@@ -432,77 +520,9 @@ def get_updatemenus():
                     method="relayout"
                 ),
             ]))
-    button1.update(y=y_buttons-dist_buttons)
+    button1.update(y=y_buttons-dist_buttons)     
     
-    button2 = get_button()
-    button2.update(buttons=list([
-                dict(
-                    args=[{'updatemenus[2].active':0}],
-                    label='p = e, s',
-                    method="relayout"
-                ),
-                dict(
-                    args=[{'updatemenus[2].active':1}],
-                    label='e, s = max',
-                    method="relayout"
-                ),
-            ]))
-    button2.update(y=y_buttons-2.*dist_buttons)
-    
-    button3 = get_button()
-    button3.update(buttons=list([
-                dict(
-                    args=[{'updatemenus[3].active':0}],
-                    label="Excitatory node",
-                    method="relayout"
-                ),
-                dict(
-                    args=[{'updatemenus[3].active':1}],
-                    label="Inhibitory node",
-                    method="relayout"
-                ),
-                dict(
-                    args=[{'updatemenus[3].active':2}],
-                    label="Two-node",
-                    method="relayout"
-                ),
-                dict(
-                    args=[{'updatemenus[3].active':3}],
-                    label="100ms exc",
-                    method="relayout",
-                    visible = False,
-                ),
-                dict(
-                    args=[{'updatemenus[3].active':4}],
-                    label="100ms inh",
-                    method="relayout",
-                    visible = False,
-                ),
-                dict(
-                    args=[{'updatemenus[3].active':5}],
-                    label="100ms two-node",
-                    method="relayout",
-                    visible = False,
-                ),
-            ]))
-    button3.update(y=y_buttons-3.*dist_buttons)
-    
-    button4 = get_button()
-    button4.update(buttons=list([
-                dict(
-                    args=[{'updatemenus[4].active':0}],
-                    label="100 ms",
-                    method="relayout"
-                ),
-                dict(
-                    args=[{'updatemenus[4].active':1}],
-                    label="400 ms",
-                    method="relayout"
-                ),
-            ]))
-    button4.update(y=y_buttons-4.*dist_buttons)       
-    
-    return [button0, button1, button2, button3, button4]
+    return [button0, button1]
 
 def get_updatemenus_final():
     
@@ -569,8 +589,8 @@ def get_empty_traces():
     trace10 = go.Scatter(
         x=[],
         y=[],
-        xaxis="x2",
-        yaxis="y3",
+        xaxis="x",
+        yaxis="y2",
         name="Excitatory activity",
         line_color='rgba' + str(cmap(3)),
         showlegend=False,
@@ -579,14 +599,60 @@ def get_empty_traces():
     trace11 = go.Scatter(
         x=[],
         y=[],
-        xaxis="x3",
-        yaxis="y3",
+        xaxis="x",
+        yaxis="y2",
         name="Inhibitory activity",
         line_color='rgba' + str(cmap(0)),
         showlegend=False,
         hoverinfo='x+y',
     )
     return trace10, trace11
+
+def get_empty_state():
+    state_e = go.Scatter(
+        x=[],
+        y=[],
+        xaxis="x",
+        yaxis="y",
+        name="Excitatory activity",
+        line_color='rgba' + str(cmap(3)),
+        showlegend=False,
+        hoverinfo='x+y',
+    )
+    state_i = go.Scatter(
+        x=[],
+        y=[],
+        xaxis="x",
+        yaxis="y",
+        name="Inhibitory activity",
+        line_color='rgba' + str(cmap(0)),
+        showlegend=False,
+        hoverinfo='x+y',
+    )
+    return state_e, state_i
+
+def get_empty_control():
+    cntrl_e = go.Scatter(
+        x=[],
+        y=[],
+        xaxis="x2",
+        yaxis="y2",
+        name="Control current to excitatory node",
+        line_color='rgba' + str(cmap(3)),
+        showlegend=False,
+        hoverinfo='x+y',
+    )
+    cntrl_i = go.Scatter(
+        x=[],
+        y=[],
+        xaxis="x2",
+        yaxis="y2",
+        name="Control current to inhibitory node",
+        line_color='rgba' + str(cmap(0)),
+        showlegend=False,
+        hoverinfo='x+y',
+    )
+    return cntrl_e, cntrl_i
 
 def get_bistable_paths(boundary_bi_exc, boundary_bi_inh):
     return dict(
@@ -609,7 +675,7 @@ def get_osc_path(boundary_LC_exc, boundary_LC_inh):
         layer="below",
     )
 
-"""
+
 def get_LC_up_path(boundary_LC_up_exc, boundary_LC_up_inh):
     return dict(
         type="path",
@@ -617,22 +683,6 @@ def get_LC_up_path(boundary_LC_up_exc, boundary_LC_up_inh):
         fillcolor=color_bi_uposc,
         line_color=color_bi_uposc,
         line_width=1.,
-        opacity=0.2,
-        layer="below",
-    )
-"""
-
-def get_LC_up_path(boundary_LC_up_exc, boundary_LC_up_inh):
-    radius = 0.01
-    return dict(
-        type="circle",
-        x0=boundary_LC_up_exc[0]-radius,
-        x1=boundary_LC_up_exc[0]+radius,
-        y0=boundary_LC_up_inh[0]-radius,
-        y1=boundary_LC_up_inh[0]+radius,
-        fillcolor=color_bi_uposc,
-        line_color=color_bi_uposc,
-        #line_width=1.,
         opacity=0.2,
         layer="below",
     )
