@@ -1,6 +1,10 @@
 import unittest
 import numpy as np
-import random
+import os, sys
+
+path = os.getcwd().split(os.sep +'neurolib')[0] + os.sep + 'neurolib'
+if path not in sys.path:
+    sys.path.append(path)
 
 from neurolib.utils import costFunctions as cost
 import test_control_functions as func
@@ -33,9 +37,9 @@ variation = [
               #############################
               # 1- dimensional output
               # 1-dimensional input
-              #[[0],[0],1,False,0,1.8],
-              #[[0],[0],1,True,-1,3.6], 
-              #[[0],[1],4,False,1,2.6],
+              [[0],[0],1,False,0,1.8],
+              [[0],[0],1,True,-1,3.6], 
+              [[0],[1],4,False,1,2.6],
               #[[0],[1],4,True,1,4.4],
               #[[1],[0],4,False,3,2.6],
               #[[1],[0],4,True,3,4.4], 
@@ -45,18 +49,18 @@ variation = [
               #[[2],[0],1,True,0,3.6], 
               #[[2],[1],4,False,2,2.6],
               #[[2],[1],4,True,0,4.4],
-              [[3],[0],1,False,0,0.8],   # 3 : ei
-              [[3],[0],1,True,0,3.6], 
-              [[3],[1],4,False,2,2.6],
-              [[3],[1],4,True,0,4.4],
-              [[4],[0],1,False,0,1.8],   # 4 : ie
-              [[4],[0],1,True,0,3.6], 
-              [[4],[1],4,False,2,2.6],
-              [[4],[1],4,True,0,4.4],
-              [[5],[0],1,False,0,0.8],   # 5 : ii
-              [[5],[0],1,True,0,3.6], 
-              [[5],[1],4,False,2,2.6],
-              [[5],[1],4,True,0,4.4],
+              #[[3],[0],1,False,0,0.8],   # 3 : ei
+              #[[3],[0],1,True,0,3.6], 
+              #[[3],[1],4,False,2,2.6],
+              #[[3],[1],4,True,0,4.4],
+              #[[4],[0],1,False,0,1.8],   # 4 : ie
+              #[[4],[0],1,True,0,3.6], 
+              #[[4],[1],4,False,2,2.6],
+              #[[4],[1],4,True,0,4.4],
+              #[[5],[0],1,False,0,0.8],   # 5 : ii
+              #[[5],[0],1,True,0,3.6], 
+              #[[5],[1],4,False,2,2.6],
+              #[[5],[1],4,True,0,4.4],
               # 2-dimensional input
               #[[0,1],[0],4,False,0, 2.6],
               #[[0,1],[0],4,True,-1, 4.4],
@@ -154,7 +158,7 @@ class TestA1(unittest.TestCase):
                 
         c_max, c_min = func.setmaxmincontrol(cntrl_var, c_controlmax, c_controlmin, r_controlmax, r_controlmin)
                            
-        A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad, A1_phi = model.A1(control2, target, c_scheme, u_mat,
+        A1_bestControl, A1_bestState, A1_cost, A1_runtime, A1_grad, A1_phi, A1_costnode = model.A1(control2, target, c_scheme, u_mat,
                             u_scheme, max_iteration_ = max_iteration, tolerance_ = algorithm_tolerance, startStep_ = start_step,
                             max_control_ = c_max, min_control_ = c_min, t_sim_ = duration, t_sim_pre_ = dur_pre, t_sim_post_ = dur_post,
                             CGVar = cgv, control_variables_ = cntrl_var, prec_variables_ = prec_var)        
