@@ -244,11 +244,12 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
         line_search_func = fo.step_size
         
     while( i < max_iteration_ ):
+
+        #print(target_state_[:,:,::100])
         
         for ind_time in range(T):
-            f_p_grad_t_ = cost.cost_precision_gradient_t2(N, V_target, T, ind_time, state0_[:,:2,ind_time],
-                                                         target_state_[:,:,ind_time], ip_)
-            #f_p_grad_t_ = cost.cost_precision_gradient_t(N, V_target, state0_[:,:2,ind_time], target_state_[:,:,ind_time], ip_)
+            #f_p_grad_t_ = cost.cost_precision_gradient_t2(N, V_target, T, ind_time, state0_[:,:2,ind_time], target_state_[:,:,ind_time], ip_)
+            f_p_grad_t_ = cost.cost_precision_gradient_t(N, V_target, state0_[:,:2,ind_time], target_state_[:,:,ind_time], ip_)
             for v in prec_variables:
                 full_cost_grad[0,v,ind_time] = f_p_grad_t_[0,v] 
          
@@ -316,17 +317,6 @@ def A1(model, control_, target_state, c_scheme_, u_mat_, u_scheme_, max_iteratio
             print("Cost negligibly small.")
             max_iteration_ = i
             break
-        
-        if False:
-            from_ = 900
-            to_ = -1
-            print("adj exc rate =", phi0_[0,0,from_:to_])
-            print("adj inh rate =", phi0_[0,1,from_:to_])
-            print("adj mue =", phi0_[0,2,from_:to_])
-            print("adj mui =", phi0_[0,3,from_:to_])
-            print("adj sigma e =", phi0_[0,15,from_:to_])
-            print("adj sigma i =", phi0_[0,16,from_:to_])
-            print("adj s ie =", phi0_[0,7,from_:to_])
             
         i += 1   
         

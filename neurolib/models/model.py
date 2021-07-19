@@ -7,7 +7,6 @@ from ..models import bold
 from ..utils.collections import dotdict
 from ..utils import costFunctions as cost
 from ..utils import A1_fhn as opti1_fhn
-from ..utils import A1_aln_control as opti1_aln_control
 from ..utils import A1_aln_rate_control as opti1_rate_control
 
 from ..utils import A2 as opti2
@@ -660,9 +659,6 @@ class Model:
             return opti1_rate_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
                                         tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar,
                                         line_search_, control_variables_, prec_variables_, separate_comp, transition_time_)
-        elif self.name == "aln-control":
-            return opti1_aln_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
-                                    tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar)
         elif self.name == "rate_control":
             return opti1_rate_control.A1(self, control_, target_state_, c_scheme_, u_mat_, u_scheme_, max_iteration_,
                                         tolerance_, startStep_, max_control_, min_control_, t_sim_, t_sim_pre_, t_sim_post_, CGVar,

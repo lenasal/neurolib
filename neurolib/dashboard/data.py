@@ -126,7 +126,7 @@ def setinit(model, init_vars_):
                     model.params[init_vars[iv]][0] = init_vars_[sv]
     
 def DC_trace(model, x_, y_, start_, dur_, amp_, sim_dur, case_, trans_time_, weights,
-             optimal_control, optimal_cost_node, optimal_weights, plot_ = False, max_it = 0):
+             optimal_control=None, optimal_cost_node=None, optimal_weights=None, plot_ = False, max_it = 0):
     
     dt = model.params.dt
 
@@ -169,10 +169,12 @@ def DC_trace(model, x_, y_, start_, dur_, amp_, sim_dur, case_, trans_time_, wei
     target_[:,0,:] = target_rates[0]
     target_[:,1,:] = target_rates[1]
         
-    int_start = int( start_ / dt )
-    int_stop = int_start + int( dur_ / dt )
+    int_start = int( start_[0] / dt )
+    int_stop = int_start + int( dur_[0] / dt )
     DC_control_ = model.getZeroControl()
     DC_control_[0,0,int_start:int_stop] = amp_[0]
+    int_start = int( start_[1] / dt )
+    int_stop = int_start + int( dur_[1] / dt )
     DC_control_[0,1,int_start:int_stop] = amp_[1]
 
     setinit(model, init_state_vars)
@@ -201,10 +203,11 @@ def DC_trace(model, x_, y_, start_, dur_, amp_, sim_dur, case_, trans_time_, wei
     
     if max_it == 0:
         if plot_:
-            plotFunc.plot_control_current(model, [DC_control_, optimal_control],
-                [cost_node, optimal_cost_node], [weights, optimal_weights, weights], sim_dur,
+            plotFunc.plot_control_current(model, [DC_control_],
+                [cost_node], [weights], sim_dur,
                 0., 0., init_state_vars, target_, '', filename_ = '', transition_time_ = trans_time_,
                 labels_ = ["DC control", "Optimal control"], print_cost_=False)
+            plt.show()
     
         return cost_node, DC_control_
     
@@ -534,7 +537,7 @@ def read_data_1(model, readpath, case):
             type_[i] = 4
             continue
         
-        cost_node[i] = costnode_0
+        cost_node[i] = costnode_0[i]
         
         target_high[i] = get_target(model, ext_exc[i], ext_inh[i], '1')
         target_low[i] = get_target(model, ext_exc[i], ext_inh[i], '3')
@@ -548,13 +551,13 @@ def read_data_1(model, readpath, case):
             type_[i] = 3
             continue
             
-        elif np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8:
+        elif np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-6 and np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-6:
             type_[i] = 0
-        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-8:
+        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-6 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-6:
             type_[i] = 1
-        elif np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-8:
+        elif np.amax(np.abs(bestControl_0[i][0,0,:])) > 1e-6 and np.amax(np.abs(bestControl_0[i][0,1,:])) > 1e-6:
             type_[i] = 2
-        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-8 and np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-8:
+        elif np.amax(np.abs(bestControl_0[i][0,0,:])) < 1e-6 and np.amax(np.abs(bestControl_0[i][0,1,:])) < 1e-6:
             type_[i] = 3
             continue
         else:
@@ -578,6 +581,9 @@ def get_width(node_control_, dt):
     start_ind = 0
     stop_ind = 0
     max_ = np.amax(np.abs(node_control_))
+    if max_ < 1e-4:
+        return 0.
+
     for t in range(len(node_control_)):
         if start_ind == 0:
             if np.abs(node_control_[t]) >= max_/2.:
@@ -588,8 +594,53 @@ def get_width(node_control_, dt):
                 stop_ind = t
                 break
             
-    width = (stop_ind - start_ind) / dt
+    width = (stop_ind - start_ind) * dt
     return width
+
+def get_ufp(state_, case_):
+    ufp_ = [0., 0.]
+
+    for node_ in [0,1]:
+        start_index = 0.
+        stop_index = 0.
+        for t in range(state_.shape[2] - 100):
+            if case_ in [0,1]:
+                if state_[0,node_,t] - state_[0,node_,0] < 1.:
+                    continue
+            elif case_ in [2,3]:
+                if - state_[0,node_,t] + state_[0,node_,0] < 1.:
+                    continue
+            if start_index == 0.:
+                start_ = True
+                for t1 in range(100):
+                    if np.abs(state_[0,node_,t] - state_[0,node_,t+t1]) > 1e-1:
+                        start_ = False
+                if start_:
+                    start_index = t
+            elif start_index != 0.:
+                if np.abs(state_[0,node_,t] - state_[0,node_,t+100]) > 1e-1:
+                    stop_index = t + 100
+                    break
+        #print(start_index, stop_index)
+        if stop_index != 0.:
+            ufp_[node_] = np.mean(state_[0,node_,start_index:stop_index])
+
+    if ufp_[0] == 0. or ufp_[1] == 0.:
+        return [0., 0.]
+
+    return ufp_
+
+def read_control_tradeoff(readpath, case):
+    
+    print('case = ', readpath, case)
+
+    with open(readpath,'rb') as file:
+        load_array = pickle.load(file)
+
+    bestControl_ = load_array[0]
+    bestState_ = load_array[1]
+    costnode_ = load_array[6]
+    return [bestControl_, bestState_, costnode_]
         
 
 def read_control(readpath, case):
@@ -597,8 +648,7 @@ def read_control(readpath, case):
     print('case = ', readpath, case)
     
     if readpath[-1] == os.sep:
-        readpath = readpath[:-1]
-    
+        readpath = readpath[:-1]    
     
     if case in ['1', '2', '3', '4']:
         readfile = readpath + os.sep + 'control_' + case + '_init.pickle'
@@ -861,6 +911,25 @@ def dist_up(e_, i_, exc__, inh__, grid_resolution_):
     upper_bound = max(column)
     dist = upper_bound - i_ + grid_resolution_/2.
     return dist
+
+def dist_up_regime(e_, i_, exc_bound, inh_bound, grid_resolution_):
+    min_dist = 100.
+    for i in range(115):
+        dist_ = np.sqrt( (e_ - exc_bound[i])**2 + (i_ - inh_bound[i])**2 )
+        if dist_ < min_dist:
+            min_dist = dist_
+    min_dist += grid_resolution_/np.sqrt(2.)
+    return min_dist
+
+def dist_down_regime(e_, i_, exc_bound, inh_bound, grid_resolution_):
+    min_dist = 100.
+    for i in range(114, len(exc_bound)):
+        dist_ = np.sqrt( (e_ - exc_bound[i])**2 + (i_ - inh_bound[i])**2 )
+        if dist_ < min_dist:
+            min_dist = dist_
+    min_dist += grid_resolution_/np.sqrt(2.)
+    return min_dist
+
 
 def set_opt_cntrl_plot_zero(figure_):
     figure_.data[0].x = []
