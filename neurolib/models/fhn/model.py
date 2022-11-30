@@ -24,18 +24,20 @@ class FHNModel(Model):
 
     def __init__(self, params=None, Cmat=None, Dmat=None, seed=None):
 
+        print(self.init_vars)
+
         self.Cmat = Cmat
         self.Dmat = Dmat
         self.seed = seed
+
+        print(self.init_vars)
 
         # the integration function must be passed
         integration = ti.timeIntegration
 
         # load default parameters if none were given
         if params is None:
-            params = dp.loadDefaultParams(
-                Cmat=self.Cmat, Dmat=self.Dmat, seed=self.seed
-            )
+            params = dp.loadDefaultParams(Cmat=self.Cmat, Dmat=self.Dmat, seed=self.seed)
 
         # Initialize base class Model
         super().__init__(integration=integration, params=params)
