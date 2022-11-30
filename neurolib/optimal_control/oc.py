@@ -124,6 +124,9 @@ class OC:
         target,
         w_p=1.0,
         w_2=1.0,
+        w_1=0.0,
+        w_1T=0.0,
+        w_1D=0.0,
         maximum_control_strength=None,
         print_array=[],
         precision_cost_interval=(None, None),
@@ -148,6 +151,15 @@ class OC:
 
         :param w_2:         Weight of the L2 cost term, defaults to 1.
         :type w_2:          float, optional
+
+        :param w_1:         Weight of the L1 cost term, defaults to 0.
+        :type w_1:          float, optional
+
+        :param w_1T:        Weight of the L1 T (temporal sparsity) cost term, defaults to 0.
+        :type w_1T:         float, optional
+
+        :param w_1D:        Weight of the L1 D (direcitonal sparsity) cost term, defaults to 0.
+        :type w_1D:         float, optional
 
         :param maximum_control_strength:    Maximum absolute value a control signal can take. No limitation of the
                                             absolute control strength if 'None'. Defaults to None.
@@ -192,6 +204,9 @@ class OC:
 
         self.w_p = w_p
         self.w_2 = w_2
+        self.w_1 = w_1
+        self.w_1T = w_1T
+        self.w_1D = w_1D
         self.maximum_control_strength = maximum_control_strength
 
         self.step = 10.0
@@ -267,6 +282,7 @@ class OC:
         )  # dimensions of state. Model has N network nodes, V state variables, T time points
 
         self.adjoint_state = np.zeros(self.state_dim)
+        self.grad = np.zeros(self.state_dim)
 
         # check correct specification of inputs
         # ToDo: different models have different inputs
@@ -317,16 +333,25 @@ class OC:
 
     def compute_total_cost(self):
         """Compute the total cost as weighted sum precision of precision and L2 term."""
-        precision_cost = cost_functions.precision_cost(
-            self.target,
-            self.get_xs(),
-            self.w_p,
-            self.precision_matrix,
-            self.dt,
-            self.precision_cost_interval,
-        )
-        energy_cost = cost_functions.energy_cost(self.control, w_2=self.w_2, dt=self.dt)
-        return precision_cost + energy_cost
+        cost = 0.0
+        if self.w_p != 0:
+            cost += cost_functions.precision_cost(
+                self.target,
+                self.get_xs(),
+                self.w_p,
+                self.precision_matrix,
+                self.dt,
+                self.precision_cost_interval,
+            )
+        if self.w_2 != 0.0:
+            cost += cost_functions.energy_cost(self.control, self.w_2, self.dt)
+        if self.w_1 != 0.0:
+            cost += cost_functions.L1_cost(self.control, self.w_1, self.dt)
+        if self.w_1T != 0.0:
+            cost += cost_functions.L1T_cost(self.control, self.w_1T, self.dt)
+        if self.w_1D != 0.0:
+            cost += cost_functions.L1D_cost(self.control, self.w_1D, self.dt)
+        return cost
 
     @abc.abstractmethod
     def compute_gradient(self):
@@ -468,13 +493,13 @@ class OC:
             self.cost_history.append(cost)
 
         for i in range(1, n_max_iterations + 1):
-            grad = self.compute_gradient()
+            self.grad = self.compute_gradient()
 
             if self.zero_step_encountered:
                 print(f"Converged in iteration %s with cost %s" % (i, cost))
                 break
 
-            self.step_size(-grad)
+            self.step_size(-self.grad)
             self.simulate_forward()
 
             cost = self.compute_total_cost()
@@ -518,13 +543,13 @@ class OC:
 
         for i in range(1, n_max_iterations + 1):
 
-            grad = np.mean(grad_m, axis=0)
+            self.grad = np.mean(grad_m, axis=0)
 
             count = 0
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-                _ = self.step_size_noisy(-grad)
+                _ = self.step_size_noisy(-self.grad)
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break

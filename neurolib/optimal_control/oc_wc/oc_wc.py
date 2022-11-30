@@ -268,6 +268,9 @@ class OcWc(OC):
         target,
         w_p=1,
         w_2=1,
+        w_1=0.0,
+        w_1T=0.0,
+        w_1D=0.0,
         print_array=[],
         precision_cost_interval=(0, None),
         precision_matrix=None,
@@ -281,6 +284,9 @@ class OcWc(OC):
             target,
             w_p=w_p,
             w_2=w_2,
+            w_1=w_1,
+            w_1T=w_1T,
+            w_1D=w_1D,
             print_array=print_array,
             precision_cost_interval=precision_cost_interval,
             precision_matrix=precision_matrix,
@@ -435,7 +441,15 @@ class OcWc(OC):
         Du @ fk + adjoint_k.T @ Du @ h
         """
         self.solve_adjoint()
-        fk = cost_functions.derivative_energy_cost(self.control, self.w_2)
+        du_f = np.zeros((self.control.shape))
+        if self.w_2 != 0.0:
+            du_f += cost_functions.derivative_energy_cost(self.control, self.w_2)
+        if self.w_1 != 0.0:
+            du_f += cost_functions.derivative_L1_cost(self.control, self.w_1)
+        if self.w_1T != 0.0:
+            du_f += cost_functions.derivative_L1T_cost(self.control, self.w_1T, self.dt)
+        if self.w_1D != 0.0:
+            du_f += cost_functions.derivative_L1D_cost(self.control, self.w_1D)
         duh = self.Duh()
 
-        return compute_gradient(self.N, self.dim_out, self.T, fk, self.adjoint_state, self.control_matrix, duh)
+        return compute_gradient(self.N, self.dim_out, self.T, du_f, self.adjoint_state, self.control_matrix, duh)
