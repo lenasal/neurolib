@@ -4,6 +4,7 @@ import numpy as np
 from neurolib.optimal_control import cost_functions
 import logging
 import copy
+import random
 
 
 # compared loops agains "@", "np.matmul" and "np.dot": loops ~factor 3.5 faster
@@ -135,6 +136,7 @@ class OC:
         M=1,
         M_validation=0,
         validate_per_step=False,
+        random_init=None,
     ):
         """
         Base class for optimal control. Model specific methods should be implemented in derived class for each model.
@@ -247,26 +249,43 @@ class OC:
         assert np.array_equal(self.control_matrix, self.control_matrix.astype(bool))
 
         self.M = max(1, M)
-        self.M_validation = M_validation
+        self.M_validation = max(M, M_validation)
         self.cost_validation = 0.0
         self.validate_per_step = validate_per_step
 
-        if self.model.params.sigma_ou != 0.0:  # noisy system
+        self.M_states = [None] * self.M
+
+        self.random_init = random_init
+
+        self.check_random_init()
+
+        if type(self.random_init) == type(None):
+
+            if self.model.params.sigma_ou != 0.0:  # noisy system
+                if self.M <= 1:
+                    logging.warning(
+                        "For noisy system, please chose parameter M larger than 1 (recommendation > 10)."
+                        + "\n"
+                        + 'If you want to study a deterministic system, please set model parameter "sigma_ou" to zero'
+                    )
+                if self.M > self.M_validation:
+                    print('Parameter "M_validation" should be chosen larger than parameter "M".')
+            else:  # deterministic system
+                if self.M > 1 or self.M_validation != 0 or validate_per_step:
+                    print(
+                        'For deterministic systems, parameters "M", "M_validation" and "validate_per_step" are not relevant.'
+                        + "\n"
+                        + 'If you want to study a noisy system, please set model parameter "sigma_ou" larger than zero'
+                    )
+
+        else:
+
             if self.M <= 1:
                 logging.warning(
-                    "For noisy system, please chose parameter M larger than 1 (recommendation > 10)."
-                    + "\n"
-                    + 'If you want to study a deterministic system, please set model parameter "sigma_ou" to zero'
+                    "For random initializations, please chose parameter M larger than 1 (recommendation > 10)."
                 )
             if self.M > self.M_validation:
                 print('Parameter "M_validation" should be chosen larger than parameter "M".')
-        else:  # deterministic system
-            if self.M > 1 or self.M_validation != 0 or validate_per_step:
-                print(
-                    'For deterministic systems, parameters "M", "M_validation" and "validate_per_step" are not relevant.'
-                    + "\n"
-                    + 'If you want to study a noisy system, please set model parameter "sigma_ou" larger than zero'
-                )
 
         self.dt = self.model.params["dt"]  # maybe redundant but for now code clarity
         self.duration = self.model.params["duration"]  # maybe redundant but for now code clarity
@@ -525,13 +544,17 @@ class OC:
 
         if self.validate_per_step:  # if cost is computed for M_validation realizations in every step
             for m in range(self.M):
+                self.set_random_init()
                 self.simulate_forward()
+                self.M_states[m] = self.get_xs()
                 grad_m[m, :] = self.compute_gradient()
             cost = self.compute_cost_noisy(self.M_validation)
         else:
             cost_m = 0.0
             for m in range(self.M):
+                self.set_random_init()
                 self.simulate_forward()
+                self.M_states[m] = self.get_xs()
                 cost_m += self.compute_total_cost()
                 grad_m[m, :] = self.compute_gradient()
             cost = cost_m / self.M
@@ -566,13 +589,17 @@ class OC:
 
             if self.validate_per_step:  # if cost is computed for M_validation realizations in every step
                 for m in range(self.M):
+                    self.set_random_init()
                     self.simulate_forward()
+                    self.M_states[m] = self.get_xs()
                     grad_m[m, :] = self.compute_gradient()
                 cost = self.compute_cost_noisy(self.M_validation)
             else:
                 cost_m = 0.0
                 for m in range(self.M):
+                    self.set_random_init()
                     self.simulate_forward()
+                    self.M_states[m] = self.get_xs()
                     cost_m += self.compute_total_cost()
                     grad_m[m, :] = self.compute_gradient()
                 cost = cost_m / self.M
@@ -597,11 +624,13 @@ class OC:
         cost_validation = 0.0
         m = 0
         while m < M:
+            self.set_random_init()
             self.simulate_forward()
             if np.isnan(self.get_xs()).any():
                 continue
             cost_validation += self.compute_total_cost()
             m += 1
+
         return cost_validation / M
 
     def step_size_noisy(self, cost_gradient):
@@ -612,6 +641,7 @@ class OC:
         :return:    Step size that got multiplied with the cost_gradient.
         :rtype:     float
         """
+        self.set_random_init()
         self.simulate_forward()
         cost0 = self.compute_cost_noisy(self.M)
 
@@ -627,6 +657,7 @@ class OC:
             self.update_input()
 
             # input signal might be too high and produce diverging values in simulation
+            self.set_random_init()
             self.simulate_forward()
             if np.isnan(self.get_xs()).any():
                 step *= factor * factor  # decrease step twice to avoid that other noise realizations diverge
@@ -660,3 +691,30 @@ class OC:
         self.step_sizes_history.append(step)
 
         return step
+
+    def set_random_init(self):
+
+        if type(self.random_init) == type(None):
+            return
+
+        for n in range(self.N):
+            rand_index = np.random.randint(low=0, high=self.random_init.shape[2])
+
+            for iv_index in range(len(self.model.init_vars)):
+                ri = self.random_init[n, iv_index, rand_index]
+
+                if self.model.params[self.model.init_vars[iv_index]].ndim == 2:
+                    self.model.params[self.model.init_vars[iv_index]] = np.array([[ri]])
+                elif self.model.params[self.model.init_vars[iv_index]].ndim == 1:
+                    self.model.params[self.model.init_vars[iv_index]] = np.ones((self.N,)) * ri
+
+        return
+
+    def check_random_init(self):
+        if type(self.random_init) == type(None):
+            return
+
+        assert self.random_init.shape[0] == self.N, "Please indicate ellipse for random initialization for each node."
+        assert self.random_init.shape[1] == len(
+            self.model.init_vars
+        ), "Please indicate ellipse for random initialization in each dimension of initial values."
