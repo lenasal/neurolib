@@ -275,6 +275,7 @@ class OcWc(OC):
         M=1,
         M_validation=0,
         validate_per_step=False,
+        random_init=None,
     ):
         super().__init__(
             model,
@@ -288,6 +289,7 @@ class OcWc(OC):
             M=M,
             M_validation=M_validation,
             validate_per_step=validate_per_step,
+            random_init=random_init,
         )
 
         assert self.model.name == "wc"
