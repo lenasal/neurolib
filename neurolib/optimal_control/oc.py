@@ -221,6 +221,7 @@ class OC:
 
         self.dim_vars = len(self.model.state_vars)
         self.dim_out = len(self.model.output_vars)
+        self.dim_in = len(self.model.input_vars)
 
         if self.N > 1:  # check that coupling matrix has zero diagonal
             assert np.all(np.diag(self.model.Cmat) == 0.0)
@@ -462,15 +463,66 @@ class OC:
                     control0, 0.0, np.zeros(control0.shape), self.maximum_control_strength
                 )
                 self.update_input()
+                cost = cost0
                 # logging.warning("Zero step encoutered, stop bisection")
-                if self.M == 1:
-                    self.zero_step_encountered = True
+                self.zero_step_encountered = True
                 break
 
-        self.step_sizes_loops_history.append(counter)
-        self.step_sizes_history.append(step)
+        cost_node = np.zeros((self.N, self.dim_in))
+        step_node = np.ones((self.N, self.dim_in)) * self.step
+        zero_step_encountered_node = np.zeros((self.N, self.dim_in))
+        for n in range(self.N):
+            for v in range(self.dim_in):
+                gradient_node = np.zeros((cost_gradient.shape))
+                gradient_node[n, v, :] = cost_gradient[n, v, :]
+                self.control = update_control_with_limit(
+                    control0, step_node[n, v], gradient_node, self.maximum_control_strength
+                )
+                self.update_input()
+                self.simulate_forward()
+                cost_node[n, v] = self.compute_total_cost()
+                counter = 0.0
 
-        return step
+                while cost_node[n, v] > cost0:
+                    # print(cost0, cost_node[n, v], step_node[n, v])
+                    step_node[n, v] *= factor
+                    counter += 1
+
+                    # inplace updating of models x_ext bc. forward-sim relies on models parameters
+                    self.control = update_control_with_limit(
+                        control0, step_node[n, v], gradient_node, self.maximum_control_strength
+                    )
+                    self.update_input()
+                    self.simulate_forward()
+                    cost_node[n, v] = self.compute_total_cost()
+
+                    if counter == self.count_step:
+                        step_node[n, v] = 0.0  # for later analysis only
+                        self.control = update_control_with_limit(
+                            control0, 0.0, np.zeros(control0.shape), self.maximum_control_strength
+                        )
+                        self.update_input()
+                        # logging.warning("Zero step encoutered, stop bisection")
+                        zero_step_encountered_node[n, v] = 1.0
+                        break
+
+        grad = cost_gradient.copy()
+        s = step
+        min_ind = 0
+        if np.amin(cost_node) < cost:
+            min_ind = np.where(cost_node == np.amin(cost_node))
+            gradient_node = np.zeros((cost_gradient.shape))
+            gradient_node[min_ind[0][0], min_ind[1][0], :] = cost_gradient[min_ind[0][0], min_ind[1][0], :]
+            grad = gradient_node.copy()
+            s = step_node[min_ind[0][0], min_ind[1][0]]
+
+        self.control = update_control_with_limit(control0, s, grad, self.maximum_control_strength)
+        self.update_input()
+
+        # self.step_sizes_loops_history.append(counter)
+        # self.step_sizes_history.append(s)
+
+        return s
 
     def optimize(self, n_max_iterations):
         """Optimization method

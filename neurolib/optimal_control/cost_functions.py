@@ -176,7 +176,7 @@ def derivative_L1T_cost(u, w_1T, dt):
     :rtype:     np.ndarray
     """
 
-    denominator = L1T_cost(u, w_1T, dt)
+    denominator = L1T_cost(u, w_1T, dt) / w_1T
     if denominator == 0.0:
         return np.zeros((u.shape))
 
@@ -218,7 +218,7 @@ def derivative_L1D_cost(u, w_1D, dt):
     :rtype:     np.ndarray
     """
 
-    denominator = np.sqrt(np.sum(u**2, axis=2) * dt)
+    denominator = np.sqrt(np.sum(u**2, axis=2) * dt) / w_1D
     der = np.zeros((u.shape))
     for n in range(der.shape[0]):
         for v in range(der.shape[1]):
