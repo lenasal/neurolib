@@ -272,7 +272,7 @@ class OC:
                 if self.M > self.M_validation:
                     print('Parameter "M_validation" should be chosen larger than parameter "M".')
             else:  # deterministic system
-                if self.M > 1 or self.M_validation != 0 or validate_per_step:
+                if self.M > 1 or self.M_validation < self.M or self.validate_per_step:
                     print(
                         'For deterministic systems, parameters "M", "M_validation" and "validate_per_step" are not relevant.'
                         + "\n"
@@ -516,11 +516,15 @@ class OC:
             grad = gradient_node.copy()
             s = step_node[min_ind[0][0], min_ind[1][0]]
 
+        if self.zero_step_encountered:
+            if np.amin(zero_step_encountered_node) == 0.0:
+                self.zero_step_encountered = False
+
         self.control = update_control_with_limit(control0, s, grad, self.maximum_control_strength)
         self.update_input()
 
         # self.step_sizes_loops_history.append(counter)
-        # self.step_sizes_history.append(s)
+        self.step_sizes_history.append(s)
 
         return s
 
