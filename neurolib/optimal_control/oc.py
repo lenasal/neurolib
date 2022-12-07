@@ -131,6 +131,7 @@ class OC:
         maximum_control_strength=None,
         print_array=[],
         precision_cost_interval=(None, None),
+        control_interval=(None, None),
         precision_matrix=None,
         control_matrix=None,
         M=1,
@@ -320,6 +321,7 @@ class OC:
         self.zero_step_encountered = False  # deterministic gradient descent cannot further improve
 
         self.precision_cost_interval = convert_interval(precision_cost_interval, self.T)
+        self.control_interval = convert_interval(control_interval, self.T)
 
     @abc.abstractmethod
     def get_xs(self):
@@ -470,7 +472,6 @@ class OC:
 
         cost_node = np.zeros((self.N, self.dim_in))
         step_node = np.ones((self.N, self.dim_in)) * self.step
-        zero_step_encountered_node = np.zeros((self.N, self.dim_in))
         for n in range(self.N):
             for v in range(self.dim_in):
                 gradient_node = np.zeros((cost_gradient.shape))
@@ -484,7 +485,6 @@ class OC:
                 counter = 0.0
 
                 while cost_node[n, v] > cost0:
-                    # print(cost0, cost_node[n, v], step_node[n, v])
                     step_node[n, v] *= factor
                     counter += 1
 
@@ -503,7 +503,6 @@ class OC:
                         )
                         self.update_input()
                         # logging.warning("Zero step encoutered, stop bisection")
-                        zero_step_encountered_node[n, v] = 1.0
                         break
 
         grad = cost_gradient.copy()
@@ -517,7 +516,7 @@ class OC:
             s = step_node[min_ind[0][0], min_ind[1][0]]
 
         if self.zero_step_encountered:
-            if np.amin(zero_step_encountered_node) == 0.0:
+            if np.amax(step_node) > 0.0:
                 self.zero_step_encountered = False
 
         self.control = update_control_with_limit(control0, s, grad, self.maximum_control_strength)
@@ -570,11 +569,17 @@ class OC:
         for i in range(1, n_max_iterations + 1):
             self.grad = self.compute_gradient()
 
+            if np.amax(np.abs(self.grad)) < 1e-10:
+                print(f"converged with vanishing gradient in iteration %s with cost %s" % (i, cost))
+                self.zero_step_encountered = True
+                break
+
+            self.step_size(-self.grad)
+
             if self.zero_step_encountered:
                 print(f"Converged in iteration %s with cost %s" % (i, cost))
                 break
 
-            self.step_size(-self.grad)
             self.simulate_forward()
 
             cost = self.compute_total_cost()

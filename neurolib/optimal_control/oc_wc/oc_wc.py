@@ -68,13 +68,13 @@ def Duh(
 
 
 @numba.njit
-def compute_gradient(N, dim_out, T, fk, adjoint_state, control_matrix, duh):
+def compute_gradient(N, dim_out, T, fk, adjoint_state, control_matrix, duh, control_interval):
     """Compute cost gradient."""
     grad = np.zeros(fk.shape)
 
     for n in range(N):
         for v in range(dim_out):
-            for t in range(T):
+            for t in range(control_interval[0], control_interval[1]):
                 grad[n, v, t] = fk[n, v, t] + adjoint_state[n, v, t] * control_matrix[n, v] * duh[n, v, v, t]
 
     return grad
@@ -272,7 +272,8 @@ class OcWc(OC):
         w_1T=0.0,
         w_1D=0.0,
         print_array=[],
-        precision_cost_interval=(0, None),
+        precision_cost_interval=(None, None),
+        control_interval=(None, None),
         precision_matrix=None,
         control_matrix=None,
         M=1,
@@ -290,6 +291,7 @@ class OcWc(OC):
             w_1D=w_1D,
             print_array=print_array,
             precision_cost_interval=precision_cost_interval,
+            control_interval=control_interval,
             precision_matrix=precision_matrix,
             control_matrix=control_matrix,
             M=M,
@@ -454,4 +456,6 @@ class OcWc(OC):
             du_f += cost_functions.derivative_L1D_cost(self.control, self.w_1D, self.dt)
         duh = self.Duh()
 
-        return compute_gradient(self.N, self.dim_out, self.T, du_f, self.adjoint_state, self.control_matrix, duh)
+        return compute_gradient(
+            self.N, self.dim_out, self.T, du_f, self.adjoint_state, self.control_matrix, duh, self.control_interval
+        )
