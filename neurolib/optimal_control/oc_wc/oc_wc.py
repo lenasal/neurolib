@@ -454,6 +454,7 @@ class OcWc(OC):
             du_f += cost_functions.derivative_L1T_cost(self.control, self.w_1T, self.dt)
         if self.w_1D != 0.0:
             du_f += cost_functions.derivative_L1D_cost(self.control, self.w_1D, self.dt)
+
         duh = self.Duh()
 
         return compute_gradient(

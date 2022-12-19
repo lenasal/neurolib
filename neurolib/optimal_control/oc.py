@@ -7,6 +7,10 @@ import copy
 import random
 
 
+global limit_control_diff
+limit_control_diff = 1e-12
+
+
 # compared loops agains "@", "np.matmul" and "np.dot": loops ~factor 3.5 faster
 @numba.njit
 def solve_adjoint(hx, hx_nw, fx, state_dim, dt, N, T):
@@ -574,10 +578,19 @@ class OC:
                 self.zero_step_encountered = True
                 break
 
+            c0 = self.control.copy()
             self.step_size(-self.grad)
 
             if self.zero_step_encountered:
-                print(f"Converged in iteration %s with cost %s" % (i, cost))
+                print(f"Converged in iteration %s with cost %s because of step counter" % (i, cost))
+                if cost != self.cost_history[-1]:
+                    self.cost_history.append(cost)
+                break
+
+            if np.amax(np.abs(self.control - c0)) < limit_control_diff:  # ToDo : self.limit
+                print(f"Converged in iteration %s with cost %s because of vanishing difference" % (i, cost))
+                if cost != self.cost_history[-1]:
+                    self.cost_history.append(cost)
                 break
 
             self.simulate_forward()
