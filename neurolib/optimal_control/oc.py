@@ -8,7 +8,7 @@ import random
 
 
 global limit_control_diff
-limit_control_diff = 1e-12
+limit_control_diff = 1e-40
 
 
 # compared loops agains "@", "np.matmul" and "np.dot": loops ~factor 3.5 faster
@@ -327,6 +327,8 @@ class OC:
         self.precision_cost_interval = convert_interval(precision_cost_interval, self.T)
         self.control_interval = convert_interval(control_interval, self.T)
 
+        self.step_factor = 0.5
+
     @abc.abstractmethod
     def get_xs(self):
         """Stack the initial condition with the simulation results for both populations."""
@@ -429,7 +431,7 @@ class OC:
         """
         self.simulate_forward()
         cost0 = self.compute_total_cost()
-        factor = 0.5
+        factor = self.step_factor
         step = self.step
         counter = 0.0
 
@@ -525,6 +527,7 @@ class OC:
 
         self.control = update_control_with_limit(control0, s, grad, self.maximum_control_strength)
         self.update_input()
+        self.simulate_forward()
 
         # self.step_sizes_loops_history.append(counter)
         self.step_sizes_history.append(s)
@@ -573,7 +576,7 @@ class OC:
         for i in range(1, n_max_iterations + 1):
             self.grad = self.compute_gradient()
 
-            if np.amax(np.abs(self.grad)) < 1e-10:
+            if np.amax(np.abs(self.grad)) < 1e-20:
                 print(f"converged with vanishing gradient in iteration %s with cost %s" % (i, cost))
                 self.zero_step_encountered = True
                 break
