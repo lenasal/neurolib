@@ -52,7 +52,7 @@ class TestFHNNoisy(unittest.TestCase):
         fhn.params["y_ext"] = zero_input
         fhn.params["x_ext"] = zero_input
 
-        fhn_controlled_noisy = oc_fhn.OcFhn(fhn, target, w_p=1, w_2=0, M=2, M_validation=1000)
+        fhn_controlled_noisy = oc_fhn.OcFhn(fhn, target, M=2, M_validation=1000)
 
         control_coincide = False
 
@@ -103,14 +103,14 @@ class TestFHNNoisy(unittest.TestCase):
 
         fhn.params["y_ext"] = zero_input
         fhn.params["x_ext"] = zero_input
-        fhn_controlled_noisy = oc_fhn.OcFhn(fhn, target, w_p=1, w_2=0, M=2, M_validation=1000)
+        fhn_controlled_noisy = oc_fhn.OcFhn(fhn, target, M=2, M_validation=1000)
 
         fhn_controlled_noisy.optimize(test_iterations)
         control_noisy = fhn_controlled_noisy.control
 
         fhn.params["y_ext"] = zero_input
         fhn.params["x_ext"] = zero_input
-        fhn_controlled_det = oc_fhn.OcFhn(fhn, target, w_p=1, w_2=0)
+        fhn_controlled_det = oc_fhn.OcFhn(fhn, target)
         fhn_controlled_det.optimize(test_iterations)
         control_det = fhn_controlled_det.control
 
@@ -161,13 +161,13 @@ class TestFHNNoisy(unittest.TestCase):
 
         fhn.params["y_ext"] = zero_input
         fhn.params["x_ext"] = zero_input
-        fhn_controlled_noisy = oc_fhn.OcFhn(fhn, target, w_p=1, w_2=0, M=2, M_validation=10)
+        fhn_controlled_noisy = oc_fhn.OcFhn(fhn, target, M=2, M_validation=10)
         fhn_controlled_noisy.optimize(test_iterations)
         control_noisy = fhn_controlled_noisy.control
 
         fhn.params["y_ext"] = zero_input
         fhn.params["x_ext"] = zero_input
-        fhn_controlled_det = oc_fhn.OcFhn(fhn, target, w_p=1, w_2=0)
+        fhn_controlled_det = oc_fhn.OcFhn(fhn, target)
         fhn_controlled_det.optimize(test_iterations)
         control_det = fhn_controlled_det.control
 
@@ -208,7 +208,9 @@ class TestFHNNoisy(unittest.TestCase):
 
         fhn.params.sigma_ou = 1.0
 
-        fhn_controlled = oc_fhn.OcFhn(fhn, target, w_p=0, w_2=1, M=2, M_validation=1000)
+        fhn_controlled = oc_fhn.OcFhn(fhn, target, M=2, M_validation=1000)
+        fhn_controlled.weights.w_p = 0.0
+        fhn_controlled.weights.w_2 = 1.0
         control_is_zero = False
 
         for i in range(100):
@@ -263,7 +265,9 @@ class TestFHNNoisy(unittest.TestCase):
 
         fhn.params.sigma_ou = 1.0
 
-        fhn_controlled = oc_fhn.OcFhn(fhn, target, w_p=0, w_2=1, M=2, M_validation=1000)
+        fhn_controlled = oc_fhn.OcFhn(fhn, target, M=2, M_validation=1000)
+        fhn_controlled.weights.w_p = 0.0
+        fhn_controlled.weights.w_2 = 1.0
         control_is_zero = False
 
         for i in range(100):

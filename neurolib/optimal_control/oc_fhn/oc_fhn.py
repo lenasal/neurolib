@@ -140,8 +140,7 @@ class OcFhn(OC):
         self,
         model,
         target,
-        w_p=1.0,
-        w_2=1.0,
+        weights=None,
         maximum_control_strength=None,
         print_array=[],
         precision_cost_interval=(None, None),
@@ -154,8 +153,7 @@ class OcFhn(OC):
         super().__init__(
             model,
             target,
-            w_p=w_p,
-            w_2=w_2,
+            weights=weights,
             maximum_control_strength=maximum_control_strength,
             print_array=print_array,
             precision_cost_interval=precision_cost_interval,
@@ -271,7 +269,9 @@ class OcFhn(OC):
         """
         self.solve_adjoint()
 
-        df_du = cost_functions.derivative_energy_cost(self.control, self.w_2)  # Remark: at the current state, only the
+        df_du = cost_functions.derivative_energy_cost(
+            self.control, self.weights.w_2
+        )  # Remark: at the current state, only the
         # "energy" (L2) cost explicitly depends on the control signal. Further contributions can be added here.
 
         duh = self.Duh()
