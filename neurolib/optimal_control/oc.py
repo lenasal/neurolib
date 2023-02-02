@@ -5,6 +5,8 @@ from neurolib.optimal_control import cost_functions
 import logging
 import copy
 
+from neurolib.utils.collections import dotdict
+
 
 def decrease_step(controlled_model, cost, cost0, step, control0, factor_down, cost_gradient):
     """Find a step size which leads to improved cost given the gradient. The step size is iteratively decreased.
@@ -266,8 +268,7 @@ class OC:
         self,
         model,
         target,
-        w_p=1.0,
-        w_2=1.0,
+        weights=None,
         maximum_control_strength=None,
         print_array=[],
         precision_cost_interval=(None, None),
@@ -285,10 +286,8 @@ class OC:
         :type model:        neurolib.models.model
         :param target:      Target time series of controllable variables.
         :type target:       np.ndarray
-        :param w_p:         Weight of the precision cost term, defaults to 1.
-        :type w_p:          float, optional
-        :param w_2:         Weight of the L2 cost term, defaults to 1.
-        :type w_2:          float, optional
+        :param weights:     Dictionary of weight parameters, defaults to 'None'.
+        :type weights:      dictionary, optional
         :param maximum_control_strength:    Maximum absolute value a control signal can take. No limitation of the
                                             absolute control strength if 'None'. Defaults to None.
         :type:                              float or None, optional
@@ -324,9 +323,12 @@ class OC:
 
         self.target = target  # ToDo: dimensions-check
 
-        self.w_p = w_p
-        self.w_2 = w_2
         self.maximum_control_strength = maximum_control_strength
+
+        if weights is None:
+            self.weights = dotdict({})
+            self.weights.w_p = 1.0
+            self.weights.w_2 = 0.0
 
         self.N = self.model.params.N
 
@@ -455,12 +457,12 @@ class OC:
         precision_cost = cost_functions.precision_cost(
             self.target,
             self.get_xs(),
-            self.w_p,
+            self.weights.w_p,
             self.precision_matrix,
             self.dt,
             self.precision_cost_interval,
         )
-        energy_cost = cost_functions.energy_cost(self.control, w_2=self.w_2, dt=self.dt)
+        energy_cost = cost_functions.energy_cost(self.control, w_2=self.weights.w_2, dt=self.dt)
         return precision_cost + energy_cost  # Further cost terms can be added here. Add corresponding derivatives
         # elsewhere accordingly.
 
@@ -493,7 +495,7 @@ class OC:
         df_dx = cost_functions.derivative_precision_cost(
             self.target,
             self.get_xs(),
-            self.w_p,
+            self.weights.w_p,
             self.precision_matrix,
             self.precision_cost_interval,
         )

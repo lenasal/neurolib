@@ -65,7 +65,7 @@ class TestHopf(unittest.TestCase):
             hopf.params["y_ext"] = zero_input
             hopf.params["x_ext"] = zero_input
 
-            hopf_controlled = oc_hopf.OcHopf(hopf, target, w_p=1, w_2=0)
+            hopf_controlled = oc_hopf.OcHopf(hopf, target)
 
             control_coincide = False
 
@@ -196,8 +196,6 @@ class TestHopf(unittest.TestCase):
                             hopf_controlled = oc_hopf.OcHopf(
                                 hopf,
                                 target,
-                                w_p=1,
-                                w_2=0,
                                 control_matrix=control_mat,
                                 precision_matrix=prec_mat,
                             )
@@ -255,12 +253,11 @@ class TestHopf(unittest.TestCase):
         hopf_controlled = oc_hopf.OcHopf(
             hopf,
             target,
-            w_p=1,
-            w_2=1,
             maximum_control_strength=maximum_control_strength,
             precision_matrix=precision_mat,
             control_matrix=control_mat,
         )
+        hopf_controlled.weights.w_2 = 1.0
 
         self.assertTrue(np.max(np.abs(hopf_controlled.control) <= maximum_control_strength))
 
@@ -294,12 +291,11 @@ class TestHopf(unittest.TestCase):
         hopf_controlled = oc_hopf.OcHopf(
             hopf,
             target,
-            w_p=1,
-            w_2=1,
             maximum_control_strength=maximum_control_strength,
             precision_matrix=precision_mat,
             control_matrix=control_mat,
         )
+        hopf_controlled.weights.w_2 = 1.0
 
         hopf_controlled.optimize(1)
         self.assertTrue(np.max(np.abs(hopf_controlled.control) <= maximum_control_strength))

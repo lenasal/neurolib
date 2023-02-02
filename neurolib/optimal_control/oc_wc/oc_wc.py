@@ -302,8 +302,7 @@ class OcWc(OC):
         self,
         model,
         target,
-        w_p=1,
-        w_2=1,
+        weights=None,
         print_array=[],
         precision_cost_interval=(None, None),
         precision_matrix=None,
@@ -315,8 +314,7 @@ class OcWc(OC):
         super().__init__(
             model,
             target,
-            w_p=w_p,
-            w_2=w_2,
+            weights=weights,
             print_array=print_array,
             precision_cost_interval=precision_cost_interval,
             precision_matrix=precision_matrix,
@@ -489,7 +487,7 @@ class OcWc(OC):
         """
         self.solve_adjoint()
 
-        df_du = cost_functions.derivative_energy_cost(self.control, self.w_2)
+        df_du = cost_functions.derivative_energy_cost(self.control, self.weights.w_2)
         duh = self.Duh()
 
         return compute_gradient(self.N, self.dim_out, self.T, df_du, self.adjoint_state, self.control_matrix, duh)

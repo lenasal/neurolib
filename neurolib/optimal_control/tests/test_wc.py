@@ -65,7 +65,7 @@ class TestWC(unittest.TestCase):
             wc.params["inh_ext"] = zero_input
             wc.params["exc_ext"] = zero_input
 
-            wc_controlled = oc_wc.OcWc(wc, target, w_p=1, w_2=0)
+            wc_controlled = oc_wc.OcWc(wc, target)
 
             control_coincide = False
             iterations = 4000
@@ -204,8 +204,6 @@ class TestWC(unittest.TestCase):
                             wc_controlled = oc_wc.OcWc(
                                 wc,
                                 target,
-                                w_p=1,
-                                w_2=0,
                                 control_matrix=control_mat,
                                 precision_matrix=prec_mat,
                             )

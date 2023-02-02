@@ -92,7 +92,7 @@ class TestOC(unittest.TestCase):
         prec_mat[0, 0] = 1
         control_mat[0, 1] = 1
 
-        model_controlled = OcWc(model, target, w_p=1, w_2=0, precision_matrix=prec_mat, control_matrix=control_mat)
+        model_controlled = OcWc(model, target, precision_matrix=prec_mat, control_matrix=control_mat)
 
         self.assertTrue(model_controlled.step_size(-model_controlled.compute_gradient()) > 0.0)
 
@@ -107,7 +107,7 @@ class TestOC(unittest.TestCase):
         prec_mat[0, 0] = 1
         control_mat[0, 1] = 1
 
-        model_controlled = OcWc(model, target, w_p=1, w_2=0, precision_matrix=prec_mat, control_matrix=control_mat)
+        model_controlled = OcWc(model, target, precision_matrix=prec_mat, control_matrix=control_mat)
 
         self.assertTrue(model_controlled.step_size(-np.zeros(target.shape)) == 0.0)
 
