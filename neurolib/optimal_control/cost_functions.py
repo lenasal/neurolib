@@ -65,30 +65,182 @@ def derivative_precision_cost(x_target, x_sim, w_p, precision_matrix, interval):
 
 
 @numba.njit
-def energy_cost(u, w_2, dt):
+def control_strength_cost(u, weights, dt):
+    """Total cost related to the control strength, weighted sum of contributions.
+
+    :param u:           Control-dimensions x T array. Control signals.
+    :type u:            np.ndarray
+    :param weights:     Dictionary of weights.
+    :type weights:      dictionary
+    :param dt:          Time step.
+    :type dt:           float
+    :return:            control strength cost of the control.
+    :rtype:             float
+    """
+
+    cost_timeseries = np.zeros((u.shape))
+
+    # timeseries of control vector is weighted sum of contributing cost functionals
+    if weights["w_2"] != 0.0:
+        cost_timeseries += weights["w_2"] * L2_cost(u)
+    if weights["w_1"] != 0.0:
+        cost_timeseries += weights["w_1"] * L1_cost(u)
+
+    cost = 0.0
+    # integrate over nodes, channels, and time
+    if weights["w_2"] != 0.0 or weights["w_1"] != 0.0:
+        for n in range(u.shape[0]):
+            for v in range(u.shape[1]):
+                for t in range(u.shape[2]):
+                    cost += cost_timeseries[n, v, t] * dt
+
+    if weights["w_1T"] != 0.0:
+        cost += weights["w_1T"] * L1T_cost_integral(u, dt)
+    if weights["w_1D"] != 0.0:
+        cost += weights["w_1D"] * L1D_cost_integral(u, dt)
+
+    return cost
+
+
+@numba.njit
+def derivative_control_strength_cost(u, weights, dt):
+    """Derivative of the 'control_strength_cost' wrt. to the control 'u'.
+
+    :param u:           Control-dimensions x T array. Control signals.
+    :type u:            np.ndarray
+    :param weights:     Dictionary of weights.
+    :type weights:      dictionary
+    :param dt:          Time step.
+    :type dt:           float
+    :return:    Control-dimensions x T array of L2-cost gradients.
+    :rtype:     np.ndarray
+    """
+
+    der = np.zeros((u.shape))
+
+    if weights["w_2"] != 0.0:
+        der += weights["w_2"] * derivative_L2_cost(u)
+    if weights["w_1"] != 0.0:
+        der += weights["w_1"] * derivative_L1_cost(u)
+    if weights["w_1T"] != 0.0:
+        der += weights["w_1T"] * derivative_L1T_cost(u, dt)
+    if weights["w_1D"] != 0.0:
+        der += weights["w_1D"] * derivative_L1D_cost(u, dt)
+
+    return der
+
+
+@numba.njit
+def L2_cost(u):
     """'Energy' or 'L2' cost. Penalizes for control strength.
 
     :param u:   Control-dimensions x T array. Control signals.
     :type u:    np.ndarray
-    :param w_2: Weight that is multiplied with the L2 ("energy") cost.
-    :type w_2:  float
-    :param dt:  Time step.
-    :type dt:   float
     :return:    L2 cost of the control.
     :rtype:     float
     """
-    return w_2 * 0.5 * np.sum(u**2.0) * dt
+
+    return 0.5 * u**2.0
 
 
 @numba.njit
-def derivative_energy_cost(u, w_2):
-    """Derivative of the 'energy_cost' wrt. to the control 'u'.
+def derivative_L2_cost(u):
+    """Derivative of the 'L2_cost' wrt. to the control 'u'.
 
     :param u:   Control-dimensions x T array. Control signals.
     :type u:    np.ndarray
-    :param w_2: Weight that is multiplied with the L2 ("energy") cost.
-    :type w_2:  float
     :return:    Control-dimensions x T array of L2-cost gradients.
     :rtype:     np.ndarray
     """
-    return w_2 * u
+    return u
+
+
+@numba.njit
+def L1_cost(u):
+    """'Sparsity' or 'L1' cost. Penalizes for control strength.
+
+    :param u:   Control-dimensions x T array. Control signals.
+    :type u:    np.ndarray
+    :return:    L1 cost of the control.
+    :rtype:     float
+    """
+    return np.abs(u)
+
+
+@numba.njit
+def derivative_L1_cost(u):
+    """Derivative of the 'L1_cost' wrt. to the control 'u'.
+
+    :param u:   Control-dimensions x T array. Control signals.
+    :type u:    np.ndarray
+    :return :   Control-dimensions x T array of L1-cost gradients.
+    :rtype:     np.ndarray
+    """
+    return np.sign(u)
+
+
+@numba.njit
+def L1T_cost_integral(u, dt):
+    """'Temporal sparsity' or 'L1T' cost integrated over time. Penalizes for control strength.
+    :param u:   Control-dimensions x T array. Control signals.
+    :type u:    np.ndarray
+    :param dt:  Time step.
+    :type dt:   float
+    :return:    L1T cost of the control.
+    :rtype:     float
+    """
+
+    return np.sqrt(np.sum(np.sum(np.sum(np.abs(u), axis=1), axis=0) ** 2) * dt)
+
+
+@numba.njit
+def derivative_L1T_cost(u, dt):
+    """
+    :param u:   Control-dimensions x T array. Control signals.
+    :type u:    np.ndarray
+    :param dt:  Time step.
+    :type dt:   float
+    :return :   Control-dimensions x T array of L1T-cost gradients.
+    :rtype:     np.ndarray
+    """
+
+    denominator = L1T_cost_integral(u, dt)
+    if denominator == 0.0:
+        return np.zeros((u.shape))
+
+    return np.sum(np.sum(np.abs(u), axis=1), axis=0) * np.sign(u) / denominator
+
+
+@numba.njit
+def L1D_cost_integral(u, dt):
+    """'Directional sparsity' or 'L1D' cost integrated over time. Penalizes for control strength.
+    :param u:   Control-dimensions x T array. Control signals.
+    :type u:    np.ndarray
+    :param dt:  Time step.
+    :type dt:   float
+    :return:    L1D cost of the control.
+    :rtype:     float
+    """
+
+    return np.sum(np.sum(np.sqrt(np.sum(u**2, axis=2) * dt), axis=1), axis=0)
+
+
+@numba.njit
+def derivative_L1D_cost(u, dt):
+    """
+    :param u:   Control-dimensions x T array. Control signals.
+    :type u:    np.ndarray
+    :param dt:  Time step.
+    :type dt:   float
+    :return :   Control-dimensions x T array of L1D-cost gradients.
+    :rtype:     np.ndarray
+    """
+
+    denominator = np.sqrt(np.sum(u**2, axis=2) * dt)
+    der = np.zeros((u.shape))
+    for n in range(der.shape[0]):
+        for v in range(der.shape[1]):
+            if denominator[n, v] != 0.0:
+                der[n, v, :] = u[n, v, :] / denominator[n, v]
+
+    return der

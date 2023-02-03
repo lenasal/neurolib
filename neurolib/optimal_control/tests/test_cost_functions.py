@@ -1,5 +1,6 @@
 import unittest
 from neurolib.optimal_control import cost_functions
+from neurolib.optimal_control.oc import getdefaultweights
 import numpy as np
 
 
@@ -138,21 +139,81 @@ class TestCostFunctions(unittest.TestCase):
         self.assertTrue(np.all(derivative_p_c[0, :, 4::] == 0))
         self.assertTrue(np.all(derivative_p_c[0, :, 3] == 2 * (-w_p * x_target[0, :, 3])))
 
-    def test_energy_cost(self):
-        print(" Test energy cost")
+    def test_L2_cost(self):
+        print(" Test L2 cost")
         dt = 0.1
         reference_result = 112.484456945 * dt
-        w_2 = 1
+        weights = getdefaultweights()
+        weights["w_2"] = 1.0
         u = self.get_arbitrary_array()
-        energy_cost = cost_functions.energy_cost(u, w_2, dt)
-        self.assertEqual(energy_cost, reference_result)
+        L2_cost = cost_functions.control_strength_cost(u, weights, dt)
+        self.assertAlmostEqual(L2_cost, reference_result, places=8)
 
-    def test_derivative_energy_cost(self):
-        print(" Test energy cost derivative")
-        w_e = -0.9995
+    def test_derivative_L2_cost(self):
+        print(" Test L2 cost derivative")
         u = self.get_arbitrary_array()
-        desired_output = w_e * u
-        self.assertTrue(np.all(cost_functions.derivative_energy_cost(u, w_e) == desired_output))
+        desired_output = u
+        self.assertTrue(np.all(cost_functions.derivative_L2_cost(u) == desired_output))
+
+    def test_L1_cost(self):
+        print(" Test L1 cost")
+        dt = 0.1
+        reference_result = 29.8883 * dt
+        weights = getdefaultweights()
+        weights["w_1"] = 1.0
+        u = self.get_arbitrary_array()
+        L1_cost = cost_functions.control_strength_cost(u, weights, dt)
+        self.assertAlmostEqual(L1_cost, reference_result, places=8)
+
+    def test_derivative_L1_cost(self):
+        print(" Test L1 cost derivative")
+        u = self.get_arbitrary_array()
+        desired_output = np.sign(u)
+        self.assertTrue(np.all(cost_functions.derivative_L1_cost(u) == desired_output))
+
+    def test_L1T_cost(self):
+        print(" Test L1T cost")
+        dt = 0.1
+        # np.array([[1, -10, 5.555], [-1, 3.3333, 9]])
+        reference_result = np.sqrt(393.62491388999996 * dt)
+        weights = getdefaultweights()
+        weights["w_1T"] = 1.0
+        u = self.get_arbitrary_array()
+        L1T_cost = cost_functions.control_strength_cost(u, weights, dt)
+        self.assertAlmostEqual(L1T_cost, reference_result, places=8)
+
+    def test_derivative_L1T_cost(self):
+        print(" Test L1T cost derivative")
+        u = self.get_arbitrary_array()
+        dt = 0.1
+        denominator = np.sqrt(393.62491388999996 * dt)
+        desired_output = np.zeros((u.shape))
+        desired_output[0, 0, :] = [2.0, -13.3333, 14.555] / denominator
+        desired_output[0, 1, :] = [-2.0, 13.3333, 14.555] / denominator
+
+        self.assertTrue(np.all(cost_functions.derivative_L1T_cost(u, dt) == desired_output))
+
+    def test_L1D_cost(self):
+        print(" Test L1D cost")
+        dt = 0.1
+        reference_result = np.sqrt((101.0 + 5.555**2) * dt) + np.sqrt((82.0 + 3.3333**2) * dt)
+        weights = getdefaultweights()
+        weights["w_1D"] = 1.0
+        u = self.get_arbitrary_array()
+        L1D_cost = cost_functions.control_strength_cost(u, weights, dt)
+        self.assertAlmostEqual(L1D_cost, reference_result, places=8)
+
+    def test_derivative_L1D_cost(self):
+        print(" Test L1D cost derivative")
+        u = self.get_arbitrary_array()
+        dt = 0.1
+        desired_output = np.zeros((u.shape))
+        denominator = np.sqrt((101.0 + 5.555**2) * dt)
+        desired_output[0, 0, :] = u[0, 0, :] / denominator
+        denominator = np.sqrt((82.0 + 3.3333**2) * dt)
+        desired_output[0, 1, :] = u[0, 1, :] / denominator
+
+        self.assertTrue(np.all(cost_functions.derivative_L1D_cost(u, dt) == desired_output))
 
 
 if __name__ == "__main__":

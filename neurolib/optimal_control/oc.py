@@ -5,7 +5,18 @@ from neurolib.optimal_control import cost_functions
 import logging
 import copy
 
-from neurolib.utils.collections import dotdict
+def getdefaultweights():
+    weights = numba.typed.Dict.empty(
+        key_type=numba.types.unicode_type,
+        value_type=numba.types.float64,
+    )
+    weights["w_p"] = 1.0
+    weights["w_2"] = 0.0
+    weights["w_1"] = 0.0
+    weights["w_1T"] = 0.0
+    weights["w_1D"] = 0.0
+
+    return weights
 
 
 def decrease_step(controlled_model, cost, cost0, step, control0, factor_down, cost_gradient):
@@ -193,6 +204,49 @@ def solve_adjoint(hx, hx_nw, fx, state_dim, dt, N, T):
     return adjoint_state
 
 
+# @numba.njit
+def compute_gradient(N, dim_out, T, df_du, adjoint_state, control_matrix, d_du):
+    """Compute the gradient of the total cost wrt. to the control signals (explicitly and implicitly) given the adjoint
+       state, the Jacobian of the total cost wrt. to explicit control contributions and the Jacobian of the dynamics
+       wrt. to explicit control contributions.
+
+    :param N:       Number of nodes in the network.
+    :type N:        int
+    :param dim_out: Number of 'output variables' of the model.
+    :type dim_out:  int
+    :param T:       Length of simulation (time dimension).
+    :type T:        int
+    :param df_du:      Derivative of the cost wrt. to the explicit control contributions to cost functionals.
+    :type df_du:       np.ndarray of shape N x V x T
+    :param adjoint_state:   Solution of the adjoint equation.
+    :type adjoint_state:    np.ndarray of shape N x V x T
+    :param control_matrix:  Binary matrix that defines nodes and variables where control inputs are active, defaults to
+                            None.
+    :type control_matrix:   np.ndarray of shape N x V
+    :param d_du:    Jacobian of systems dynamics wrt. to I_ext (external control input)
+    :type d_du:     np.ndarray of shape V x V
+    :return:        The gradient of the total cost wrt. to the control.
+    :rtype:         np.ndarray of shape N x V x T
+    """
+    grad = np.zeros(df_du.shape)
+
+    # if derivative of dynamics wrt control is constant
+    if len(d_du.shape) == 2:
+        for n in range(N):
+            for v in range(dim_out):
+                for t in range(T):
+                    grad[n, v, t] = df_du[n, v, t] + adjoint_state[n, v, t] * control_matrix[n, v] * d_du[v, v]
+
+    # else if derivative of dynamics wrt control is time-dependent
+    elif len(d_du.shape) == 4:
+        for n in range(N):
+            for v in range(dim_out):
+                for t in range(T):
+                    grad[n, v, t] = df_du[n, v, t] + adjoint_state[n, v, t] * control_matrix[n, v] * d_du[n, v, v, t]
+
+    return grad
+
+
 @numba.njit
 def update_control_with_limit(control, step, gradient, u_max):
     """Computes the updated control signal. The absolute values of the new control are bounded by +/- 'u_max'. If
@@ -326,9 +380,8 @@ class OC:
         self.maximum_control_strength = maximum_control_strength
 
         if weights is None:
-            self.weights = dotdict({})
-            self.weights.w_p = 1.0
-            self.weights.w_2 = 0.0
+            weights = getdefaultweights()
+        self.weights = weights
 
         self.N = self.model.params.N
 
@@ -457,23 +510,30 @@ class OC:
         precision_cost = cost_functions.precision_cost(
             self.target,
             self.get_xs(),
-            self.weights.w_p,
+            self.weights["w_p"],
             self.precision_matrix,
             self.dt,
             self.precision_cost_interval,
         )
-        energy_cost = cost_functions.energy_cost(self.control, w_2=self.weights.w_2, dt=self.dt)
-        return precision_cost + energy_cost  # Further cost terms can be added here. Add corresponding derivatives
+        control_strenght_cost = cost_functions.control_strength_cost(self.control, self.weights, self.dt)
+        return (
+            precision_cost + control_strenght_cost
+        )  # Further cost terms can be added here. Add corresponding derivatives
         # elsewhere accordingly.
 
-    @abc.abstractmethod
     def compute_gradient(self):
         """Compute the gradient of the total cost wrt. to the control signals. This is achieved by first, solving the
         adjoint equation backwards in time. Second, derivatives of the cost wrt. to explicit control variables are
         evaluated as well as the Jacobians of the dynamics wrt. to explicit control. Then the decent direction /
         gradient of the cost wrt. to control (in its explicit form AND IMPLICIT FORM) is computed.
+        :return:        The gradient of the total cost wrt. to the control.
+        :rtype:         np.ndarray of shape N x V x T
         """
-        pass
+        self.solve_adjoint()
+        df_du = cost_functions.derivative_control_strength_cost(self.control, self.weights, self.dt)
+        duh = self.Duh()
+
+        return compute_gradient(self.N, self.dim_out, self.T, df_du, self.adjoint_state, self.control_matrix, duh)
 
     @abc.abstractmethod
     def compute_hx(self):
@@ -495,7 +555,7 @@ class OC:
         df_dx = cost_functions.derivative_precision_cost(
             self.target,
             self.get_xs(),
-            self.weights.w_p,
+            self.weights["w_p"],
             self.precision_matrix,
             self.precision_cost_interval,
         )

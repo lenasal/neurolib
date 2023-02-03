@@ -326,8 +326,8 @@ class TestFHN(unittest.TestCase):
         )
 
         fhn_controlled = oc_fhn.OcFhn(fhn, target)
-        fhn_controlled.weights.w_p = 0.0
-        fhn_controlled.weights.w_2 = 1.0
+        fhn_controlled.weights["w_p"] = 0.0
+        fhn_controlled.weights["w_2"] = 1.0
         control_is_zero = False
 
         for i in range(100):
@@ -381,8 +381,8 @@ class TestFHN(unittest.TestCase):
         )
 
         fhn_controlled = oc_fhn.OcFhn(fhn, target)
-        fhn_controlled.weights.w_p = 0.0
-        fhn_controlled.weights.w_2 = 1.0
+        fhn_controlled.weights["w_p"] = 0.0
+        fhn_controlled.weights["w_2"] = 1.0
         control_is_zero = False
 
         for i in range(100):
@@ -429,7 +429,7 @@ class TestFHN(unittest.TestCase):
             precision_matrix=precision_mat,
             control_matrix=control_mat,
         )
-        fhn_controlled.weights.w_2 = 1.0
+        fhn_controlled.weights["w_2"] = 1.0
 
         self.assertTrue(np.max(np.abs(fhn_controlled.control) <= maximum_control_strength))
 
@@ -467,7 +467,7 @@ class TestFHN(unittest.TestCase):
             precision_matrix=precision_mat,
             control_matrix=control_mat,
         )
-        fhn_controlled.weights.w_2 = 1.0
+        fhn_controlled.weights["w_2"] = 1.0
 
         fhn_controlled.optimize(1)
         self.assertTrue(np.max(np.abs(fhn_controlled.control) <= maximum_control_strength))

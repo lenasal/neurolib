@@ -68,40 +68,6 @@ def Duh(
 
 
 @numba.njit
-def compute_gradient(N, dim_out, T, df_du, adjoint_state, control_matrix, d_du):
-    """Compute the gradient of the total cost wrt. to the control signals (explicitly and implicitly) given the adjoint
-       state, the Jacobian of the total cost wrt. to explicit control contributions and the Jacobian of the dynamics
-       wrt. to explicit control contributions.
-
-    :param N:       Number of nodes in the network.
-    :type N:        int
-    :param dim_out: Number of 'output variables' of the model.
-    :type dim_out:  int
-    :param T:       Length of simulation (time dimension).
-    :type T:        int
-    :param df_du:      Derivative of the cost wrt. to the explicit control contributions to cost functionals.
-    :type df_du:       np.ndarray of shape N x V x T
-    :param adjoint_state:   Solution of the adjoint equation.
-    :type adjoint_state:    np.ndarray of shape N x V x T
-    :param control_matrix:  Binary matrix that defines nodes and variables where control inputs are active, defaults to
-                            None.
-    :type control_matrix:   np.ndarray of shape N x V
-    :param d_du:    Jacobian of systems dynamics wrt. to I_ext (external control input)
-    :type d_du:     np.ndarray of shape V x V
-    :return:        The gradient of the total cost wrt. to the control.
-    :rtype:         np.ndarray of shape N x V x T
-    """
-    grad = np.zeros(df_du.shape)
-
-    for n in range(N):
-        for v in range(dim_out):
-            for t in range(T):
-                grad[n, v, t] = df_du[n, v, t] + adjoint_state[n, v, t] * control_matrix[n, v] * d_du[n, v, v, t]
-
-    return grad
-
-
-@numba.njit
 def jacobian_wc(wc_model_params, nw_e, e, i, ue, ui, V):
     """Jacobian of the WC dynamical system.
 
@@ -377,14 +343,14 @@ class OcWc(OC):
             self.model.params["inh_ext"] = input[:, 1, :]
 
     def Dxdot(self):
-        """4 x 4 Jacobian of systems dynamics wrt. to change of systems variables."""
+        """V x V Jacobian of systems dynamics wrt. to change of systems variables."""
         # Currently not explicitly required since it is identity matrix.
         raise NotImplementedError  # return np.eye(4)
 
     def Duh(self):
         """Jacobian of systems dynamics wrt. to external control input.
 
-        :return:    N x 4 x 4 x T Jacobians.
+        :return:    N x V x V x T Jacobians.
         :rtype:     np.ndarray
         """
 
@@ -421,7 +387,7 @@ class OcWc(OC):
     def compute_hx(self):
         """Jacobians of WCModel wrt. to the 'e'- and 'i'-variable for each time step.
 
-        :return:    N x T x 4 x 4 Jacobians.
+        :return:    N x T x V x V Jacobians.
         :rtype:     np.ndarray
         """
         return compute_hx(
@@ -450,7 +416,7 @@ class OcWc(OC):
     def compute_hx_nw(self):
         """Jacobians for each time step for the network coupling.
 
-        :return: N x N x T x (4x4) array
+        :return: N x N x T x V x V array
         :rtype: np.ndarray
         """
 
@@ -475,19 +441,3 @@ class OcWc(OC):
             self.model.params.c_excexc,
             self.model.params.c_inhexc,
         )
-
-    def compute_gradient(self):
-        """Compute the gradient of the total cost wrt. to the control signals. This is achieved by first, solving the
-           adjoint equation backwards in time. Second, derivatives of the cost wrt. to explicit control variables are
-           evaluated as well as the Jacobians of the dynamics wrt. to explicit control. Then the decent direction /
-           gradient of the cost wrt. to control (in its explicit form AND IMPLICIT FORM) is computed.
-
-        :return:        The gradient of the total cost wrt. to the control.
-        :rtype:         np.ndarray of shape N x V x T
-        """
-        self.solve_adjoint()
-
-        df_du = cost_functions.derivative_energy_cost(self.control, self.weights.w_2)
-        duh = self.Duh()
-
-        return compute_gradient(self.N, self.dim_out, self.T, df_du, self.adjoint_state, self.control_matrix, duh)

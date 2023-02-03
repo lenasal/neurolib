@@ -257,7 +257,7 @@ class TestHopf(unittest.TestCase):
             precision_matrix=precision_mat,
             control_matrix=control_mat,
         )
-        hopf_controlled.weights.w_2 = 1.0
+        hopf_controlled.weights["w_2"] = 1.0
 
         self.assertTrue(np.max(np.abs(hopf_controlled.control) <= maximum_control_strength))
 
@@ -295,7 +295,7 @@ class TestHopf(unittest.TestCase):
             precision_matrix=precision_mat,
             control_matrix=control_mat,
         )
-        hopf_controlled.weights.w_2 = 1.0
+        hopf_controlled.weights["w_2"] = 1.0
 
         hopf_controlled.optimize(1)
         self.assertTrue(np.max(np.abs(hopf_controlled.control) <= maximum_control_strength))
