@@ -205,7 +205,7 @@ class TestWC(unittest.TestCase):
                                 wc,
                                 target,
                                 control_matrix=control_mat,
-                                precision_matrix=prec_mat,
+                                cost_matrix=prec_mat,
                             )
 
                             control_coincide = False
