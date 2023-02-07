@@ -1,9 +1,63 @@
 import numpy as np
 import numba
 
+@numba.njit
+def accuracy_cost(x, x_target, weights, precision_matrix, dt, interval=(0, None)):
+    """Total cost related to the accuracy, weighted sum of contributions.
+
+    :param x:           State of dynamical system.
+    :type x:            np.ndarray
+    :param x_target:    Target state.  
+    :type x_target:     np.darray
+    :param weights:     Dictionary of weights.
+    :type weights:      dictionary
+    :param dt:          Time step.
+    :type dt:           float
+    :return:            Accuracy cost of the control.
+    :rtype:             float
+    """
+
+    cost_timeseries = np.zeros((x_target.shape))
+
+    # timeseries of control vector is weighted sum of contributing cost functionals
+    if weights["w_p"] != 0.0:
+        cost_timeseries += weights["w_p"] * precision_cost(x_target, x)
+
+    cost = 0.0
+    # integrate over nodes, channels, and time
+    if weights["w_p"] != 0.0:
+        for n in range(u.shape[0]):
+            for v in range(u.shape[1]):
+                for t in range(interval[0], interval[1]):
+                    cost += precision_matrix[n, v] * cost_timeseries[n, v, t] * dt
+
+    return cost
+
 
 @numba.njit
-def precision_cost(x_target, x_sim, w_p, precision_matrix, dt, interval=(0, None)):
+def derivative_accuracy_cost(x, x_target, weights, precision_matrix, interval=(0,None)):
+    """Derivative of the 'accuracy_cost' wrt. to the control 'u'.
+
+    :param u:           Control-dimensions x T array. Control signals.
+    :type u:            np.ndarray
+    :param weights:     Dictionary of weights.
+    :type weights:      dictionary
+    :param dt:          Time step.
+    :type dt:           float
+    :return:    Control-dimensions x T array of L2-cost gradients.
+    :rtype:     np.ndarray
+    """
+
+    der = np.zeros((u.shape))
+
+    if weights["w_p"] != 0.0:
+        der += weights["w_p"] * derivative_precision_cost(u)
+
+    return der
+
+
+@numba.njit
+def precision_cost(x_target, x_sim):
     """Summed squared difference between target and simulation within specified time interval weighted by w_p.
        Penalizes deviation from the target.
 
@@ -25,13 +79,14 @@ def precision_cost(x_target, x_sim, w_p, precision_matrix, dt, interval=(0, None
     :rtype:             float
     """
 
-    cost = 0.0
+    cost = np.zeros((x_target.shape))
+
     for n in range(x_target.shape[0]):
         for v in range(x_target.shape[1]):
             for t in range(interval[0], interval[1]):
-                cost += precision_matrix[n, v] * (x_target[n, v, t] - x_sim[n, v, t]) ** 2
+                cost[n,v,t] = 0.5 * (x_target[n, v, t] - x_sim[n, v, t]) ** 2
 
-    return w_p * 0.5 * cost * dt
+    return cost
 
 
 @numba.njit
