@@ -13,32 +13,34 @@ class TestCostFunctions(unittest.TestCase):
 
     def test_precision_cost_full_timeseries(self):
         print(" Test precision cost full timeseries")
-        w_p = 1
         N = 1
         precision_cost_matrix = np.ones((N, 2))
         dt = 0.1
         x_target = self.get_arbitrary_array()
         interval = (0, x_target.shape[2])
+        weights = getdefaultweights()
 
-        self.assertEqual(
-            cost_functions.precision_cost(x_target, x_target, w_p, precision_cost_matrix, dt, interval),
+        self.assertAlmostEqual(
+            cost_functions.accuracy_cost(x_target, x_target, weights, precision_cost_matrix, dt, interval),
             0,
+            places=8
         )  # target and simulation coincide
 
         x_sim = np.copy(x_target)
         x_sim[:, 0] = -x_sim[:, 0]  # create setting where result depends only on this first entries
-        self.assertEqual(
-            cost_functions.precision_cost(x_target, x_target, w_p, precision_cost_matrix, dt, interval),
+        self.assertAlmostEqual(
+            cost_functions.accuracy_cost(x_target, x_target, weights, precision_cost_matrix, dt, interval),
             0,
+            places=8
         )
-        self.assertEqual(
-            cost_functions.precision_cost(x_target, x_sim, w_p, precision_cost_matrix, dt, interval),
-            w_p / 2 * np.sum((2 * x_target[:, 0]) ** 2) * dt,
+        self.assertAlmostEqual(
+            cost_functions.accuracy_cost(x_target, x_sim, weights, precision_cost_matrix, dt, interval),
+            weights["w_p"] / 2 * np.sum((2 * x_target[:, 0]) ** 2) * dt,
+            places=8
         )
 
     def test_precision_cost_nodes_channels(self):
         print(" Test precision cost full timeseries for node and channel selection.")
-        w_p = 1
         N = 2
         x_target0 = self.get_arbitrary_array()
         x_target1 = 2.0 * self.get_arbitrary_array()
@@ -47,19 +49,22 @@ class TestCostFunctions(unittest.TestCase):
         dt = 0.1
         interval = (0, target.shape[2])
         zerostate = np.zeros((target.shape))
+        weights = getdefaultweights()
 
-        self.assertEqual(
-            cost_functions.precision_cost(target, zerostate, w_p, precision_cost_matrix, dt, interval),
+        self.assertAlmostEqual(
+            cost_functions.accuracy_cost(target, zerostate, weights, precision_cost_matrix, dt, interval),
             0.0,
+            places=8,
         )  # no cost if precision matrix is zero
 
         for i in range(N):
             for j in range(N):
                 precision_cost_matrix[i, j] = 1
-                result = w_p * 0.5 * sum((target[i, j, :] ** 2)) * dt
-                self.assertEqual(
-                    cost_functions.precision_cost(target, zerostate, w_p, precision_cost_matrix, dt, interval),
+                result = weights["w_p"] * 0.5 * sum((target[i, j, :] ** 2)) * dt
+                self.assertAlmostEqual(
+                    cost_functions.accuracy_cost(target, zerostate, weights, precision_cost_matrix, dt, interval),
                     result,
+                    places=8,
                 )
                 precision_cost_matrix[i, j] = 0
 
@@ -109,7 +114,6 @@ class TestCostFunctions(unittest.TestCase):
         the second interval is to be taken into account.
         """
         print(" Test precision cost in time interval")
-        w_p = 1
         N = 1
         precision_cost_matrix = np.ones((N, 2))
         dt = 0.1
@@ -117,9 +121,10 @@ class TestCostFunctions(unittest.TestCase):
         x_sim = np.copy(x_target)
         x_sim[0, :, 3] = -x_sim[0, :, 3]
         interval = (3, x_target.shape[2])
-        precision_cost = cost_functions.precision_cost(x_target, x_sim, w_p, precision_cost_matrix, dt, interval)
+        weights = getdefaultweights()
+        precision_cost = cost_functions.accuracy_cost(x_target, x_sim, weights, precision_cost_matrix, dt, interval)
         # Result should only depend on second half of the timeseries.
-        self.assertEqual(precision_cost, w_p / 2 * np.sum((2 * x_target[0, :, 3]) ** 2) * dt)
+        self.assertEqual(precision_cost, weights["w_p"] / 2 * np.sum((2 * x_target[0, :, 3]) ** 2) * dt)
 
     def test_derivative_precision_cost_in_interval(self):
         """This test is analogous to the 'test_derivative_precision_cost'. However, the signal is repeated twice, but

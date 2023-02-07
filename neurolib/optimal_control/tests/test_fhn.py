@@ -200,7 +200,7 @@ class TestFHN(unittest.TestCase):
                                 fhn,
                                 target,
                                 control_matrix=control_mat,
-                                precision_matrix=prec_mat,
+                                cost_matrix=prec_mat,
                             )
 
                             control_coincide = False
@@ -426,7 +426,7 @@ class TestFHN(unittest.TestCase):
             fhn,
             target,
             maximum_control_strength=maximum_control_strength,
-            precision_matrix=precision_mat,
+            cost_matrix=precision_mat,
             control_matrix=control_mat,
         )
         fhn_controlled.weights["w_2"] = 1.0
@@ -464,7 +464,7 @@ class TestFHN(unittest.TestCase):
             fhn,
             target,
             maximum_control_strength=maximum_control_strength,
-            precision_matrix=precision_mat,
+            cost_matrix=precision_mat,
             control_matrix=control_mat,
         )
         fhn_controlled.weights["w_2"] = 1.0

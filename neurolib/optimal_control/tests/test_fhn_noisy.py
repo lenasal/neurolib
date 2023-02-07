@@ -11,7 +11,6 @@ from numpy.random import RandomState, SeedSequence
 global limit_diff
 limit_diff = 1e-4
 
-
 class TestFHNNoisy(unittest.TestCase):
     """
     Test fhn in neurolib/optimal_control/

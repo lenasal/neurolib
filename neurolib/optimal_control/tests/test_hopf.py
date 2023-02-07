@@ -197,7 +197,7 @@ class TestHopf(unittest.TestCase):
                                 hopf,
                                 target,
                                 control_matrix=control_mat,
-                                precision_matrix=prec_mat,
+                                cost_matrix=prec_mat,
                             )
 
                             control_coincide = False
@@ -254,7 +254,7 @@ class TestHopf(unittest.TestCase):
             hopf,
             target,
             maximum_control_strength=maximum_control_strength,
-            precision_matrix=precision_mat,
+            cost_matrix=precision_mat,
             control_matrix=control_mat,
         )
         hopf_controlled.weights["w_2"] = 1.0
@@ -292,7 +292,7 @@ class TestHopf(unittest.TestCase):
             hopf,
             target,
             maximum_control_strength=maximum_control_strength,
-            precision_matrix=precision_mat,
+            cost_matrix=precision_mat,
             control_matrix=control_mat,
         )
         hopf_controlled.weights["w_2"] = 1.0

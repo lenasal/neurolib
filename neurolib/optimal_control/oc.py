@@ -325,8 +325,8 @@ class OC:
         weights=None,
         maximum_control_strength=None,
         print_array=[],
-        precision_cost_interval=(None, None),
-        precision_matrix=None,
+        cost_interval=(None, None),
+        cost_matrix=None,
         control_matrix=None,
         M=1,
         M_validation=0,
@@ -348,13 +348,13 @@ class OC:
         :param print_array: Array of optimization-iteration-indices (starting at 1) in which cost is printed out.
                             Defaults to empty list `[]`.
         :type print_array:  list, optional
-        :param precision_cost_interval: (t_start, t_end). Indices of start and end point (both inclusive) of the
+        :param cost_interval: (t_start, t_end). Indices of start and end point (both inclusive) of the
                                         time interval in which the precision cost is evaluated. Default is full time
                                         series. Defaults to (None, None).
-        :type precision_cost_interval:  tuple, optional
-        :param precision_matrix: N x V binary matrix that defines nodes and channels of precision measurement, defaults
+        :type cost_interval:  tuple, optional
+        :param cost_matrix: N x V binary matrix that defines nodes and channels of precision measurement, defaults
                                  to None.
-        :type precision_matrix:  np.ndarray
+        :type cost_matrix:  np.ndarray
         :param control_matrix:   N x V Binary matrix that defines nodes and variables where control inputs are active,
                                  defaults to None.
         :type control_matrix:    np.ndarray
@@ -398,14 +398,14 @@ class OC:
 
         self.Dmat_ndt = np.around(self.model.Dmat / self.model.params.dt).astype(int)
 
-        self.precision_matrix = precision_matrix
-        if isinstance(self.precision_matrix, type(None)):
-            self.precision_matrix = np.ones(
+        self.cost_matrix = cost_matrix
+        if isinstance(self.cost_matrix, type(None)):
+            self.cost_matrix = np.ones(
                 (self.N, self.dim_out)
             )  # default: measure precision in all variables in all nodes
 
         # check if matrix is binary
-        assert np.array_equal(self.precision_matrix, self.precision_matrix.astype(bool))
+        assert np.array_equal(self.cost_matrix, self.cost_matrix.astype(bool))
 
         self.control_matrix = control_matrix
         if isinstance(self.control_matrix, type(None)):
@@ -472,7 +472,7 @@ class OC:
 
         self.zero_step_encountered = False  # deterministic gradient descent cannot further improve
 
-        self.precision_cost_interval = convert_interval(precision_cost_interval, self.T)
+        self.cost_interval = convert_interval(cost_interval, self.T)
 
     @abc.abstractmethod
     def get_xs(self):
@@ -507,17 +507,17 @@ class OC:
 
         :rtype: float
         """
-        precision_cost = cost_functions.precision_cost(
+        accuracy_cost = cost_functions.accuracy_cost(
             self.target,
             self.get_xs(),
-            self.weights["w_p"],
-            self.precision_matrix,
+            self.weights,
+            self.cost_matrix,
             self.dt,
-            self.precision_cost_interval,
+            self.cost_interval,
         )
         control_strenght_cost = cost_functions.control_strength_cost(self.control, self.weights, self.dt)
         return (
-            precision_cost + control_strenght_cost
+            accuracy_cost + control_strenght_cost
         )  # Further cost terms can be added here. Add corresponding derivatives
         # elsewhere accordingly.
 
@@ -552,12 +552,12 @@ class OC:
         hx_nw = self.compute_hx_nw()
 
         # Derivative of cost wrt. to controllable 'state_vars'. Contributions of other costs might be added here.
-        df_dx = cost_functions.derivative_precision_cost(
+        df_dx = cost_functions.derivative_accuracy_cost(
             self.target,
             self.get_xs(),
-            self.weights["w_p"],
-            self.precision_matrix,
-            self.precision_cost_interval,
+            self.weights,
+            self.cost_matrix,
+            self.cost_interval,
         )
 
         self.adjoint_state = solve_adjoint(hx, hx_nw, df_dx, self.state_dim, self.dt, self.N, self.T)
@@ -651,8 +651,8 @@ class OC:
         :type n_max_iterations:  int
         """
 
-        self.precision_cost_interval = convert_interval(
-            self.precision_cost_interval, self.T
+        self.cost_interval = convert_interval(
+            self.cost_interval, self.T
         )  # Assure check in repeated calls of ".optimize()".
 
         self.control = update_control_with_limit(
