@@ -4,6 +4,7 @@ import numpy as np
 from neurolib.optimal_control import cost_functions
 import logging
 import copy
+from scipy.signal import hilbert
 
 
 def getdefaultweights():
@@ -12,6 +13,9 @@ def getdefaultweights():
         value_type=numba.types.float64,
     )
     weights["w_p"] = 1.0
+    weights["w_f"] = 0.0
+    weights["w_phase"] = 0.0
+    weights["w_ac"] = 0.0
     weights["w_2"] = 0.0
     weights["w_1"] = 0.0
     weights["w_1T"] = 0.0
@@ -373,28 +377,42 @@ class OC:
 
         self.model = copy.deepcopy(model)
 
+        self.dt = self.model.params["dt"]  # maybe redundant but for now code clarity
+        self.duration = self.model.params["duration"]  # maybe redundant but for now code clarity
+
+        self.T = np.around(self.duration / self.dt, 0).astype(int) + 1  # Total number of time steps is
+        self.N = self.model.params.N
+
+        self.dim_vars = len(self.model.state_vars)
+        self.dim_out = len(self.model.output_vars)
+
+        # + forward simulation steps of neurolibs model.run().
+        self.state_dim = (
+            self.N,
+            self.dim_vars,
+            self.T,
+        )  # dimensions of state. Model has N network nodes, V state variables, T time points
+
         if self.model.getMaxDelay() > 0.0:
             print("Delay not yet implemented, please set delays to zero")
 
-        self.target = target  # ToDo: dimensions-check
+        if isinstance(target, int):
+            target = float(target)
 
-        if isinstance(self.target, np.ndarray):
-            print("Optimal control with target time series.")
-        elif isinstance(self.target, int):
-            self.target = float(self.target)
-        if isinstance(self.target, float):
-            print("Optimal control with target oscillation period.")
+        if isinstance(target, np.ndarray):
+            print("Optimal control with target time series")
+            self.target_timeseries = target
+            self.target_period = 0.0
+        elif isinstance(target, float):
+            print("Optimal control with target oscillation period")
+            self.target_timeseries = np.zeros((self.N, self.dim_out, self.T))
+            self.target_period = target
 
         self.maximum_control_strength = maximum_control_strength
 
         if weights is None:
             weights = getdefaultweights()
         self.weights = weights
-
-        self.N = self.model.params.N
-
-        self.dim_vars = len(self.model.state_vars)
-        self.dim_out = len(self.model.output_vars)
 
         if self.N > 1:  # check that coupling matrix has zero diagonal
             assert np.all(np.diag(self.model.Cmat) == 0.0)
@@ -452,19 +470,6 @@ class OC:
                     + 'If you want to study a noisy system, please set model parameter "sigma_ou" larger than zero'
                 )
 
-        self.dt = self.model.params["dt"]  # maybe redundant but for now code clarity
-        self.duration = self.model.params["duration"]  # maybe redundant but for now code clarity
-
-        self.T = np.around(self.duration / self.dt, 0).astype(int) + 1  # Total number of time steps is
-        # initial condition.
-
-        # + forward simulation steps of neurolibs model.run().
-        self.state_dim = (
-            self.N,
-            self.dim_vars,
-            self.T,
-        )  # dimensions of state. Model has N network nodes, V state variables, T time points
-
         self.adjoint_state = np.zeros(self.state_dim)
 
         self.control = None  # Is implemented in derived classes.
@@ -515,9 +520,12 @@ class OC:
 
         :rtype: float
         """
+        xs = self.get_xs()
         accuracy_cost = cost_functions.accuracy_cost(
-            self.target,
-            self.get_xs(),
+            xs,
+            hilbert(xs),
+            self.target_timeseries,
+            self.target_period,
             self.weights,
             self.cost_matrix,
             self.dt,
@@ -558,13 +566,17 @@ class OC:
 
         hx = self.compute_hx()
         hx_nw = self.compute_hx_nw()
+        xs = self.get_xs()
 
         # Derivative of cost wrt. to controllable 'state_vars'. Contributions of other costs might be added here.
         df_dx = cost_functions.derivative_accuracy_cost(
-            self.target,
-            self.get_xs(),
+            xs,
+            hilbert(xs),
+            self.target_timeseries,
+            self.target_period,
             self.weights,
             self.cost_matrix,
+            self.dt,
             self.cost_interval,
         )
 
