@@ -5,6 +5,7 @@ from neurolib.optimal_control import cost_functions
 import logging
 import copy
 
+
 def getdefaultweights():
     weights = numba.typed.Dict.empty(
         key_type=numba.types.unicode_type,
@@ -376,6 +377,13 @@ class OC:
             print("Delay not yet implemented, please set delays to zero")
 
         self.target = target  # ToDo: dimensions-check
+
+        if isinstance(self.target, np.ndarray):
+            print("Optimal control with target time series.")
+        elif isinstance(self.target, int):
+            self.target = float(self.target)
+        if isinstance(self.target, float):
+            print("Optimal control with target oscillation period.")
 
         self.maximum_control_strength = maximum_control_strength
 
