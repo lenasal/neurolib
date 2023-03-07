@@ -2,7 +2,12 @@ import numpy as np
 import numba
 
 global PHASE_VARIATION_LIMIT_DER
-PHASE_VARIATION_LIMIT_DER = 2.0 * 1e-1
+PHASE_VARIATION_LIMIT_DER = 1e-4
+
+global FOURIER_DX, FOURIER_TOL, FOURIER_LIM
+FOURIER_DX = 1e-4
+FOURIER_TOL = 0.1
+FOURIER_LIM = 1e-3
 
 
 @numba.njit
@@ -148,7 +153,6 @@ def compute_fft(x):
         y="complex128[:]",
         freqs="float64[:]",
     ):
-
         y = np.fft.fft(x)[:l]
         freqs = np.fft.fftfreq(len(x))[:l]
 
@@ -157,11 +161,11 @@ def compute_fft(x):
 
 
 @numba.njit
-def fourier_cost(data, dt, target_period, cost_matrix, interval, f_tol=0.1, f_lim_percent=1e-3):
+def fourier_cost(data, dt, target_period, cost_matrix, interval, f_tol=FOURIER_TOL, f_lim_percent=FOURIER_LIM):
 
-    cost = np.zeros((data.shape[0], data.shape[1]))
+    cost = np.zeros((cost_matrix.shape[0], cost_matrix.shape[1]))
 
-    sampling_rate = 1.0 / dt
+    sr = 1.0 / dt  # sampling rate
     target_f = 1.0 / target_period
 
     for n in range(data.shape[0]):
@@ -170,24 +174,26 @@ def fourier_cost(data, dt, target_period, cost_matrix, interval, f_tol=0.1, f_li
                 fft_data_scaled, freqs = compute_fft(data[n, v, interval[0] : interval[1]])
 
                 f_lim = f_lim_percent * np.amax(fft_data_scaled[1:])
-                max_freq = freqs[-1] * sampling_rate
-                max_harmonic = np.int(np.floor(max_freq / target_f))
-
                 max_harmonic = 1
 
                 for i in range(len(fft_data_scaled)):
-                    for k in range(1, max_harmonic + 1, 1):
-                        if fft_data_scaled[i] > f_lim:
-                            if freqs[i] * sampling_rate > k * target_f * (1.0 - f_tol) and freqs[
-                                i
-                            ] * sampling_rate < k * target_f * (1.0 + f_tol):
-                                cost[n, v] -= fft_data_scaled[i]
+                    if fft_data_scaled[i] > f_lim:
+                        for k in range(1, max_harmonic + 1, 1):
+                            # reward if freq is between k * target f minus delta f and k * target f plus delta f
+                            if True:
+                                if (
+                                    freqs[i] * sr >= k * target_f - f_tol * target_f
+                                    and freqs[i] * sr <= k * target_f + f_tol * target_f
+                                ):
+                                    cost[n, v] -= fft_data_scaled[i]
 
     return cost
 
 
 @numba.njit
-def derivative_fourier_cost(data, dt, target_period, cost_matrix, interval, dx=0.1, f_tol=0.1, f_lim_percent=1e-3):
+def derivative_fourier_cost(
+    data, dt, target_period, cost_matrix, interval, dx=FOURIER_DX, f_tol=FOURIER_TOL, f_lim_percent=FOURIER_LIM
+):
     data_dx = data.copy()
     cost0 = fourier_cost(data, dt, target_period, cost_matrix, interval, f_tol=f_tol, f_lim_percent=f_lim_percent)
     derivative = np.zeros((data_dx.shape))
@@ -202,7 +208,7 @@ def derivative_fourier_cost(data, dt, target_period, cost_matrix, interval, dx=0
                         data_dx, dt, target_period, cost_matrix, interval, f_tol=f_tol, f_lim_percent=f_lim_percent
                     )
                     data_dx[n, v, i] -= dx
-                    derivative[n, v, i] = (cost1[n, v] - cost0[n, v]) / dx
+                    derivative[n, v, i] = (cost1[n, v] - cost0[n, v]) / (dx * dt)
 
     return derivative
 
@@ -222,7 +228,6 @@ def osc_phase_sum(phase_array):
 def phase_cost(x_sim, x_analytic, target_period, dt, cost_matrix, interval):
 
     ind_tau = int(target_period / dt)
-    L = int(np.floor((interval[1] - interval[0]) / ind_tau))
     cost = np.zeros((x_sim.shape))
 
     for n in range(x_sim.shape[0]):
@@ -235,7 +240,7 @@ def phase_cost(x_sim, x_analytic, target_period, dt, cost_matrix, interval):
 
                 p = np.arctan2(y, x)
 
-                for t in range(interval[1] - (L - 1) * ind_tau, interval[1] - ind_tau):
+                for t in range(interval[0] + ind_tau, interval[1] - ind_tau):
 
                     p_array = np.zeros((3))
                     p_array[0] = np.arctan2(y[t - ind_tau], x[t - ind_tau])
@@ -259,11 +264,11 @@ def check_phase_variation(cost, phase, ind_tau, dt):
     phase_der[-1] = phase_der[-2]
 
     for t in range(len(phase_der) - ind_tau):
-        if np.amax(np.abs(phase_der[t : t + ind_tau])) < PHASE_VARIATION_LIMIT_DER:
+        if (np.amax(phase[t : t + ind_tau]) - np.amin(phase[t : t + ind_tau])) < PHASE_VARIATION_LIMIT_DER:
             cost[t] = 0.0
 
     for t in range(len(phase_der) - ind_tau, len(phase_der)):
-        if np.amax(np.abs(phase_der[t - ind_tau : t])) < PHASE_VARIATION_LIMIT_DER:
+        if (np.amax(phase[t - ind_tau : t]) - np.amin(phase[t - ind_tau : t])) < PHASE_VARIATION_LIMIT_DER:
             cost[t] = 0.0
 
 
@@ -271,7 +276,6 @@ def check_phase_variation(cost, phase, ind_tau, dt):
 def derivative_phase_cost(x_sim, x_analytic, target_period, dt, cost_matrix, interval):
 
     ind_tau = int(target_period / dt)
-    L = int(np.floor((interval[1] - interval[0]) / ind_tau))
     derivative = np.zeros(x_sim.shape)
 
     for n in range(x_sim.shape[0]):
@@ -284,7 +288,7 @@ def derivative_phase_cost(x_sim, x_analytic, target_period, dt, cost_matrix, int
 
                 p = np.arctan2(y, x)
 
-                for t in range(interval[1] - (L - 1) * ind_tau, interval[1] - ind_tau):
+                for t in range(interval[0] + ind_tau, interval[1] - ind_tau):
 
                     p_m = np.arctan2(y[t - ind_tau], x[t - ind_tau])
                     p_p = np.arctan2(y[t + ind_tau], x[t + ind_tau])
@@ -305,35 +309,22 @@ def derivative_phase_cost(x_sim, x_analytic, target_period, dt, cost_matrix, int
 
 
 @numba.njit
-def absdiff(x):
-    diff = np.amax(x) - np.amin(x)
-    if diff == 0.0:
-        diff = 1.0
-
-    return diff
-
-
-@numba.njit
 def ac_cost(x_sim, target_period, dt, cost_matrix, interval):
 
     cost = np.zeros((x_sim.shape))
     ind_tau = int(target_period / dt)
-    L = int(np.floor((interval[1] - interval[0]) / ind_tau))
-
-    if L < 2:
-        print("L too small")
 
     for n in range(x_sim.shape[0]):
         for v in range(x_sim.shape[1]):
 
             if cost_matrix[n, v] != 0.0:
 
-                x_mean = np.mean(x_sim[n, v, interval[1] - (L - 1) * ind_tau : interval[1] - ind_tau])
-                x_mean_m = np.mean(x_sim[n, v, interval[1] - L * ind_tau : interval[1] - ind_tau])
-                x_mean_p = np.mean(x_sim[n, v, interval[1] - (L - 2) * ind_tau : interval[1]])
+                x_mean = np.mean(x_sim[n, v, interval[0] + ind_tau : interval[1] - ind_tau])
+                x_mean_m = np.mean(x_sim[n, v, interval[0] : interval[1] - 2 * ind_tau])
+                x_mean_p = np.mean(x_sim[n, v, interval[0] + 2 * ind_tau : interval[1]])
 
-                for t in range(interval[1] - (L - 1) * ind_tau, interval[1] - ind_tau):
-                    cost[n, v, t] -= cost_matrix[n, v,] * (
+                for t in range(interval[0] + ind_tau, interval[1] - ind_tau):
+                    cost[n, v, t] = -cost_matrix[n, v,] * (
                         (x_sim[n, v, t] - x_mean) * (x_sim[n, v, t - ind_tau] - x_mean_m)
                         + (x_sim[n, v, t] - x_mean) * (x_sim[n, v, t + ind_tau] - x_mean_p)
                     )
@@ -346,21 +337,17 @@ def derivative_ac_cost(x_sim, target_period, dt, cost_matrix, interval):
 
     ind_tau = int(target_period / dt)
     derivative = np.zeros(x_sim.shape)
-    L = int(np.floor((interval[1] - interval[0]) / ind_tau))
-
-    if L < 2:
-        print("L too small")
 
     for n in range(x_sim.shape[0]):
         for v in range(x_sim.shape[1]):
 
             if cost_matrix[n, v] != 0.0:
 
-                x_mean_m = np.mean(x_sim[n, v, interval[1] - L * ind_tau : interval[1] - ind_tau])
-                x_mean_p = np.mean(x_sim[n, v, interval[1] - (L - 2) * ind_tau : interval[1]])
+                x_mean_m = np.mean(x_sim[n, v, interval[0] : interval[1] - 2 * ind_tau])
+                x_mean_p = np.mean(x_sim[n, v, interval[0] + 2 * ind_tau : interval[1]])
 
-                for t in range(interval[1] - (L - 1) * ind_tau, interval[1] - ind_tau):
-                    derivative[n, v, t] -= cost_matrix[n, v] * (
+                for t in range(interval[0] + ind_tau, interval[1] - ind_tau):
+                    derivative[n, v, t] = -cost_matrix[n, v] * (
                         (x_sim[n, v, t - ind_tau] - x_mean_m) + (x_sim[n, v, t + ind_tau] - x_mean_p)
                     )
 
