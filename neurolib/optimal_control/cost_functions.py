@@ -180,12 +180,11 @@ def fourier_cost(data, dt, target_period, cost_matrix, interval, f_tol=FOURIER_T
                     if fft_data_scaled[i] > f_lim:
                         for k in range(1, max_harmonic + 1, 1):
                             # reward if freq is between k * target f minus delta f and k * target f plus delta f
-                            if True:
-                                if (
-                                    freqs[i] * sr >= k * target_f - f_tol * target_f
-                                    and freqs[i] * sr <= k * target_f + f_tol * target_f
-                                ):
-                                    cost[n, v] -= fft_data_scaled[i]
+                            if (
+                                freqs[i] * sr >= k * target_f - f_tol * target_f
+                                and freqs[i] * sr <= k * target_f + f_tol * target_f
+                            ):
+                                cost[n, v] -= fft_data_scaled[i]
 
     return cost
 

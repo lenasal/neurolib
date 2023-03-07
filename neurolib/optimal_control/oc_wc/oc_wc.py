@@ -117,7 +117,8 @@ def compute_hx(
     N,
     V,
     T,
-    dyn_vars,
+    xs,
+    xs_delay,
     control,
 ):
     """Jacobians of WCModel wrt. to the 'e'- and 'i'-variable for each time step.
@@ -145,11 +146,11 @@ def compute_hx(
     :rtype:             np.ndarray
     """
     hx = np.zeros((N, T, V, V))
-    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, dyn_vars[:, 0, :])
+    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, xs_delay[:, 0, :])
 
     for n in range(N):
-        for t, e in enumerate(dyn_vars[n, 0, :]):
-            i = dyn_vars[n, 1, t]
+        for t, e in enumerate(xs[n, 0, :]):
+            i = xs[n, 1, t]
             ue = control[n, 0, t]
             ui = control[n, 1, t]
             hx[n, t, :, :] = jacobian_wc(
@@ -202,6 +203,7 @@ def compute_hx_nw(
     T,
     e,
     i,
+    e_delay,
     ue,
     tau_exc,
     a_exc,
@@ -244,7 +246,7 @@ def compute_hx_nw(
     """
     hx_nw = np.zeros((N, N, T, V, V))
 
-    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, e)
+    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, e_delay)
     exc_input = c_excexc * e - c_inhexc * i + nw_e + ue
 
     for t in range(T):
@@ -312,6 +314,41 @@ class OcWc(OC):
 
         self.control = np.zeros((self.background.shape))  # control is of shape N x 2 x T, controls of 'exc' and 'inh'
 
+    def get_xs_delay(self):
+        """Concatenates the initial conditions with simulated values and pads delay contributions at end. In the models
+        timeIntegration, these values can be accessed in a circular fashion in the time-indexing.
+        """
+
+        if self.model.params["exc_init"].shape[1] == 1:  # no delay
+            xs_begin = np.concatenate((self.model.params["exc_init"], self.model.params["inh_init"]), axis=1)[
+                :, :, np.newaxis
+            ]
+            xs = np.concatenate(
+                (
+                    xs_begin,
+                    np.stack((self.model.exc, self.model.inh), axis=1),
+                ),
+                axis=2,
+            )
+        else:
+            xs_begin = np.stack((self.model.params["exc_init"][:, -1], self.model.params["inh_init"][:, -1]), axis=1)[
+                :, :, np.newaxis
+            ]
+            xs_end = np.stack((self.model.params["exc_init"][:, :-1], self.model.params["inh_init"][:, :-1]), axis=1)
+            xs = np.concatenate(
+                (
+                    xs_begin,
+                    np.stack((self.model.exc, self.model.inh), axis=1),
+                ),
+                axis=2,
+            )
+            xs = np.concatenate(  # initial conditions for delay-steps are concatenated to the end of the array
+                (xs, xs_end),
+                axis=2,
+            )
+
+        return xs
+
     def get_xs(self):
         """Stack the initial condition with the simulation results for both ('exc' and 'inh') populations.
 
@@ -358,7 +395,9 @@ class OcWc(OC):
         xs = self.get_xs()
         e = xs[:, 0, :]
         i = xs[:, 1, :]
-        nw_e = compute_nw_input(self.N, self.T, self.model.params.K_gl, self.model.Cmat, self.Dmat_ndt, e)
+        xsd = self.get_xs_delay()
+        ed = xsd[:, 0, :]
+        nw_e = compute_nw_input(self.N, self.T, self.model.params.K_gl, self.model.Cmat, self.Dmat_ndt, ed)
 
         input = self.background + self.control
         ue = input[:, 0, :]
@@ -411,6 +450,7 @@ class OcWc(OC):
             self.dim_vars,
             self.T,
             self.get_xs(),
+            self.get_xs_delay(),
             self.background + self.control,
         )
 
@@ -424,6 +464,8 @@ class OcWc(OC):
         xs = self.get_xs()
         e = xs[:, 0, :]
         i = xs[:, 1, :]
+        xsd = self.get_xs_delay()
+        e_delay = xsd[:, 0, :]
         ue = self.background[:, 0, :] + self.control[:, 0, :]
 
         return compute_hx_nw(
@@ -435,6 +477,7 @@ class OcWc(OC):
             self.T,
             e,
             i,
+            e_delay,
             ue,
             self.model.params.tau_exc,
             self.model.params.a_exc,
