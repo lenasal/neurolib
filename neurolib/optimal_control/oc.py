@@ -13,10 +13,13 @@ def getdefaultweights():
         value_type=numba.types.float64,
     )
     weights["w_p"] = 1.0
+
     weights["w_f"] = 0.0
     weights["w_phase"] = 0.0
     weights["w_ac"] = 0.0
+
     weights["w_2"] = 0.0
+
     weights["w_1"] = 0.0
     weights["w_1T"] = 0.0
     weights["w_1D"] = 0.0
@@ -627,8 +630,6 @@ class OC:
                 step *= self.factor_down**2  # Double the step for faster search of stable region.
                 self.step = step
                 print(f"Diverging model output, decrease step size to {step}.")
-                self.control = update_control_with_limit(control0, step, cost_gradient, self.maximum_control_strength)
-                self.update_input()
             else:
                 break
         if noisy:

@@ -318,6 +318,7 @@ class OcWc(OC):
         :return: N x V x T array containing all values of 'exc' and 'inh'.
         :rtype:  np.ndarray
         """
+
         return np.concatenate(
             (
                 np.concatenate((self.model.params["exc_init"], self.model.params["inh_init"]), axis=1)[
