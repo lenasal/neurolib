@@ -1,30 +1,9 @@
 import abc
 import numba
 import numpy as np
-from neurolib.optimal_control import cost_functions
+from neurolib.control.optimal_control import cost_functions
 import logging
 import copy
-from scipy.signal import hilbert
-
-
-def getdefaultweights():
-    weights = numba.typed.Dict.empty(
-        key_type=numba.types.unicode_type,
-        value_type=numba.types.float64,
-    )
-    weights["w_p"] = 1.0
-
-    weights["w_f"] = 0.0
-    weights["w_phase"] = 0.0
-    weights["w_ac"] = 0.0
-
-    weights["w_2"] = 0.0
-
-    weights["w_1"] = 0.0
-    weights["w_1T"] = 0.0
-    weights["w_1D"] = 0.0
-
-    return weights
 
 
 def decrease_step(controlled_model, cost, cost0, step, control0, factor_down, cost_gradient):
@@ -220,49 +199,6 @@ def solve_adjoint(hx, hx_nw, fx, state_dim, dt, N, T, dmat_ndt):
     return adjoint_state
 
 
-# @numba.njit
-def compute_gradient(N, dim_out, T, df_du, adjoint_state, control_matrix, d_du):
-    """Compute the gradient of the total cost wrt. to the control signals (explicitly and implicitly) given the adjoint
-       state, the Jacobian of the total cost wrt. to explicit control contributions and the Jacobian of the dynamics
-       wrt. to explicit control contributions.
-
-    :param N:       Number of nodes in the network.
-    :type N:        int
-    :param dim_out: Number of 'output variables' of the model.
-    :type dim_out:  int
-    :param T:       Length of simulation (time dimension).
-    :type T:        int
-    :param df_du:      Derivative of the cost wrt. to the explicit control contributions to cost functionals.
-    :type df_du:       np.ndarray of shape N x V x T
-    :param adjoint_state:   Solution of the adjoint equation.
-    :type adjoint_state:    np.ndarray of shape N x V x T
-    :param control_matrix:  Binary matrix that defines nodes and variables where control inputs are active, defaults to
-                            None.
-    :type control_matrix:   np.ndarray of shape N x V
-    :param d_du:    Jacobian of systems dynamics wrt. to I_ext (external control input)
-    :type d_du:     np.ndarray of shape V x V
-    :return:        The gradient of the total cost wrt. to the control.
-    :rtype:         np.ndarray of shape N x V x T
-    """
-    grad = np.zeros(df_du.shape)
-
-    # if derivative of dynamics wrt control is constant
-    if len(d_du.shape) == 2:
-        for n in range(N):
-            for v in range(dim_out):
-                for t in range(T):
-                    grad[n, v, t] = df_du[n, v, t] + adjoint_state[n, v, t] * control_matrix[n, v] * d_du[v, v]
-
-    # else if derivative of dynamics wrt control is time-dependent
-    elif len(d_du.shape) == 4:
-        for n in range(N):
-            for v in range(dim_out):
-                for t in range(T):
-                    grad[n, v, t] = df_du[n, v, t] + adjoint_state[n, v, t] * control_matrix[n, v] * d_du[n, v, v, t]
-
-    return grad
-
-
 @numba.njit
 def update_control_with_limit(control, step, gradient, u_max):
     """Computes the updated control signal. The absolute values of the new control are bounded by +/- u_max.
@@ -338,11 +274,12 @@ class OC:
         self,
         model,
         target,
-        weights=None,
+        w_p=1.0,
+        w_2=1.0,
         maximum_control_strength=None,
         print_array=[],
-        cost_interval=(None, None),
-        cost_matrix=None,
+        precision_cost_interval=(None, None),
+        precision_matrix=None,
         control_matrix=None,
         M=1,
         M_validation=0,
@@ -357,8 +294,13 @@ class OC:
 
         :param target:      2xT matrix with [0, :] target of x-population and [1, :] target of y-population.
         :type target:       np.ndarray
-        :param weights:     Dictionary of weight parameters, defaults to 'None'.
-        :type weights:      dictionary, optional
+
+        :param w_p:         Weight of the precision cost term, defaults to 1.
+        :type w_p:          float, optional
+
+        :param w_2:         Weight of the L2 cost term, defaults to 1.
+        :type w_2:          float, optional
+
         :param maximum_control_strength:    Maximum absolute value a control signal can take. No limitation of the
                                             absolute control strength if 'None'. Defaults to None.
         :type:                              float or None, optional
@@ -366,16 +308,20 @@ class OC:
         :param print_array: Array of optimization-iteration-indices (starting at 1) in which cost is printed out.
                             Defaults to empty list `[]`.
         :type print_array:  list, optional
-        :param cost_interval: (t_start, t_end). Indices of start and end point (both inclusive) of the
+
+        :param precision_cost_interval: (t_start, t_end). Indices of start and end point (both inclusive) of the
                                         time interval in which the precision cost is evaluated. Default is full time
                                         series. Defaults to (None, None).
-        :type cost_interval:  tuple, optional
-        :param cost_matrix: N x V binary matrix that defines nodes and channels of precision measurement, defaults
-                                 to None.
-        :type cost_matrix:  np.ndarray
-        :param control_matrix:   N x V Binary matrix that defines nodes and variables where control inputs are active,
-                                 defaults to None.
-        :type control_matrix:    np.ndarray
+        :type precision_cost_interval:  tuple, optional
+
+        :param precision_matrix: NxV binary matrix that defines nodes and channels of precision measurement, defaults to
+                                 None
+        :type precision_matrix:  np.ndarray
+
+        :param control_matrix:  Binary matrix that defines nodes and variables where control inputs are active, defaults
+                                to None.
+        :type control_matrix:   np.ndarray of shape N x V
+
         :param M:                   Number of noise realizations. M=1 implies deterministic case. Defaults to 1.
         :type M:                    int, optional
 
@@ -392,42 +338,16 @@ class OC:
 
         self.model = copy.deepcopy(model)
 
-        self.dt = self.model.params["dt"]  # maybe redundant but for now code clarity
-        self.duration = self.model.params["duration"]  # maybe redundant but for now code clarity
+        self.target = target  # ToDo: dimensions-check
 
-        self.T = np.around(self.duration / self.dt, 0).astype(int) + 1  # Total number of time steps is
+        self.w_p = w_p
+        self.w_2 = w_2
+        self.maximum_control_strength = maximum_control_strength
+
         self.N = self.model.params.N
 
         self.dim_vars = len(self.model.state_vars)
         self.dim_out = len(self.model.output_vars)
-
-        # + forward simulation steps of neurolibs model.run().
-        self.state_dim = (
-            self.N,
-            self.dim_vars,
-            self.T,
-        )  # dimensions of state. Model has N network nodes, V state variables, T time points
-
-        if self.model.getMaxDelay() > 0.0:
-            print("Delay not yet implemented, please set delays to zero")
-
-        if isinstance(target, int):
-            target = float(target)
-
-        if isinstance(target, np.ndarray):
-            print("Optimal control with target time series")
-            self.target_timeseries = target
-            self.target_period = 0.0
-        elif isinstance(target, float):
-            print("Optimal control with target oscillation period")
-            self.target_timeseries = np.zeros((self.N, self.dim_out, self.T))
-            self.target_period = target
-
-        self.maximum_control_strength = maximum_control_strength
-
-        if weights is None:
-            weights = getdefaultweights()
-        self.weights = weights
 
         if self.N > 1:  # check that coupling matrix has zero diagonal
             assert np.all(np.diag(self.model.Cmat) == 0.0)
@@ -439,14 +359,14 @@ class OC:
 
         self.Dmat_ndt = np.around(self.model.Dmat / self.model.params.dt).astype(int)
 
-        self.cost_matrix = cost_matrix
-        if isinstance(self.cost_matrix, type(None)):
-            self.cost_matrix = np.ones(
+        self.precision_matrix = precision_matrix
+        if isinstance(self.precision_matrix, type(None)):
+            self.precision_matrix = np.ones(
                 (self.N, self.dim_out)
             )  # default: measure precision in all variables in all nodes
 
         # check if matrix is binary
-        assert np.array_equal(self.cost_matrix, self.cost_matrix.astype(bool))
+        assert np.array_equal(self.precision_matrix, self.precision_matrix.astype(bool))
 
         self.control_matrix = control_matrix
         if isinstance(self.control_matrix, type(None)):
@@ -485,6 +405,19 @@ class OC:
                     + 'If you want to study a noisy system, please set model parameter "sigma_ou" larger than zero'
                 )
 
+        self.dt = self.model.params["dt"]  # maybe redundant but for now code clarity
+        self.duration = self.model.params["duration"]  # maybe redundant but for now code clarity
+
+        self.T = np.around(self.duration / self.dt, 0).astype(int) + 1  # Total number of time steps is
+        # initial condition.
+
+        # + forward simulation steps of neurolibs model.run().
+        self.state_dim = (
+            self.N,
+            self.dim_vars,
+            self.T,
+        )  # dimensions of state. Model has N network nodes, V state variables, T time points
+
         self.adjoint_state = np.zeros(self.state_dim)
         self.gradient = np.zeros(self.state_dim)
 
@@ -501,7 +434,7 @@ class OC:
 
         self.zero_step_encountered = False  # deterministic gradient descent cannot further improve
 
-        self.cost_interval = convert_interval(cost_interval, self.T)
+        self.precision_cost_interval = convert_interval(precision_cost_interval, self.T)
 
     @abc.abstractmethod
     def get_xs(self):
@@ -538,36 +471,22 @@ class OC:
 
         :rtype: float
         """
-        xs = self.get_xs()
-        accuracy_cost = cost_functions.accuracy_cost(
-            xs,
-            hilbert(xs),
-            self.target_timeseries,
-            self.target_period,
-            self.weights,
-            self.cost_matrix,
+        precision_cost = cost_functions.precision_cost(
+            self.target,
+            self.get_xs(),
+            self.w_p,
+            self.precision_matrix,
             self.dt,
-            self.cost_interval,
+            self.precision_cost_interval,
         )
-        control_strenght_cost = cost_functions.control_strength_cost(self.control, self.weights, self.dt)
-        return (
-            accuracy_cost + control_strenght_cost
-        )  # Further cost terms can be added here. Add corresponding derivatives
-        # elsewhere accordingly.
+        energy_cost = cost_functions.energy_cost(self.control, w_2=self.w_2, dt=self.dt)
+        return precision_cost + energy_cost
 
+    @abc.abstractmethod
     def compute_gradient(self):
-        """Compute the gradient of the total cost wrt. to the control signals. This is achieved by first, solving the
-        adjoint equation backwards in time. Second, derivatives of the cost wrt. to explicit control variables are
-        evaluated as well as the Jacobians of the dynamics wrt. to explicit control. Then the decent direction /
-        gradient of the cost wrt. to control (in its explicit form AND IMPLICIT FORM) is computed.
-        :return:        The gradient of the total cost wrt. to the control.
-        :rtype:         np.ndarray of shape N x V x T
-        """
-        self.solve_adjoint()
-        df_du = cost_functions.derivative_control_strength_cost(self.control, self.weights, self.dt)
-        duh = self.Duh()
-
-        return compute_gradient(self.N, self.dim_out, self.T, df_du, self.adjoint_state, self.control_matrix, duh)
+        """Du @ fk + adjoint_k.T @ Du @ h"""
+        # ToDo: model dependent
+        pass
 
     @abc.abstractmethod
     def compute_hx(self):
@@ -591,18 +510,14 @@ class OC:
         """Backwards integration of the adjoint state."""
         hx = self.compute_hx()
         hx_nw = self.compute_hx_nw()
-        xs = self.get_xs()
 
-        # Derivative of cost wrt. to controllable 'state_vars'. Contributions of other costs might be added here.
-        df_dx = cost_functions.derivative_accuracy_cost(
-            xs,
-            hilbert(xs),
-            self.target_timeseries,
-            self.target_period,
-            self.weights,
-            self.cost_matrix,
-            self.dt,
-            self.cost_interval,
+        # ToDo: generalize, not only precision cost
+        fx = cost_functions.derivative_precision_cost(
+            self.target,
+            self.get_xs(),
+            self.w_p,
+            self.precision_matrix,
+            self.precision_cost_interval,
         )
 
         self.adjoint_state = solve_adjoint(hx, hx_nw, fx, self.state_dim, self.dt, self.N, self.T, self.Dmat_ndt)
@@ -695,8 +610,8 @@ class OC:
         :type n_max_iterations:  int
         """
 
-        self.cost_interval = convert_interval(
-            self.cost_interval, self.T
+        self.precision_cost_interval = convert_interval(
+            self.precision_cost_interval, self.T
         )  # Assure check in repeated calls of ".optimize()".
 
         self.control = update_control_with_limit(

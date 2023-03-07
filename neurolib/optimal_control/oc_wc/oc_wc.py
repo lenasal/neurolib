@@ -5,12 +5,12 @@ import numba
 
 
 @numba.njit
-def logistic(x, a, mu):
-    """Logistic function evaluated at point 'x'.
+def S(x, a, mu):
+    """Logistic function.
 
     :type x:    float
     :param a:   Slope parameter.
-    :type a:    float
+    :typa a:    float
     :param mu:  Inflection point.
     :type mu:   float
     :rtype:     float
@@ -19,8 +19,8 @@ def logistic(x, a, mu):
 
 
 @numba.njit
-def logistic_der(x, a, mu):
-    """Derivative of logistic function, evaluated at point 'x'.
+def S_der(x, a, mu):
+    """Derivative of logistic function
 
     :type x:    float
     :param a:   Slope parameter.
@@ -53,7 +53,7 @@ def Duh(
     e,
     i,
 ):
-    """Jacobian of systems dynamics wrt. to external inputs (control signals).
+    """Jacobian of systems dynamics wrt. to external control input
 
     :rtype:     np.ndarray of shape N x V x V x T
     """
@@ -61,99 +61,114 @@ def Duh(
     for t in range(T):
         for n in range(N):
             input_exc = c_excexc * e[n, t] - c_inhexc * i[n, t] + nw_e[n, t] + ue[n, t]
-            duh[n, 0, 0, t] = -(1.0 - e[n, t]) * logistic_der(input_exc, a_exc, mu_exc) / tau_exc
+            duh[n, 0, 0, t] = -(1.0 - e[n, t]) * S_der(input_exc, a_exc, mu_exc) / tau_exc
             input_inh = c_excinh * e[n, t] - c_inhinh * i[n, t] + ui[n, t]
-            duh[n, 1, 1, t] = -(1.0 - i[n, t]) * logistic_der(input_inh, a_inh, mu_inh) / tau_inh
+            duh[n, 1, 1, t] = -(1.0 - i[n, t]) * S_der(input_inh, a_inh, mu_inh) / tau_inh
     return duh
 
 
 @numba.njit
-def jacobian_wc(wc_model_params, nw_e, e, i, ue, ui, V):
+def jacobian_wc(
+    tau_exc, tau_inh, a_exc, a_inh, mu_exc, mu_inh, c_excexc, c_inhexc, c_excinh, c_inhinh, nw_e, e, i, ue, ui, V
+):
     """Jacobian of the WC dynamical system.
-
-    :param wc_model_params: Tuple of parameters in the WCModel in order (tau_exc, tau_inh, a_exc, a_inh, mu_exc, mu_inh,
-                            c_excexc, c_inhexc, c_excinh, c_inhinh). All parameters of type 'float'.
-    :type wc_model_params: tuple
-    :param  nw_e:   N x T input of network into each node's 'exc'
-    :type  nw_e:    np.ndarray
-    :param e:       Value of the E-variable at specific time.
-    :type e:        float
-    :param i:       Value of the I-variable at specific time.
-    :type i:        float
-    :param ue:      N x T combined input of 'background' and 'control' into 'exc'.
-    :type ue:       np.ndarray
-    :param ui:      N x T combined input of 'background' and 'control' into 'inh'.
-    :type ui:       np.ndarray
-    :param V:       Number of system variables.
-    :type V:        int
-    :return:        4 x 4 Jacobian matrix.
-    :rtype:         np.ndarray
+    :param tau_exc, tau_inh, a_exc, a_inh, mu_exc, mu_inh:   WC model parameter.
+    :type tau_exc, tau_inh, a_exc, a_inh, mu_exc, mu_inh:    float
+    :param e, i:       Value of the E-/ I-variable at specific time
+    :type e, i:        float
+    :param V:           number of system variables
+    :type V:            int
+    :return:        Jacobian matrix.
+    :rtype:         np.ndarray of dimensions 2x2
     """
-
-    (tau_exc, tau_inh, a_exc, a_inh, mu_exc, mu_inh, c_excexc, c_inhexc, c_excinh, c_inhinh) = wc_model_params
-
     jacobian = np.zeros((V, V))
     input_exc = c_excexc * e - c_inhexc * i + nw_e + ue
     jacobian[0, 0] = (
-        -(-1.0 - logistic(input_exc, a_exc, mu_exc) + (1.0 - e) * c_excexc * logistic_der(input_exc, a_exc, mu_exc))
-        / tau_exc
+        -(-1.0 - S(input_exc, a_exc, mu_exc) + (1.0 - e) * c_excexc * S_der(input_exc, a_exc, mu_exc)) / tau_exc
     )
-    jacobian[0, 1] = -((1.0 - e) * (-c_inhexc) * logistic_der(input_exc, a_exc, mu_exc)) / tau_exc
+    jacobian[0, 1] = -((1.0 - e) * (-c_inhexc) * S_der(input_exc, a_exc, mu_exc)) / tau_exc
     input_inh = c_excinh * e - c_inhinh * i + ui
-    jacobian[1, 0] = -((1.0 - i) * c_excinh * logistic_der(input_inh, a_inh, mu_inh)) / tau_inh
+    jacobian[1, 0] = -((1.0 - e) * c_excinh * S_der(input_inh, a_inh, mu_inh)) / tau_inh
     jacobian[1, 1] = (
-        -(-1.0 - logistic(input_inh, a_inh, mu_inh) + (1.0 - i) * (-c_inhinh) * logistic_der(input_inh, a_inh, mu_inh))
-        / tau_inh
+        -(-1.0 - S(input_inh, a_inh, mu_inh) + (1.0 - i) * (-c_inhinh) * S_der(input_inh, a_inh, mu_inh)) / tau_inh
     )
-    return jacobian
+    return
 
 
 @numba.njit
 def compute_hx(
-    wc_model_params: tuple[float, float, float, float, float, float, float, float, float, float],
+    tau_exc,
+    tau_inh,
+    a_exc,
+    a_inh,
+    mu_exc,
+    mu_inh,
+    c_excexc,
+    c_inhexc,
+    c_excinh,
+    c_inhinh,
     K_gl,
     cmat,
     dmat_ndt,
     N,
     V,
     T,
-    dyn_vars,
+    xs,
+    xs_delay,
     control,
 ):
-    """Jacobians of WCModel wrt. to the 'e'- and 'i'-variable for each time step.
+    """Jacobians for each time step.
 
-    :param wc_model_params: Tuple of parameters in the WCModel in order (tau_exc, tau_inh, a_exc, a_inh, mu_exc, mu_inh,
-                            c_excexc, c_inhexc, c_excinh, c_inhinh). All parameters of type 'float'.
-    :type wc_model_params: tuple
-    :param K_gl:        Model parameter of global coupling strength.
-    :type K_gl:         float
-    :param cmat:        Model parameter, connectivity matrix.
-    :type cmat:         ndarray
-    :param dmat_ndt:    N x N delay matrix in multiples of dt.
-    :type dmat_ndt:     np.ndarray
-    :param N:           Number of nodes in the network.
+    :param tau_exc,
+            tau_inh,
+            a_exc,
+            a_inh,
+            mu_exc,
+            mu_inh,
+            c_excexc,
+            c_inhexc,
+            c_excinh,
+            c_inhinh,
+            K_gl,
+            cmat:   Wilson-Cowan model parameters
+    :type :    float
+
+    :param dmat_ndt:   Wilson-Cowan model parameters, delay matrix in multiples of dt.
+    :type dmat_ndt:    np.ndarray of shape NxN
+
+    :param N:           number of nodes in the network
     :type N:            int
-    :param V:           Number of system variables.
+    :param V:           number of system variables
     :type V:            int
-    :param T:           Length of simulation (time dimension).
+    :param T:           length of simulation (time dimension)
     :type T:            int
-    :param dyn_vars:    N x V x T array containing all values of 'exc' and 'inh'.
-    :type dyn_vars:     np.ndarray
-    :param control:     N x 2 x T control inputs to 'exc' and 'inh'.
-    :type control:      np.ndarray
-    :return:            N x T x 4 x 4 Jacobians.
-    :rtype:             np.ndarray
+
+    :param xs:  The jacobian of the FHN systems dynamics depends only on the constant parameters and the values of
+                    the x-population.
+    :type xs:   np.ndarray of shape 1xT
+
+    :return: array of length T containing 2x2-matrices
+    :rtype: np.ndarray of shape Tx2x2
     """
     hx = np.zeros((N, T, V, V))
-    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, dyn_vars[:, 0, :])
+    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, xs_delay[:, 0, :])
 
     for n in range(N):
-        for t, e in enumerate(dyn_vars[n, 0, :]):
-            i = dyn_vars[n, 1, t]
+        for t, e in enumerate(xs[n, 0, :]):
+            i = xs[n, 1, t]
             ue = control[n, 0, t]
             ui = control[n, 1, t]
             hx[n, t, :, :] = jacobian_wc(
-                wc_model_params,
+                tau_exc,
+                tau_inh,
+                a_exc,
+                a_inh,
+                mu_exc,
+                mu_inh,
+                c_excexc,
+                c_inhexc,
+                c_excinh,
+                c_inhinh,
                 nw_e[n, t],
                 e,
                 i,
@@ -165,30 +180,18 @@ def compute_hx(
 
 
 @numba.njit
-def compute_nw_input(N, T, K_gl, cmat, dmat_ndt, exc_values):
-    """Compute input by other nodes of network into each node's 'exc' population at every timestep.
+def compute_nw_input(N, T, K_gl, cmat, dmat_ndt, E):
+    """Compute input by other nodes of network into each node at every timestep.
 
-    :param N:           Number of nodes in the network.
-    :type N:            int
-    :param T:           Length of simulation (time dimension).
-    :type T:            int
-    :param K_gl:        Model parameter of global coupling strength.
-    :type K_gl:         float
-    :param cmat:        Model parameter, connectivity matrix.
-    :type cmat:         ndarray
-    :param dmat_ndt:    N x N delay matrix in multiples of dt.
-    :type dmat_ndt:     np.ndarray
-    :param exc_values:  N x T array containing values of 'exc' of all nodes through time.
-    :type exc_values:   np.ndarray
-    :return:            N x T network inputs.
-    :rytpe:             np.ndarray
+    :rytpe: np.ndarray of shape N x T
     """
     nw_input = np.zeros((N, T))
 
     for t in range(1, T):
         for n in range(N):
             for l in range(N):
-                nw_input[n, t] += K_gl * cmat[n, l] * (exc_values[l, t - dmat_ndt[n, l] - 1])
+                nw_input[n, t] += K_gl * cmat[n, l] * (E[l, t - dmat_ndt[n, l] - 1])
+                # nw_input[n, t] += K_gl * cmat[n, l] * (E[l, t - 1])
     return nw_input
 
 
@@ -202,6 +205,7 @@ def compute_hx_nw(
     T,
     e,
     i,
+    e_delay,
     ue,
     tau_exc,
     a_exc,
@@ -211,56 +215,41 @@ def compute_hx_nw(
 ):
     """Jacobians for network connectivity in all time steps.
 
-    :param K_gl:        Model parameter of global coupling strength.
-    :type K_gl:         float
-    :param cmat:        Model parameter, connectivity matrix.
-    :type cmat:         ndarray
-    :param dmat_ndt:    N x N delay matrix in multiples of dt.
-    :type dmat_ndt:     np.ndarray
-    :param N:           Number of nodes in the network.
+    :param K_gl:    Global coupling.
+    :type K_gl:     float
+
+    :param cmat:    model parameter, connectivity matrix.
+    :type cmat:     ndarray
+
+    :param coupling: model parameter.
+    :type coupling:  string
+
+    :param N:           number of nodes in the network
     :type N:            int
-    :param V:           Number of system variables.
+    :param V:           number of system variables
     :type V:            int
-    :param T:           Length of simulation (time dimension).
+    :param T:           length of simulation (time dimension)
     :type T:            int
-    :param e:       Value of the E-variable at specific time.
-    :type e:        float
-    :param i:       Value of the I-variable at specific time.
-    :type i:        float
-    :param ue:      N x T array of the total input received by 'exc' population in every node at any time.
-    :type ue:       np.ndarray
-    :param tau_exc: Excitatory time constant.
-    :type tau_exc:  float
-    :param a_exc:   Excitatory gain.
-    :type a_exc:    float
-    :param mu_exc:  Excitatory firing threshold.
-    :type mu_exc:   float
-    :param c_excexc: Local E-E coupling.
-    :type c_excexc:  float
-    :param c_inhexc: Local I-E coupling.
-    :type c_inhexc:  float
-    :return:         Jacobians for network connectivity in all time steps.
-    :rtype:          np.ndarray of shape N x N x T x 4 x 4
+
+    :return: Jacobians for network connectivity in all time steps.
+    :rtype: np.ndarray of shape NxNxTx4x4
     """
     hx_nw = np.zeros((N, N, T, V, V))
 
-    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, e)
+    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, e_delay)
     exc_input = c_excexc * e - c_inhexc * i + nw_e + ue
 
-    for t in range(T):
-        for n1 in range(N):
-            for n2 in range(N):
-                hx_nw[n1, n2, t, 0, 0] = (logistic_der(exc_input[n1, t], a_exc, mu_exc) * K_gl * cmat[n1, n2]) / tau_exc
+    for n1 in range(N):
+        for n2 in range(N):
+            for t in range(T - 1):
+                hx_nw[n1, n2, t, 0, 0] = (S_der(exc_input[n1, t], a_exc, mu_exc) * K_gl * cmat[n1, n2]) / tau_exc
 
     return -hx_nw
 
 
 class OcWc(OC):
-    """Class for optimal control specific to neurolib's implementation of the two-population Wilson-Cowan model
-        ("WCmodel").
-
-    :param model: Instance of Wilson-Cowan model (can describe a single Wilson-Cowan node or a network of coupled
-                  Wilson-Cowan nodes. Remark: Currently only delay-free networks are supported.
+    """
+    :param model:
     :type model: neurolib.models.wc.model.WCModel
     """
 
@@ -310,27 +299,72 @@ class OcWc(OC):
             assert (self.background[n, 0, :] == self.model.params["exc_ext"][n, :]).all()
             assert (self.background[n, 1, :] == self.model.params["inh_ext"][n, :]).all()
 
-        self.control = np.zeros((self.background.shape))  # control is of shape N x 2 x T, controls of 'exc' and 'inh'
+        self.control = np.zeros((self.background.shape))
 
-    def get_xs(self):
-        """Stack the initial condition with the simulation results for both ('exc' and 'inh') populations.
-
-        :return: N x V x T array containing all values of 'exc' and 'inh'.
-        :rtype:  np.ndarray
+    def get_xs_delay(self):
+        """Concatenates the initial conditions with simulated values and pads delay contributions at end. In the models
+        timeIntegration, these values can be accessed in a circular fashion in the time-indexing.
         """
 
-        return np.concatenate(
-            (
-                np.concatenate((self.model.params["exc_init"], self.model.params["inh_init"]), axis=1)[
-                    :, :, np.newaxis
-                ],
-                np.stack((self.model.exc, self.model.inh), axis=1),
-            ),
-            axis=2,
-        )
+        if self.model.params["exc_init"].shape[1] == 1:  # no delay
+            xs_begin = np.concatenate((self.model.params["exc_init"], self.model.params["inh_init"]), axis=1)[
+                :, :, np.newaxis
+            ]
+            xs = np.concatenate(
+                (
+                    xs_begin,
+                    np.stack((self.model.exc, self.model.inh), axis=1),
+                ),
+                axis=2,
+            )
+        else:
+            xs_begin = np.stack((self.model.params["exc_init"][:, -1], self.model.params["inh_init"][:, -1]), axis=1)[
+                :, :, np.newaxis
+            ]
+            xs_end = np.stack((self.model.params["exc_init"][:, :-1], self.model.params["inh_init"][:, :-1]), axis=1)
+            xs = np.concatenate(
+                (
+                    xs_begin,
+                    np.stack((self.model.exc, self.model.inh), axis=1),
+                ),
+                axis=2,
+            )
+            xs = np.concatenate(  # initial conditions for delay-steps are concatenated to the end of the array
+                (xs, xs_end),
+                axis=2,
+            )
+
+        return xs
+
+    def get_xs(self):
+        """Stack the initial condition with the simulation results for both populations."""
+        if self.model.params["exc_init"].shape[1] == 1:
+            xs_begin = np.concatenate((self.model.params["exc_init"], self.model.params["inh_init"]), axis=1)[
+                :, :, np.newaxis
+            ]
+            xs = np.concatenate(
+                (
+                    xs_begin,
+                    np.stack((self.model.exc, self.model.inh), axis=1),
+                ),
+                axis=2,
+            )
+        else:
+            xs_begin = np.stack((self.model.params["exc_init"][:, -1], self.model.params["inh_init"][:, -1]), axis=1)[
+                :, :, np.newaxis
+            ]
+            xs = np.concatenate(
+                (
+                    xs_begin,
+                    np.stack((self.model.exc, self.model.inh), axis=1),
+                ),
+                axis=2,
+            )
+
+        return xs
 
     def update_input(self):
-        """Update the parameters in 'self.model' according to the current control such that 'self.simulate_forward'
+        """Update the parameters in self.model according to the current control such that self.simulate_forward
         operates with the appropriate control signal.
         """
         input = self.background + self.control
@@ -344,21 +378,18 @@ class OcWc(OC):
             self.model.params["inh_ext"] = input[:, 1, :]
 
     def Dxdot(self):
-        """V x V Jacobian of systems dynamics wrt. to change of systems variables."""
-        # Currently not explicitly required since it is identity matrix.
+        """4x4 Jacobian of systems dynamics wrt. to change of systems variables."""
         raise NotImplementedError  # return np.eye(4)
 
     def Duh(self):
-        """Jacobian of systems dynamics wrt. to external control input.
-
-        :return:    N x V x V x T Jacobians.
-        :rtype:     np.ndarray
-        """
+        """Nx4x4xT Jacobian of systems dynamics wrt. to external control input"""
 
         xs = self.get_xs()
         e = xs[:, 0, :]
         i = xs[:, 1, :]
-        nw_e = compute_nw_input(self.N, self.T, self.model.params.K_gl, self.model.Cmat, self.Dmat_ndt, e)
+        xsd = self.get_xs_delay()
+        ed = xsd[:, 0, :]
+        nw_e = compute_nw_input(self.N, self.T, self.model.params.K_gl, self.model.Cmat, self.Dmat_ndt, ed)
 
         input = self.background + self.control
         ue = input[:, 0, :]
@@ -386,24 +417,22 @@ class OcWc(OC):
         )
 
     def compute_hx(self):
-        """Jacobians of WCModel wrt. to the 'e'- and 'i'-variable for each time step.
+        """Jacobians for each time step.
 
-        :return:    N x T x V x V Jacobians.
-        :rtype:     np.ndarray
+        :return: Array of length self.T containing 4x4-matrices
+        :rtype: np.ndarray
         """
         return compute_hx(
-            (
-                self.model.params.tau_exc,
-                self.model.params.tau_inh,
-                self.model.params.a_exc,
-                self.model.params.a_inh,
-                self.model.params.mu_exc,
-                self.model.params.mu_inh,
-                self.model.params.c_excexc,
-                self.model.params.c_inhexc,
-                self.model.params.c_excinh,
-                self.model.params.c_inhinh,
-            ),
+            self.model.params.tau_exc,
+            self.model.params.tau_inh,
+            self.model.params.a_exc,
+            self.model.params.a_inh,
+            self.model.params.mu_exc,
+            self.model.params.mu_inh,
+            self.model.params.c_excexc,
+            self.model.params.c_inhexc,
+            self.model.params.c_excinh,
+            self.model.params.c_inhinh,
             self.model.params.K_gl,
             self.model.Cmat,
             self.Dmat_ndt,
@@ -411,6 +440,7 @@ class OcWc(OC):
             self.dim_vars,
             self.T,
             self.get_xs(),
+            self.get_xs_delay(),
             self.background + self.control,
         )
 
@@ -424,6 +454,8 @@ class OcWc(OC):
         xs = self.get_xs()
         e = xs[:, 0, :]
         i = xs[:, 1, :]
+        xsd = self.get_xs_delay()
+        e_delay = xsd[:, 0, :]
         ue = self.background[:, 0, :] + self.control[:, 0, :]
 
         return compute_hx_nw(
@@ -435,6 +467,7 @@ class OcWc(OC):
             self.T,
             e,
             i,
+            e_delay,
             ue,
             self.model.params.tau_exc,
             self.model.params.a_exc,
