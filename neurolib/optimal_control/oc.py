@@ -172,7 +172,7 @@ def increase_step(controlled_model, cost, cost0, step, control0, factor_up, cost
 
 
 @numba.njit
-def solve_adjoint(hx, hx_nw, fx, state_dim, dt, N, T):
+def solve_adjoint(hx, hx_nw, fx, state_dim, dt, N, T, dmat_ndt):
     """Backwards integration of the adjoint state.
 
     :param hx: dh/dx    Jacobians of systems dynamics wrt. to 'state_vars' for each time step.
@@ -189,6 +189,7 @@ def solve_adjoint(hx, hx_nw, fx, state_dim, dt, N, T):
     :type N:            int
     :param T:           Length of simulation (time dimension).
     :type T:            int
+
     :return:            Adjoint state.
     :rtype:             np.ndarray of shape `state_dim`
     """
@@ -206,7 +207,9 @@ def solve_adjoint(hx, hx_nw, fx, state_dim, dt, N, T):
             for n2 in range(N):
                 for k in range(len(der)):
                     for i in range(len(der)):
-                        der[k] += adjoint_state[n2, i, t + 1] * hx_nw[n2, n, t + 1][i, k]
+                        der[k] += (
+                            adjoint_state[n2, i, t + 1 + dmat_ndt[n2, n]] * hx_nw[n2, n, t + 1 + dmat_ndt[n2, n]][i, k]
+                        )
             adjoint_state[n, :, t] = adjoint_state[n, :, t + 1] - der * dt
 
     return adjoint_state
@@ -583,7 +586,7 @@ class OC:
             self.cost_interval,
         )
 
-        self.adjoint_state = solve_adjoint(hx, hx_nw, df_dx, self.state_dim, self.dt, self.N, self.T)
+        self.adjoint_state = solve_adjoint(hx, hx_nw, df_dx, self.state_dim, self.dt, self.N, self.T, self.Dmat_ndt)
 
     def decrease_step(self, cost, cost0, step, control0, factor_down, cost_gradient):
         """Iteratively decrease step size until cost is improved."""
@@ -704,6 +707,10 @@ class OC:
 
         for i in range(1, n_max_iterations + 1):
             grad = self.compute_gradient()
+
+            if np.isnan(grad).any():
+                print("nan in grad, break")
+                break
 
             if self.zero_step_encountered:
                 print(f"Converged in iteration %s with cost %s" % (i, cost))
