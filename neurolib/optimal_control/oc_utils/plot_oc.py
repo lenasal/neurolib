@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+global FS
+FS = 16
+
 
 def plot_oc_singlenode(
     duration,
@@ -130,5 +133,45 @@ def plot_oc_network(
         ax[2, 1].set_title("Step size throughout optimization.")
 
         ax[2, 1].set_ylim(bottom=0, top=None)
+
+    plt.show()
+
+
+def plot_oc_nw(
+    N,
+    duration,
+    dt,
+    state,
+    target,
+    control,
+    filename=None,
+):
+
+    t_array = np.arange(0, duration + dt, dt)
+    rows = 2
+    fig, ax = plt.subplots(2, 1, figsize=(14, 6), constrained_layout=True)
+
+    for n in range(N):
+        ax[0].plot(t_array, state[n, 0, :], label=f"Node %s" % (n))
+        ax[1].plot(t_array, control[n, 0, :], label=f"Node %s" % (n))
+        if isinstance(target, float):
+            k = int(np.ceil(duration / target))
+            for k_ in range(2, k, 2):
+                ax[0].axvspan(duration - k_ * target, duration - (k_ - 1) * target, color="lightgrey", alpha=0.3)
+
+    ax[0].legend(loc="upper left", fontsize=FS)
+    ax[0].set_ylabel("Activity", fontsize=FS)
+    # ax[1].legend(loc="upper left", fontsize=FS)
+    ax[1].set_ylabel("Control", fontsize=FS)
+
+    ax[0].tick_params(axis="both", which="major", labelsize=FS)
+    ax[1].tick_params(axis="both", which="major", labelsize=FS)
+    ax[0].set_xticks([])
+    ax[0].set_xlim(0, duration)
+    ax[1].set_xlim(0, duration)
+    ax[1].set_xlabel("Time", fontsize=FS)
+
+    if filename is not None:
+        plt.savefig(filename, dpi=300)
 
     plt.show()

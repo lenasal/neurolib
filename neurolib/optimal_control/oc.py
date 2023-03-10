@@ -6,6 +6,9 @@ import logging
 import copy
 from scipy.signal import hilbert
 
+global LIM_GRAD
+LIM_GRAD = 1e-20
+
 
 def getdefaultweights():
     weights = numba.typed.Dict.empty(
@@ -15,6 +18,9 @@ def getdefaultweights():
     weights["w_p"] = 1.0
 
     weights["w_f"] = 0.0
+    weights["w_f_sync"] = 0.0
+    weights["w_f_pl"] = 0.0
+
     weights["w_phase"] = 0.0
     weights["w_ac"] = 0.0
 
@@ -86,7 +92,7 @@ def decrease_step(controlled_model, cost, cost0, step, control0, factor_down, co
             controlled_model.zero_step_encountered = True
             break
 
-    return step, counter
+    return step, counter, cost
 
 
 def increase_step(controlled_model, cost, cost0, step, control0, factor_up, cost_gradient):
@@ -168,7 +174,7 @@ def increase_step(controlled_model, cost, cost0, step, control0, factor_up, cost
                 # size.
                 break
 
-    return step, counter
+    return step, counter, cost_prev
 
 
 @numba.njit
@@ -193,23 +199,31 @@ def solve_adjoint(hx, hx_nw, fx, state_dim, dt, N, T, dmat_ndt):
     :return:            Adjoint state.
     :rtype:             np.ndarray of shape `state_dim`
     """
-    # ToDo: generalize, not only precision cost
+
     adjoint_state = np.zeros(state_dim)
     fx_fullstate = np.zeros(state_dim)
     fx_fullstate[:, :2, :] = fx.copy()
 
-    for t in range(T - 2, -1, -1):
-        for n in range(N):
+    for t in range(T - 2, -1, -1):  # backwards iteration including 0th index
+        for n in range(N):  # iterate through nodes
             der = fx_fullstate[n, :, t + 1].copy()
             for k in range(len(der)):
                 for i in range(len(der)):
                     der[k] += adjoint_state[n, i, t + 1] * hx[n, t + 1][i, k]
-            for n2 in range(N):
+            for n2 in range(N):  # iterate through connectivity of current node "n"
+                if t + 1 + dmat_ndt[n2, n] > T - 2:
+                    continue
                 for k in range(len(der)):
                     for i in range(len(der)):
                         der[k] += (
                             adjoint_state[n2, i, t + 1 + dmat_ndt[n2, n]] * hx_nw[n2, n, t + 1 + dmat_ndt[n2, n]][i, k]
                         )
+                        if np.isnan(der[k]):
+                            print("NAN ", t, n, n2, k, i)
+                            print(
+                                adjoint_state[n2, i, t + 1 + dmat_ndt[n2, n]],
+                                hx_nw[n2, n, t + 1 + dmat_ndt[n2, n]][i, k],
+                            )
             adjoint_state[n, :, t] = adjoint_state[n, :, t + 1] - der * dt
 
     return adjoint_state
@@ -241,6 +255,14 @@ def compute_gradient(N, dim_out, T, df_du, adjoint_state, control_matrix, d_du):
     """
     grad = np.zeros(df_du.shape)
 
+    if False:
+        print(
+            np.amax(np.abs(df_du)),
+            np.amax(np.abs(adjoint_state)),
+            np.amax(np.abs(control_matrix)),
+            np.amax(np.abs(d_du)),
+        )
+
     # if derivative of dynamics wrt control is constant
     if len(d_du.shape) == 2:
         for n in range(N):
@@ -252,6 +274,14 @@ def compute_gradient(N, dim_out, T, df_du, adjoint_state, control_matrix, d_du):
     elif len(d_du.shape) == 4:
         for n in range(N):
             for v in range(dim_out):
+                if False:
+                    print(n, v)
+                    print(
+                        np.amax(np.abs(df_du[n, v, :])),
+                        np.amax(np.abs(adjoint_state[n, v, :])),
+                        np.amax(np.abs(control_matrix[n, v])),
+                        np.amax(np.abs(d_du[n, v, v, :])),
+                    )
                 for t in range(T):
                     grad[n, v, t] = df_du[n, v, t] + adjoint_state[n, v, t] * control_matrix[n, v] * d_du[n, v, v, t]
 
@@ -391,6 +421,7 @@ class OC:
 
         self.dim_vars = len(self.model.state_vars)
         self.dim_out = len(self.model.output_vars)
+        self.dim_in = len(self.model.input_vars)
 
         # + forward simulation steps of neurolibs model.run().
         self.state_dim = (
@@ -398,9 +429,6 @@ class OC:
             self.dim_vars,
             self.T,
         )  # dimensions of state. Model has N network nodes, V state variables, T time points
-
-        if self.model.getMaxDelay() > 0.0:
-            print("Delay not yet implemented, please set delays to zero")
 
         if isinstance(target, int):
             target = float(target)
@@ -451,7 +479,7 @@ class OC:
 
         self.step = 10.0  # Initial step size in first optimization iteration.
         self.count_noisy_step = 10
-        self.count_step = 20
+        self.count_step = 30
 
         self.factor_down = 0.5  # Factor for adaptive step size reduction.
         self.factor_up = 2.0  # Factor for adaptive step size increment.
@@ -586,6 +614,21 @@ class OC:
             self.cost_interval,
         )
 
+        if False:
+            print(
+                np.amax(np.abs(hx)),
+                np.amax(np.abs(hx_nw)),
+                np.amax(np.abs(xs)),
+                np.amax(np.abs(df_dx)),
+            )
+
+        # import matplotlib.pyplot as plt
+
+        # plt.plot(hx_nw[1, 0, :, 0, 0])
+        # plt.show()
+
+        # print("max hx nw = ", np.amax(np.abs(hx_nw[1, 0, :, 0, 0])))
+
         self.adjoint_state = solve_adjoint(hx, hx_nw, df_dx, self.state_dim, self.dt, self.N, self.T, self.Dmat_ndt)
 
     def decrease_step(self, cost, cost0, step, control0, factor_down, cost_gradient):
@@ -595,6 +638,60 @@ class OC:
     def increase_step(self, cost, cost0, step, control0, factor_up, cost_gradient):
         """Iteratively increase step size while cost is improving."""
         return increase_step(self, cost, cost0, step, control0, factor_up, cost_gradient)
+
+    def step_size_nv(self, cost_gradient):
+
+        control0 = self.control.copy()
+
+        stepall, counterall, costall = self.step_size(cost_gradient)
+        zerostepall = self.zero_step_encountered
+        self.zero_step_encountered = False
+
+        minind = [-1, -1]
+        mincost = costall
+
+        steps = np.zeros((self.N, self.dim_in))
+        costs = steps.copy()
+        counters = steps.copy()
+        zerosteps = steps.copy()
+
+        for n in range(self.N):
+            for v in range(self.dim_in):
+                # print("compute step size for ", n, v)
+                self.control = control0.copy()
+                self.update_input()
+                grad = np.zeros((cost_gradient.shape))
+                grad[n, v, :] = cost_gradient[n, v, :]
+                steps[n, v], counters[n, v], costs[n, v] = self.step_size(grad)
+                if costs[n, v] < mincost:
+                    mincost = costs[n, v]
+                    minind = [n, v]
+                if self.zero_step_encountered:
+                    zerosteps[n, v] = 1
+                    self.zero_step_encountered = False
+
+        # print(stepall, steps)
+        # print(costall, costs)
+
+        self.control = control0.copy()
+        self.update_input()
+
+        if zerostepall and np.amin(zerosteps) >= 1.0:
+            # all options ended with maximum counter
+            step, counter = 0.0, 0.0
+            self.zero_step_encountered = True
+
+        if minind == [-1, -1]:
+            step, counter, cost = self.step_size(cost_gradient)
+        else:
+            grad = np.zeros((cost_gradient.shape))
+            grad[minind[0], minind[1], :] = cost_gradient[minind[0], minind[1], :]
+            step, counter, cost = self.step_size(grad)
+
+        self.step = step  # Memorize the last step size for the next optimization step with next gradient.
+
+        self.step_sizes_loops_history.append(counter)
+        self.step_sizes_history.append(step)
 
     def step_size(self, cost_gradient):
         """Adaptively choose a step size for control update.
@@ -645,26 +742,21 @@ class OC:
         if (
             cost > cost0
         ):  # If the cost choosing the first (stable) step size is no improvement, reduce step size by bisection.
-            step, counter = self.decrease_step(cost, cost0, step, control0, self.factor_down, cost_gradient)
+            step, counter, cost = self.decrease_step(cost, cost0, step, control0, self.factor_down, cost_gradient)
 
         elif (
             cost < cost0
         ):  # If the cost is improved with the first (stable) step size, search for larger steps with even better
             # reduction of cost.
 
-            step, counter = self.increase_step(cost, cost0, step, control0, self.factor_up, cost_gradient)
+            step, counter, cost = self.increase_step(cost, cost0, step, control0, self.factor_up, cost_gradient)
 
         else:  # Remark: might be included as part of adaptive search for further improvement.
             step = 0.0  # For later analysis only.
             counter = 0
             self.zero_step_encountered = True
 
-        self.step = step  # Memorize the last step size for the next optimization step with next gradient.
-
-        self.step_sizes_loops_history.append(counter)
-        self.step_sizes_history.append(step)
-
-        return step
+        return step, counter, cost
 
     def optimize(self, n_max_iterations):
         """Optimization method
@@ -708,15 +800,23 @@ class OC:
         for i in range(1, n_max_iterations + 1):
             grad = self.compute_gradient()
 
+            # import matplotlib.pyplot as plt
+
+            # plt.plot(grad[0, 0, :])
+            # plt.show()
+
             if np.isnan(grad).any():
                 print("nan in grad, break")
+                break
+            elif np.amax(np.abs(grad)) < LIM_GRAD:
+                print("vanishing gradient, break")
                 break
 
             if self.zero_step_encountered:
                 print(f"Converged in iteration %s with cost %s" % (i, cost))
                 break
 
-            self.step_size(-grad)
+            self.step_size_nv(-grad)
             self.simulate_forward()
 
             cost = self.compute_total_cost()
@@ -766,7 +866,7 @@ class OC:
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-                _ = self.step_size(-grad)
+                _ = self.step_size_nv(-grad)
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break
