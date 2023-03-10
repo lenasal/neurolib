@@ -50,6 +50,16 @@ def accuracy_cost(x, x_analytic, target_timeseries, target_period, weights, cost
             for v in range(x.shape[1]):
                 cost += fc[n, v]
 
+    if weights["w_f_sync"] != 0.0:
+        fc = fourier_cost_sync(x, dt, target_period, cost_matrix, interval)
+        for v in range(x.shape[1]):
+            cost += fc[v]
+
+    if weights["w_f_pl"] != 0.0:
+        fc = fourier_cost_pl(x, dt, target_period, cost_matrix, interval)
+        for v in range(x.shape[1]):
+            cost += fc[v]
+
     return cost
 
 
@@ -75,6 +85,10 @@ def derivative_accuracy_cost(
         der += weights["w_p"] * derivative_precision_cost(x, target_timeseries, cost_matrix, interval)
     if weights["w_f"] != 0.0:
         der += weights["w_f"] * derivative_fourier_cost(x, dt, target_period, cost_matrix, interval)
+    if weights["w_f_sync"] != 0.0:
+        der += weights["w_f_sync"] * derivative_fourier_cost_sync(x, dt, target_period, cost_matrix, interval)
+    if weights["w_f_pl"] != 0.0:
+        der += weights["w_f_pl"] * derivative_fourier_cost_pl(x, dt, target_period, cost_matrix, interval)
     if weights["w_phase"] != 0.0:
         der += weights["w_phase"] * derivative_phase_cost(x, x_analytic, target_period, dt, cost_matrix, interval)
     if weights["w_ac"] != 0.0:
@@ -141,7 +155,7 @@ def derivative_precision_cost(x_target, x_sim, cost_matrix, interval):
     for n in range(x_target.shape[0]):
         for v in range(x_target.shape[1]):
             for t in range(interval[0], interval[1]):
-                derivative[n, v, t] = -cost_matrix[n, v] * (x_target[n, v, t] - x_sim[n, v, t])
+                derivative[n, v, t] = cost_matrix[n, v] * (x_target[n, v, t] - x_sim[n, v, t])
 
     return derivative
 
@@ -208,6 +222,113 @@ def derivative_fourier_cost(
                     )
                     data_dx[n, v, i] -= dx
                     derivative[n, v, i] = (cost1[n, v] - cost0[n, v]) / (dx * dt)
+
+    return derivative
+
+
+@numba.njit
+def fourier_cost_sync(data, dt, target_period, cost_matrix, interval, f_tol=FOURIER_TOL, f_lim_percent=FOURIER_LIM):
+
+    cost = np.zeros((cost_matrix.shape[1]))
+
+    sr = 1.0 / dt  # sampling rate
+    target_f = 1.0 / target_period
+
+    for v in range(data.shape[1]):
+        data_nodesum = np.zeros((data.shape[2]))
+        for n in range(data.shape[0]):
+            if cost_matrix[n, v] != 0.0:
+                data_nodesum += data[n, v, :]
+
+        fft_data_scaled, freqs = compute_fft(data_nodesum[interval[0] : interval[1]])
+
+        f_lim = f_lim_percent * np.amax(fft_data_scaled[1:])
+        max_harmonic = 1
+
+        for i in range(len(fft_data_scaled)):
+            if fft_data_scaled[i] > f_lim:
+                for k in range(1, max_harmonic + 1, 1):
+                    # reward if freq is between k * target f minus delta f and k * target f plus delta f
+                    if (
+                        freqs[i] * sr >= k * target_f - f_tol * target_f
+                        and freqs[i] * sr <= k * target_f + f_tol * target_f
+                    ):
+                        cost[v] -= fft_data_scaled[i]
+
+    return cost
+
+
+@numba.njit
+def derivative_fourier_cost_sync(
+    data, dt, target_period, cost_matrix, interval, dx=FOURIER_DX, f_tol=FOURIER_TOL, f_lim_percent=FOURIER_LIM
+):
+    data_dx = data.copy()
+    cost0 = fourier_cost_sync(data, dt, target_period, cost_matrix, interval, f_tol=f_tol, f_lim_percent=f_lim_percent)
+    derivative = np.zeros((data_dx.shape))
+
+    for n in range(data.shape[0]):
+        for v in range(data.shape[1]):
+            if cost_matrix[n, v] != 0.0:
+
+                for i in range(1, data.shape[2]):
+                    data_dx[n, v, i] += dx
+                    cost1 = fourier_cost_sync(
+                        data_dx, dt, target_period, cost_matrix, interval, f_tol=f_tol, f_lim_percent=f_lim_percent
+                    )
+                    data_dx[n, v, i] -= dx
+                    derivative[n, v, i] = (cost1[v] - cost0[v]) / (dx * dt)
+
+    return derivative
+
+
+@numba.njit
+def fourier_cost_pl(data, dt, target_period, cost_matrix, interval, f_tol=FOURIER_TOL, f_lim_percent=FOURIER_LIM):
+
+    cost = np.zeros((cost_matrix.shape[1]))
+
+    sr = 1.0 / dt  # sampling rate
+    target_f = 1.0 / target_period
+
+    for n in range(data.shape[0]):
+        for v in range(data.shape[1]):
+            if cost_matrix[n, v] != 0.0:
+                fft_data_scaled, freqs = compute_fft(data[n, v, interval[0] : interval[1]])
+
+                f_lim = f_lim_percent * np.amax(fft_data_scaled[1:])
+                max_harmonic = 1
+
+                for i in range(len(fft_data_scaled)):
+                    if fft_data_scaled[i] > f_lim:
+                        for k in range(1, max_harmonic + 1, 1):
+                            # reward if freq is between k * target f minus delta f and k * target f plus delta f
+                            if (
+                                freqs[i] * sr >= k * target_f - f_tol * target_f
+                                and freqs[i] * sr <= k * target_f + f_tol * target_f
+                            ):
+                                cost[v] -= fft_data_scaled[i]
+
+    return cost
+
+
+@numba.njit
+def derivative_fourier_cost_pl(
+    data, dt, target_period, cost_matrix, interval, dx=FOURIER_DX, f_tol=FOURIER_TOL, f_lim_percent=FOURIER_LIM
+):
+    data_dx = data.copy()
+    cost0 = fourier_cost_pl(data, dt, target_period, cost_matrix, interval, f_tol=f_tol, f_lim_percent=f_lim_percent)
+    derivative = np.zeros((data_dx.shape))
+
+    for n in range(data.shape[0]):
+        for v in range(data.shape[1]):
+            if cost_matrix[n, v] != 0.0:
+
+                for i in range(1, data.shape[2]):
+                    data_dx[n, v, i] += dx
+                    cost1 = fourier_cost_pl(
+                        data_dx, dt, target_period, cost_matrix, interval, f_tol=f_tol, f_lim_percent=f_lim_percent
+                    )
+                    data_dx[n, v, i] -= dx
+                    derivative[n, v, i] = (cost1[v] - cost0[v]) / (dx * dt)
 
     return derivative
 

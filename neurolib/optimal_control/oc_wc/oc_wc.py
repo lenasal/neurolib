@@ -350,21 +350,31 @@ class OcWc(OC):
         return xs
 
     def get_xs(self):
-        """Stack the initial condition with the simulation results for both ('exc' and 'inh') populations.
+        """Stack the initial condition with the simulation results for both populations."""
+        if self.model.params["exc_init"].shape[1] == 1:
+            xs_begin = np.concatenate((self.model.params["exc_init"], self.model.params["inh_init"]), axis=1)[
+                :, :, np.newaxis
+            ]
+            xs = np.concatenate(
+                (
+                    xs_begin,
+                    np.stack((self.model.exc, self.model.inh), axis=1),
+                ),
+                axis=2,
+            )
+        else:
+            xs_begin = np.stack((self.model.params["exc_init"][:, -1], self.model.params["inh_init"][:, -1]), axis=1)[
+                :, :, np.newaxis
+            ]
+            xs = np.concatenate(
+                (
+                    xs_begin,
+                    np.stack((self.model.exc, self.model.inh), axis=1),
+                ),
+                axis=2,
+            )
 
-        :return: N x V x T array containing all values of 'exc' and 'inh'.
-        :rtype:  np.ndarray
-        """
-
-        return np.concatenate(
-            (
-                np.concatenate((self.model.params["exc_init"], self.model.params["inh_init"]), axis=1)[
-                    :, :, np.newaxis
-                ],
-                np.stack((self.model.exc, self.model.inh), axis=1),
-            ),
-            axis=2,
-        )
+        return xs
 
     def update_input(self):
         """Update the parameters in 'self.model' according to the current control such that 'self.simulate_forward'

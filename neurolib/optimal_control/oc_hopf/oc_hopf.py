@@ -150,17 +150,29 @@ class OcHopf(OC):
         self.control = update_control_with_limit(control, 0.0, np.zeros(control.shape), self.maximum_control_strength)
 
     def get_xs(self):
-        """Stack the initial condition with the simulation results for dynamic variables 'x' and 'y' of Hopf model.
+        """Stack the initial condition with the simulation results for both populations."""
+        if self.model.params["xs_init"].shape[1] == 1:
+            p1 = np.concatenate((self.model.params["xs_init"], self.model.params["ys_init"]), axis=1)[:, :, np.newaxis]
+            xs = np.concatenate(
+                (
+                    p1,
+                    np.stack((self.model.x, self.model.y), axis=1),
+                ),
+                axis=2,
+            )
+        else:
+            p1 = np.stack((self.model.params["xs_init"][:, -1], self.model.params["ys_init"][:, -1]), axis=1)[
+                :, :, np.newaxis
+            ]
+            xs = np.concatenate(
+                (
+                    p1,
+                    np.stack((self.model.x, self.model.y), axis=1),
+                ),
+                axis=2,
+            )
 
-        :rtype:     np.ndarray of shape N x V x T
-        """
-        return np.concatenate(
-            (
-                np.concatenate((self.model.params["xs_init"], self.model.params["ys_init"]), axis=1)[:, :, np.newaxis],
-                np.stack((self.model.x, self.model.y), axis=1),
-            ),
-            axis=2,
-        )
+        return xs
 
     def update_input(self):
         """Update the parameters in 'self.model' according to the current control such that 'self.simulate_forward'
