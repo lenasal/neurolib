@@ -449,15 +449,11 @@ class OC:
             weights = getdefaultweights()
         self.weights = weights
 
-        if self.N > 1:  # check that coupling matrix has zero diagonal
-            assert np.all(np.diag(self.model.Cmat) == 0.0)
-        elif self.N == 1:
+        if self.N == 1:
             if type(self.model.Cmat) == type(None):
                 self.model.Cmat = np.zeros((self.N, self.N))
-            if type(self.model.Dmat) == type(None):
-                self.model.Dmat = np.zeros((self.N, self.N))
 
-        self.Dmat_ndt = np.around(self.model.Dmat / self.model.params.dt).astype(int)
+        self.Dmat_ndt = np.around(self.model.params.Dmat_ndt)
 
         self.cost_matrix = cost_matrix
         if isinstance(self.cost_matrix, type(None)):
@@ -625,7 +621,7 @@ class OC:
             self.cost_interval,
         )
 
-        self.adjoint_state = solve_adjoint(hx, hx_nw, fx, self.state_dim, self.dt, self.N, self.T, self.Dmat_ndt)
+        self.adjoint_state = solve_adjoint(hx, hx_nw, df_dx, self.state_dim, self.dt, self.N, self.T, self.Dmat_ndt)
 
     def decrease_step(self, cost, cost0, step, control0, factor_down, cost_gradient):
         """Iteratively decrease step size until cost is improved."""
@@ -653,7 +649,6 @@ class OC:
 
         for n in range(self.N):
             for v in range(self.dim_in):
-                # print("compute step size for ", n, v)
                 self.control = control0.copy()
                 self.update_input()
                 grad = np.zeros((cost_gradient.shape))
@@ -665,9 +660,6 @@ class OC:
                 if self.zero_step_encountered:
                     zerosteps[n, v] = 1
                     self.zero_step_encountered = False
-
-        # print(stepall, steps)
-        # print(costall, costs)
 
         self.control = control0.copy()
         self.update_input()
@@ -806,10 +798,10 @@ class OC:
             # plt.plot(grad[0, 0, :])
             # plt.show()
 
-            if np.isnan(grad).any():
+            if np.isnan(self.gradient).any():
                 print("nan in grad, break")
                 break
-            elif np.amax(np.abs(grad)) < LIM_GRAD:
+            elif np.amax(np.abs(self.gradient)) < LIM_GRAD:
                 print("vanishing gradient, break")
                 break
 
@@ -817,11 +809,8 @@ class OC:
                 print(f"Converged in iteration %s with cost %s" % (i, cost))
                 break
 
-<<<<<<< HEAD
-            self.step_size_nv(-grad)
-=======
+            self.step_size_nv(-self.gradient)
             self.step_size(-self.gradient)
->>>>>>> 37e4000731a50c66c50dc1f9c2bfc6c9185092b1
             self.simulate_forward()
 
             cost = self.compute_total_cost()
@@ -871,11 +860,7 @@ class OC:
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-<<<<<<< HEAD
-                _ = self.step_size_nv(-grad)
-=======
                 _ = self.step_size(-self.gradient)
->>>>>>> 37e4000731a50c66c50dc1f9c2bfc6c9185092b1
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break
