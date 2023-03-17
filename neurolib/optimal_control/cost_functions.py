@@ -1,8 +1,9 @@
 import numpy as np
 import numba
 
-global PHASE_VARIATION_LIMIT_DER
+global PHASE_VARIATION_LIMIT_DER, X_VARIATION_LIMIT
 PHASE_VARIATION_LIMIT_DER = 1e-4
+X_VARIATION_LIMIT = 1e-2
 
 global FOURIER_DX, FOURIER_TOL, FOURIER_LIM
 FOURIER_DX = 1e-4
@@ -60,6 +61,24 @@ def accuracy_cost(x, x_analytic, target_timeseries, target_period, weights, cost
         for v in range(x.shape[1]):
             cost += fc[v]
 
+    if weights["w_ko"] != 0.0:
+        fko = KO_cost(x, x_analytic, target_period, dt, cost_matrix, interval)
+        for v in range(x.shape[1]):
+            for t in range(interval[0], interval[1]):
+                cost += fko[v, t] * dt
+
+    if weights["w_var"] != 0.0:
+        fvar = var_cost(x, cost_matrix, interval)
+        for v in range(x.shape[1]):
+            for t in range(interval[0], interval[1]):
+                cost += fvar[v, t] * dt
+
+    if weights["w_cc"] != 0.0:
+        fcc = cc_cost(x, cost_matrix, interval)
+        for v in range(x.shape[1]):
+            for t in range(interval[0], interval[1]):
+                cost += fcc[v, t] * dt
+
     return cost
 
 
@@ -91,8 +110,14 @@ def derivative_accuracy_cost(
         der += weights["w_f_pl"] * derivative_fourier_cost_pl(x, dt, target_period, cost_matrix, interval)
     if weights["w_phase"] != 0.0:
         der += weights["w_phase"] * derivative_phase_cost(x, x_analytic, target_period, dt, cost_matrix, interval)
+    if weights["w_ko"] != 0.0:
+        der += weights["w_ko"] * derivative_KO_cost(x, x_analytic, cost_matrix, interval)
     if weights["w_ac"] != 0.0:
         der += weights["w_ac"] * derivative_ac_cost(x, target_period, dt, cost_matrix, interval)
+    if weights["w_var"] != 0.0:
+        der += weights["w_var"] * derivative_var_cost(x, cost_matrix, interval)
+    if weights["w_cc"] != 0.0:
+        der += weights["w_cc"] * derivative_cc_cost(x, cost_matrix, interval)
 
     return der
 
@@ -234,8 +259,9 @@ def fourier_cost_sync(data, dt, target_period, cost_matrix, interval, f_tol=FOUR
     sr = 1.0 / dt  # sampling rate
     target_f = 1.0 / target_period
 
-    for v in range(data.shape[1]):
+    for v in range(cost_matrix.shape[1]):
         data_nodesum = np.zeros((data.shape[2]))
+
         for n in range(data.shape[0]):
             if cost_matrix[n, v] != 0.0:
                 data_nodesum += data[n, v, :]
@@ -254,7 +280,6 @@ def fourier_cost_sync(data, dt, target_period, cost_matrix, interval, f_tol=FOUR
                         and freqs[i] * sr <= k * target_f + f_tol * target_f
                     ):
                         cost[v] -= fft_data_scaled[i]
-
     return cost
 
 
@@ -391,6 +416,8 @@ def check_phase_variation(cost, phase, ind_tau, dt):
         if (np.amax(phase[t - ind_tau : t]) - np.amin(phase[t - ind_tau : t])) < PHASE_VARIATION_LIMIT_DER:
             cost[t] = 0.0
 
+    return
+
 
 @numba.njit
 def derivative_phase_cost(x_sim, x_analytic, target_period, dt, cost_matrix, interval):
@@ -424,6 +451,64 @@ def derivative_phase_cost(x_sim, x_analytic, target_period, dt, cost_matrix, int
                         dfx = -y[t] / denominator
 
                     derivative[n, v, t] = -cost_matrix[n, v] * prefactor * dfx
+
+    return derivative
+
+
+@numba.njit
+def KO_cost(x_sim, x_analytic, target_period, dt, cost_matrix, interval):
+
+    ind_tau = int(target_period / dt)
+    cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
+
+    for v in range(x_sim.shape[1]):
+
+        for t in range(interval[0], interval[1]):
+            p_array = []
+
+            for n in range(x_sim.shape[0]):
+                if cost_matrix[n, v] == 0.0:
+                    continue
+
+                testx = x_sim[n, v, max(0, int(t - ind_tau / 2)) : min(x_sim.shape[2] - 1, int(t + ind_tau / 2))]
+                if np.abs(np.amax(testx) - np.amin(testx)) < X_VARIATION_LIMIT:
+                    continue
+
+                y = x_analytic[n, v, t].imag
+                x = x_sim[n, v, t]
+                p_array.append(np.arctan2(y, x))
+
+            if len(p_array) != 0:
+                cost[v, t] = -osc_phase_sum(p_array)
+
+    return cost
+
+
+@numba.njit
+def derivative_KO_cost(x_sim, x_analytic, cost_matrix, interval):
+
+    derivative = np.zeros(x_sim.shape)
+
+    for v in range(x_sim.shape[1]):
+        for t in range(interval[0], interval[1]):
+
+            cos_sum = 0.0
+            sin_sum = 0.0
+            for n in range(x_sim.shape[0]):
+                if cost_matrix[n, v] != 0.0:
+                    y = x_analytic[n, v, t].imag
+                    x = x_sim[n, v, t]
+                    p = np.arctan2(y, x)
+                    cos_sum += np.cos(p)
+                    sin_sum += np.sin(p)
+
+            for n in range(x_sim.shape[0]):
+                if cost_matrix[n, v] != 0.0:
+                    y = x_analytic[n, v, t].imag
+                    x = x_sim[n, v, t]
+                    p = np.arctan2(y, x)
+
+                    derivative[n, v, t] = -2.0 * (-np.sin(p) * cos_sum + np.cos(p) * sin_sum) * (-y) / (x**2 + y**2)
 
     return derivative
 
@@ -469,6 +554,119 @@ def derivative_ac_cost(x_sim, target_period, dt, cost_matrix, interval):
                 for t in range(interval[0] + ind_tau, interval[1] - ind_tau):
                     derivative[n, v, t] = -cost_matrix[n, v] * (
                         (x_sim[n, v, t - ind_tau] - x_mean_m) + (x_sim[n, v, t + ind_tau] - x_mean_p)
+                    )
+
+    return derivative
+
+
+@numba.njit
+def var_cost(x_sim, cost_matrix, interval):
+
+    cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
+    xmean = np.zeros((x_sim.shape[1], x_sim.shape[2]))
+    for v in range(x_sim.shape[1]):
+        for t in range(interval[0], interval[1]):
+            for n in range(x_sim.shape[0]):
+                xmean[v, t] += x_sim[n, v, t]
+            xmean[v, t] /= x_sim.shape[0]
+
+    for v in range(x_sim.shape[1]):
+        for t in range(interval[0], interval[1]):
+            for n in range(x_sim.shape[0]):
+
+                if cost_matrix[n, v] != 0.0:
+                    cost[v, t] += (x_sim[n, v, t] - xmean[v, t]) ** 2
+
+                cost[v, t] /= x_sim.shape[0]
+
+    return cost
+
+
+@numba.njit
+def derivative_var_cost(x_sim, cost_matrix, interval):
+
+    derivative = np.zeros(x_sim.shape)
+    xmean = np.zeros((x_sim.shape[1], x_sim.shape[2]))
+    for v in range(x_sim.shape[1]):
+        for t in range(interval[0], interval[1]):
+            for n in range(x_sim.shape[0]):
+                xmean[v, t] += x_sim[n, v, t]
+            xmean[v, t] /= x_sim.shape[0]
+
+    for v in range(x_sim.shape[1]):
+        for t in range(interval[0], interval[1]):
+
+            xsum = 0.0
+            for n in range(x_sim.shape[0]):
+                if cost_matrix[n, v] != 0.0:
+                    xsum += x_sim[n, v, t] - xmean[v, t]
+
+            for n in range(x_sim.shape[0]):
+                if cost_matrix[n, v] != 0.0:
+                    derivative[n, v, t] = (
+                        (-2.0 * x_sim[n, v, t] * xsum / x_sim.shape[0]) + 2.0 * (x_sim[n, v, t] - xmean[v, t])
+                    ) / x_sim.shape[0]
+
+    return derivative
+
+
+@numba.njit
+def cc_cost(x_sim, cost_matrix, interval):
+
+    cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
+    xmean = np.zeros((x_sim.shape[0], x_sim.shape[1]))
+    for n in range(x_sim.shape[0]):
+        for v in range(x_sim.shape[1]):
+            for t in range(interval[0], interval[1]):
+                xmean[n, v] += x_sim[n, v, t]
+            xmean[n, v] /= interval[1] - interval[0]
+
+    sum2 = np.zeros((x_sim.shape[1], x_sim.shape[2]))
+    for v in range(x_sim.shape[1]):
+        for t in range(interval[0], interval[1]):
+            for n in range(x_sim.shape[0]):
+                sum2[v, t] += (x_sim[n, v, t] - xmean[n, v]) ** 2
+
+    for v in range(x_sim.shape[1]):
+        for t in range(interval[0], interval[1]):
+            for n in range(x_sim.shape[0]):
+                if cost_matrix[n, v] == 0.0:
+                    continue
+                for k in range(x_sim.shape[0]):
+                    if cost_matrix[k, v] == 0.0:
+                        continue
+                    cost[v, t] -= (x_sim[n, v, t] - xmean[n, v]) * (x_sim[k, v, t] - xmean[n, v])
+
+                cost[v, t] /= x_sim.shape[0] ** 2
+
+    return cost
+
+
+@numba.njit
+def derivative_cc_cost(x_sim, cost_matrix, interval):
+
+    N = x_sim.shape[0]
+
+    derivative = np.zeros(x_sim.shape)
+    xmean = np.zeros((x_sim.shape[0], x_sim.shape[1]))
+    for n in range(x_sim.shape[0]):
+        for v in range(x_sim.shape[1]):
+            for t in range(interval[0], interval[1]):
+                xmean[n, v] += x_sim[n, v, t]
+            xmean[n, v] /= interval[1] - interval[0]
+
+    sum1 = np.zeros((x_sim.shape[1], x_sim.shape[2]))
+    for v in range(x_sim.shape[1]):
+        for t in range(interval[0], interval[1]):
+            for n in range(N):
+                sum1[v, t] += x_sim[n, v, t] - xmean[n, v]
+
+    for v in range(x_sim.shape[1]):
+        for t in range(interval[0], interval[1]):
+            for n in range(N):
+                if cost_matrix[n, v] != 0.0:
+                    derivative[n, v, t] = (
+                        -(sum1[v, t] + (x_sim[n, v, t] - xmean[n, v]) - (2.0 * N - 1.0) * sum1[v, t]) / N**2
                     )
 
     return derivative

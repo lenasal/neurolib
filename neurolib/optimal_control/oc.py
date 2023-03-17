@@ -22,7 +22,13 @@ def getdefaultweights():
     weights["w_f_pl"] = 0.0
 
     weights["w_phase"] = 0.0
+    weights["w_ko"] = 0.0
+
     weights["w_ac"] = 0.0
+
+    weights["w_var"] = 0.0
+
+    weights["w_cc"] = 0.0
 
     weights["w_2"] = 0.0
 
