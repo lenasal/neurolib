@@ -573,10 +573,12 @@ class OC:
         if len(self.cost_history) == 0:  # add only if control model has not yet been optimized
             self.cost_history.append(cost)
 
+        self.zero_step_encountered = False
+
         for i in range(1, n_max_iterations + 1):
             self.grad = self.compute_gradient()
 
-            if np.amax(np.abs(self.grad)) < 1e-20:
+            if np.amax(np.abs(self.grad)) < limit_control_diff:
                 print(f"converged with vanishing gradient in iteration %s with cost %s" % (i, cost))
                 self.zero_step_encountered = True
                 break
