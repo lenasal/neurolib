@@ -25,10 +25,10 @@ def getdefaultweights():
     weights["w_ko"] = 0.0
 
     weights["w_ac"] = 0.0
+    weights["w_cc"] = 0.0
 
     weights["w_var"] = 0.0
-
-    weights["w_cc"] = 0.0
+    weights["w_var_osc"] = 0.0
 
     weights["w_2"] = 0.0
 
@@ -676,11 +676,13 @@ class OC:
             self.zero_step_encountered = True
 
         if minind == [-1, -1]:
-            step, counter, cost = self.step_size(cost_gradient)
+            step, counter, cost = stepall, counterall, costall
         else:
             grad = np.zeros((cost_gradient.shape))
             grad[minind[0], minind[1], :] = cost_gradient[minind[0], minind[1], :]
             step, counter, cost = self.step_size(grad)
+
+        # print(minind, step, cost)
 
         self.step = step  # Memorize the last step size for the next optimization step with next gradient.
 
@@ -749,6 +751,9 @@ class OC:
             step = 0.0  # For later analysis only.
             counter = 0
             self.zero_step_encountered = True
+
+        self.step_sizes_loops_history.append(counter)
+        self.step_sizes_history.append(step)
 
         return step, counter, cost
 

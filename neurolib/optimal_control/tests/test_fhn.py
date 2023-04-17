@@ -285,8 +285,6 @@ class TestFHN(unittest.TestCase):
         fhn_controlled = oc_fhn.OcFhn(
             fhn,
             target,
-            w_p=1,
-            w_2=0,
             control_matrix=control_mat,
             precision_matrix=prec_mat,
         )
@@ -588,12 +586,7 @@ class TestFHN(unittest.TestCase):
 
         target = np.ones((2, 2, input.shape[1]))
 
-        fhn_controlled = oc_fhn.OcFhn(
-            fhn,
-            target,
-            w_p=1,
-            w_2=1,
-        )
+        fhn_controlled = oc_fhn.OcFhn(fhn, target)
 
         fhn_controlled.optimize(1)
         xs = fhn_controlled.get_xs()

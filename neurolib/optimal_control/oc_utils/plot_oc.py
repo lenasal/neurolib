@@ -159,7 +159,8 @@ def plot_oc_nw(
             for k_ in range(2, k, 2):
                 ax[0].axvspan(duration - k_ * target, duration - (k_ - 1) * target, color="lightgrey", alpha=0.3)
 
-    ax[0].legend(loc="upper left", fontsize=FS)
+    if N < 5:
+        ax[0].legend(loc="upper left", fontsize=FS)
     ax[0].set_ylabel("Activity", fontsize=FS)
     # ax[1].legend(loc="upper left", fontsize=FS)
     ax[1].set_ylabel("Control", fontsize=FS)
