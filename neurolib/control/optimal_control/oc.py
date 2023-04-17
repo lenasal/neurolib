@@ -409,6 +409,7 @@ class OC:
         )  # dimensions of state. Model has N network nodes, V state variables, T time points
 
         self.adjoint_state = np.zeros(self.state_dim)
+        self.gradient = np.zeros(self.state_dim)
 
         self.control = None  # Is implemented in derived classes.
 
@@ -512,6 +513,56 @@ class OC:
     def increase_step(self, cost, cost0, step, control0, factor_up, cost_gradient):
         """Iteratively increase step size while cost is improving."""
         return increase_step(self, cost, cost0, step, control0, factor_up, cost_gradient)
+
+    def step_size_nv(self, cost_gradient):
+
+        control0 = self.control.copy()
+
+        stepall, counterall, costall = self.step_size(cost_gradient)
+        zerostepall = self.zero_step_encountered
+        self.zero_step_encountered = False
+
+        minind = [-1, -1]
+        mincost = costall
+
+        steps = np.zeros((self.N, self.dim_in))
+        costs = steps.copy()
+        counters = steps.copy()
+        zerosteps = steps.copy()
+
+        for n in range(self.N):
+            for v in range(self.dim_in):
+                self.control = control0.copy()
+                self.update_input()
+                grad = np.zeros((cost_gradient.shape))
+                grad[n, v, :] = cost_gradient[n, v, :]
+                steps[n, v], counters[n, v], costs[n, v] = self.step_size(grad)
+                if costs[n, v] < mincost:
+                    mincost = costs[n, v]
+                    minind = [n, v]
+                if self.zero_step_encountered:
+                    zerosteps[n, v] = 1
+                    self.zero_step_encountered = False
+
+        self.control = control0.copy()
+        self.update_input()
+
+        if zerostepall and np.amin(zerosteps) >= 1.0:
+            # all options ended with maximum counter
+            step, counter = 0.0, 0.0
+            self.zero_step_encountered = True
+
+        if minind == [-1, -1]:
+            step, counter, cost = stepall, counterall, costall
+        else:
+            grad = np.zeros((cost_gradient.shape))
+            grad[minind[0], minind[1], :] = cost_gradient[minind[0], minind[1], :]
+            step, counter, cost = self.step_size(grad)
+
+        self.step = step  # Memorize the last step size for the next optimization step with next gradient.
+
+        self.step_sizes_loops_history.append(counter)
+        self.step_sizes_history.append(step)
 
     def step_size(self, cost_gradient):
         """Adaptively choose a step size for control update.
@@ -623,9 +674,9 @@ class OC:
             self.cost_history.append(cost)
 
         for i in range(1, n_max_iterations + 1):
-            grad = self.compute_gradient()
+            self.gradient = self.compute_gradient()
 
-            if np.isnan(grad).any():
+            if np.isnan(self.gradient).any():
                 print("nan in gradient, break")
                 break
 
@@ -633,7 +684,8 @@ class OC:
                 print(f"Converged in iteration %s with cost %s" % (i, cost))
                 break
 
-            self.step_size(-grad)
+            self.step_size_nv(-self.gradient)
+            self.step_size(-self.gradient)
             self.simulate_forward()
 
             cost = self.compute_total_cost()
@@ -677,13 +729,13 @@ class OC:
 
         for i in range(1, n_max_iterations + 1):
 
-            grad = np.mean(grad_m, axis=0)
+            self.gradient = np.mean(grad_m, axis=0)
 
             count = 0
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-                _ = self.step_size(-grad)
+                _ = self.step_size(-self.gradient)
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break
@@ -701,14 +753,12 @@ class OC:
             if self.validate_per_step:  # if cost is computed for M_validation realizations in every step
                 for m in range(self.M):
                     self.simulate_forward()
-                    grad_m[m, :] = self.compute_gradient()
                 cost = self.compute_cost_noisy(self.M_validation)
             else:
                 cost_m = 0.0
                 for m in range(self.M):
                     self.simulate_forward()
                     cost_m += self.compute_total_cost()
-                    grad_m[m, :] = self.compute_gradient()
                 cost = cost_m / self.M
 
             if i in self.print_array:
