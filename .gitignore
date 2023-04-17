@@ -137,3 +137,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# pickle files
+*.pickle
+
+# image files
+*.png
