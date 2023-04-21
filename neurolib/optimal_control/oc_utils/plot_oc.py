@@ -169,6 +169,7 @@ def plot_oc_nw(
     ax[1].tick_params(axis="both", which="major", labelsize=FS)
     ax[0].set_xticks([])
     ax[0].set_xlim(0, duration)
+    ax[0].set_ylim(0, 0.6)
     ax[1].set_xlim(0, duration)
     ax[1].set_xlabel("Time", fontsize=FS)
 
