@@ -1,14 +1,15 @@
 import unittest
 import numpy as np
-from neurolib.optimal_control.oc import solve_adjoint, update_control_with_limit, convert_interval
-from neurolib.optimal_control.oc_wc import OcWc
+import neurolib
+from neurolib.control.optimal_control.oc import solve_adjoint, update_control_with_limit, convert_interval
+from neurolib.control.optimal_control.oc_wc import OcWc
 from neurolib.models.wc import WCModel
 from neurolib.utils.stimulus import ZeroInput
 
 
 class TestOC(unittest.TestCase):
     """
-    Test functions in neurolib/optimal_control/oc.py
+    Test functions in neurolib/control/optimal_control/oc.py
     """
 
     @staticmethod
@@ -85,14 +86,16 @@ class TestOC(unittest.TestCase):
         # Run the test with an instance of an arbitrary derived class.
         # This test case is not specific to any step size algorithm or initial step size.
 
+        print("Test step size is larger zero.")
+
         model, target = self.get_deterministic_wilson_cowan_test_setup()
 
-        prec_mat = np.zeros((model.params.N, len(model.output_vars)))
+        cost_mat = np.zeros((model.params.N, len(model.output_vars)))
         control_mat = np.zeros((model.params.N, len(model.state_vars)))
-        prec_mat[0, 0] = 1
+        cost_mat[0, 0] = 1
         control_mat[0, 1] = 1
 
-        model_controlled = OcWc(model, target, cost_matrix=prec_mat, control_matrix=control_mat)
+        model_controlled = OcWc(model, target, weights=None, cost_matrix=cost_mat, control_matrix=control_mat)
 
         self.assertTrue(model_controlled.step_size(-model_controlled.compute_gradient()) > 0.0)
 
@@ -100,74 +103,91 @@ class TestOC(unittest.TestCase):
         # Run the test with an instance of an arbitrary derived class.
         # Checks that for a zero-gradient no step is performed (i.e. step-size=0).
 
+        print("Test step size is zero if gradient is zero.")
+
         model, target = self.get_deterministic_wilson_cowan_test_setup()
 
-        prec_mat = np.zeros((model.params.N, len(model.output_vars)))
+        cost_mat = np.zeros((model.params.N, len(model.output_vars)))
         control_mat = np.zeros((model.params.N, len(model.state_vars)))
-        prec_mat[0, 0] = 1
+        cost_mat[0, 0] = 1
         control_mat[0, 1] = 1
 
-        model_controlled = OcWc(model, target, cost_matrix=prec_mat, control_matrix=control_mat)
+        model_controlled = OcWc(model, target, weights=None, cost_matrix=cost_mat, control_matrix=control_mat)
 
         self.assertTrue(model_controlled.step_size(-np.zeros(target.shape)) == 0.0)
 
     def test_update_control_with_limit_no_limit(self):
         # Test for the control to be unchanged, if no limit is set.
+
+        print("Test control update without strength limit.")
+
         control = self.get_arbitrary_array_finite_values()
         step = 1.0
         cost_gradient = self.get_arbitrary_array()
         u_max = None
+        (N, dim_in, T) = control.shape
 
-        control_limited = update_control_with_limit(control, step, cost_gradient, u_max)
+        control_limited = update_control_with_limit(N, dim_in, T, control, step, cost_gradient, u_max)
 
         self.assertTrue(np.all(control_limited == control + step * cost_gradient))
 
     def test_update_control_with_limit_limited(self):
         # Test that absolute value of control signal is limited.
+
+        print("Test control update with strength limit.")
+
         control = self.get_arbitrary_array_finite_values()
         step = 1.0
         cost_gradient = self.get_arbitrary_array()
         u_max = 5.0
+        (N, dim_in, T) = control.shape
 
-        control_limited = update_control_with_limit(control, step, cost_gradient, u_max)
+        control_limited = update_control_with_limit(N, dim_in, T, control, step, cost_gradient, u_max)
 
         self.assertTrue(np.all(np.abs(control_limited) <= u_max))
 
     def test_convert_interval_none(self):
+        print("Test convert interval.")
         array_length = 10  # arbitrary
         interval = (None, None)
         interval_converted = convert_interval(interval, array_length)
         self.assertTupleEqual(interval_converted, (0, array_length))
 
     def test_convert_interval_one_is_none(self):
+        print("Test convert interval.")
         array_length = 10  # arbitrary
         interval = (0, None)
         interval_converted = convert_interval(interval, array_length)
         self.assertTupleEqual(interval_converted, (0, array_length))
 
     def test_convert_interval_negative(self):
+        print("Test convert interval.")
         array_length = 10  # arbitrary
         interval = (-6, -2)
         interval_converted = convert_interval(interval, array_length)
         self.assertTupleEqual(interval_converted, (4, 8))
 
     def test_convert_interval_unchanged(self):
+        print("Test convert interval.")
         array_length = 10  # arbitrary
         interval = (1, 7)  # arbitrary
         interval_converted = convert_interval(interval, array_length)
         self.assertTupleEqual(interval_converted, interval)
 
     def test_convert_interval_wrong_order(self):
+        print("Test convert interval.")
         array_length = 10  # arbitrary
         interval = (5, -7)  # arbitrary
         self.assertRaises(AssertionError, convert_interval, interval, array_length)
 
     def test_convert_interval_invalid_range_negative(self):
+        print("Test convert interval.")
         array_length = 10  # arbitrary
         interval = (-11, 5)  # arbitrary
         self.assertRaises(AssertionError, convert_interval, interval, array_length)
 
     def test_convert_interval_invalid_range_positive(self):
+        print("Test convert interval.")
         array_length = 10  # arbitrary
         interval = (9, 11)  # arbitrary
         self.assertRaises(AssertionError, convert_interval, interval, array_length)

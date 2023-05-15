@@ -106,6 +106,7 @@ def plot_oc_network(
     for n in range(N):
         ax[0, n].plot(t_array, state[n, 0, :], label="x", color=color_x)
         ax[0, n].plot(t_array, state[n, 1, :], label="y", color=color_y)
+<<<<<<< HEAD:neurolib/optimal_control/oc_utils/plot_oc.py
         if isinstance(target, np.ndarray):
             ax[0, n].plot(t_array, target[n, 0, :], linestyle="dashed", label="Target x", color=color_x)
             ax[0, n].plot(t_array, target[n, 1, :], linestyle="dashed", label="Target y", color=color_y)
@@ -115,15 +116,28 @@ def plot_oc_network(
                 ax[0, n].axvspan(duration - k_ * target, duration - (k_ - 1) * target, color="grey", alpha=0.5)
         ax[0, n].legend(loc="upper left")
         ax[0, n].set_title(f"Activity node %s" % (n))
+=======
+        ax[0, n].plot(t_array, target[n, 0, :], linestyle="dashed", label="Target x", color=color_x)
+        ax[0, n].plot(t_array, target[n, 1, :], linestyle="dashed", label="Target y", color=color_y)
+        # ax[0, n].legend(loc="upper right")
+        ax[0, n].set_title(f"Activity and target, node %s" % (n))
+>>>>>>> aln:neurolib/control/optimal_control/oc_utils/plot_oc.py
 
         # Plot the target control signal (dashed line) and "initial" zero control signal
         ax[1, n].plot(t_array, control[n, 0, :], label="stimulation x", color=color_x)
         ax[1, n].plot(t_array, control[n, 1, :], label="stimulation y", color=color_y)
+<<<<<<< HEAD:neurolib/optimal_control/oc_utils/plot_oc.py
         if orig_input is not None:
             ax[1, n].plot(t_array, orig_input[n, 0, :], linestyle="dashed", label="input x", color=color_x)
             ax[1, n].plot(t_array, orig_input[n, 1, :], linestyle="dashed", label="input y", color=color_y)
         ax[1, n].legend(loc="upper left")
         ax[1, n].set_title(f"Stimulation node %s" % (n))
+=======
+        ax[1, n].plot(t_array, orig_input[n, 0, :], linestyle="dashed", label="input x", color=color_x)
+        ax[1, n].plot(t_array, orig_input[n, 1, :], linestyle="dashed", label="input y", color=color_y)
+        # ax[1, n].legend(loc="upper right")
+        ax[1, n].set_title(f"Stimulation and input, node %s" % (n))
+>>>>>>> aln:neurolib/control/optimal_control/oc_utils/plot_oc.py
 
     if cost_array is not None:
         ax[2, 0].plot(cost_array)
