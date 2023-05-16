@@ -5,19 +5,37 @@ from neurolib.control.optimal_control import cost_functions
 from neurolib.utils.model_utils import computeDelayMatrix
 import logging
 import copy
+from scipy.signal import hilbert
 
 from numba.core import types
 from numba.typed import Dict
 
 
 def getdefaultweights():
-
-    weights = Dict.empty(
-        key_type=types.unicode_type,
-        value_type=types.float64,
+    weights = numba.typed.Dict.empty(
+        key_type=numba.types.unicode_type,
+        value_type=numba.types.float64,
     )
     weights["w_p"] = 1.0
+
+    weights["w_f"] = 0.0
+    weights["w_f_sync"] = 0.0
+    weights["w_f_pl"] = 0.0
+
+    weights["w_phase"] = 0.0
+    weights["w_ko"] = 0.0
+
+    weights["w_ac"] = 0.0
+    weights["w_cc"] = 0.0
+
+    weights["w_var"] = 0.0
+    weights["w_var_osc"] = 0.0
+
     weights["w_2"] = 0.0
+
+    weights["w_1"] = 0.0
+    weights["w_1T"] = 0.0
+    weights["w_1D"] = 0.0
 
     return weights
 
@@ -32,6 +50,7 @@ def compute_gradient(
     adjoint_state,
     control_matrix,
     d_du,
+    control_interval,
 ):
     """Compute the gradient of the total cost wrt. the control signals (explicitly and implicitly) given the adjoint
        state, the Jacobian of the total cost wrt. explicit control contributions and the Jacobian of the dynamics
@@ -60,7 +79,7 @@ def compute_gradient(
     grad = np.zeros(df_du.shape)
     for n in range(N):
         for v in range(dim_out):
-            for t in range(T):
+            for t in range(control_interval[0], control_interval[1]):
                 grad[n, v, t] = df_du[n, v, t]
                 for k in range(V):
                     grad[n, v, t] += control_matrix[n, v] * adjoint_state[n, k, t] * d_du[n, k, v, t]
@@ -316,6 +335,20 @@ def solve_adjoint(hx_list, del_list, hx_nw, fx, state_dim, dt, N, T, dmat_ndt, d
 
 
 @numba.njit
+def limit_control_to_interval(N, dim_in, T, control, control_interval):
+    control_new = control.copy()
+
+    for n in range(N):
+        for v in range(dim_in):
+            for t in range(0, control_interval[0]):
+                control_new[n, v, t] = 0.0
+            for t in range(control_interval[1], T):
+                control_new[n, v, t] = 0.0
+
+    return control_new
+
+
+@numba.njit
 def update_control_with_limit(N, dim_in, T, control, step, gradient, u_max):
     """Computes the updated control signal. The absolute values of the new control are bounded by +/- 'u_max'. If
        'u_max' is 'None', no limit is applied.
@@ -395,6 +428,7 @@ class OC:
         maximum_control_strength=None,
         print_array=[],
         cost_interval=(None, None),
+        control_interval=(None, None),
         cost_matrix=None,
         control_matrix=None,
         M=1,
@@ -414,19 +448,23 @@ class OC:
         :param maximum_control_strength:    Maximum absolute value a control signal can take. No limitation of the
                                             absolute control strength if 'None'. Defaults to None.
         :type:                              float or None, optional
-        :param print_array: Array of optimization-iteration-indices (starting at 1) in which cost is printed out.
-                            Defaults to empty list `[]`.
-        :type print_array:  list, optional
-        :param cost_interval: (t_start, t_end). Indices of start and end point (both inclusive) of the
-                                        time interval in which the accuracy cost is evaluated. Default is full time
-                                        series. Defaults to (None, None).
-        :type cost_interval:  tuple, optional
-        :param cost_matrix: N x V binary matrix that defines nodes and channels of accuracy measurement, defaults
-                                 to None.
-        :type cost_matrix:  np.ndarray
-        :param control_matrix:   N x V Binary matrix that defines nodes and variables where control inputs are active,
-                                 defaults to None.
-        :type control_matrix:    np.ndarray
+        :param print_array:                 Array of optimization-iteration-indices (starting at 1) in which cost is printed out.
+                                            Defaults to empty list `[]`.
+        :type print_array:                  list, optional
+        :param cost_interval:               (t_start, t_end). Indices of start and end point (both inclusive) of the
+                                            time interval in which the accuracy cost is evaluated. Default is full time
+                                            series. Defaults to (None, None).
+        :type cost_interval:                tuple, optional
+        :param control_interval:            (t_start, t_end). Indices of start and end point (both inclusive) of the
+                                            time interval in which control can be applied. Default is full time
+                                            series. Defaults to (None, None).
+        :type control_interval:             tuple, optional
+        :param cost_matrix:                 N x V binary matrix that defines nodes and channels of accuracy measurement, defaults
+                                            to None.
+        :type cost_matrix:                  np.ndarray
+        :param control_matrix:              N x V Binary matrix that defines nodes and variables where control inputs are active,
+                                            defaults to None.
+        :type control_matrix:               np.ndarray
         :param M:                   Number of noise realizations. M=1 implies deterministic case. Defaults to 1.
         :type M:                    int, optional
         :param M_validation:        Number of noise realizations for validation (only used in stochastic case, M>1).
@@ -441,7 +479,35 @@ class OC:
 
         self.model = copy.deepcopy(model)
 
-        self.target = target  # ToDo: dimensions-check
+        self.dt = self.model.params["dt"]  # maybe redundant but for now code clarity
+        self.duration = self.model.params["duration"]  # maybe redundant but for now code clarity
+
+        self.T = np.around(self.duration / self.dt, 0).astype(int) + 1  # Total number of time steps is
+        self.N = self.model.params.N
+
+        self.dim_vars = len(self.model.state_vars)
+        self.dim_out = len(self.model.output_vars)
+        self.dim_in = len(self.model.input_vars)
+
+        # + forward simulation steps of neurolibs model.run().
+        self.state_dim = (
+            self.N,
+            self.dim_vars,
+            self.T,
+        )  # dimensions of state. Model has N network nodes, V state variables, T time points
+
+        if isinstance(target, int):
+            target = float(target)
+
+        if isinstance(target, np.ndarray):
+            print("Optimal control with target time series")
+            self.target_timeseries = target
+            self.target_period = 0.0
+        elif isinstance(target, float):
+            print("Optimal control with target oscillation period")
+            self.target_timeseries = np.zeros((self.N, self.dim_out, self.T))
+            self.target_period = target
+
         self.maximum_control_strength = maximum_control_strength
 
         if type(weights) != type(dict()):
@@ -459,15 +525,6 @@ class OC:
                     print("Weight ", k, " not in provided weight dictionary. Use default value.")
 
             self.weights = defaultweights
-
-        self.N = self.model.params.N
-        self.dt = self.model.params["dt"]  # maybe redundant but for now code clarity
-        self.duration = self.model.params["duration"]  # maybe redundant but for now code clarity
-        self.T = np.around(self.duration / self.dt, 0).astype(int) + 1  # Total number of time steps
-
-        self.dim_vars = len(self.model.state_vars)
-        self.dim_in = len(self.model.input_vars)
-        self.dim_out = len(self.model.output_vars)
 
         self.simulate_forward()
 
@@ -534,11 +591,6 @@ class OC:
                 )
 
         # + forward simulation steps of neurolibs model.run().
-        self.state_dim = (
-            self.N,
-            self.dim_vars,
-            self.T,
-        )  # dimensions of state. Model has N network nodes, V state variables, T time points
 
         self.adjoint_state = np.zeros(self.state_dim)
         self.gradient = np.zeros(self.state_dim)
@@ -557,6 +609,7 @@ class OC:
         self.zero_step_encountered = False  # deterministic gradient descent cannot further improve
 
         self.cost_interval = convert_interval(cost_interval, self.T)
+        self.control_interval = convert_interval(control_interval, self.T)
 
         self.ndt_de, self.ndt_di = 0.0, 0.0
 
@@ -595,7 +648,9 @@ class OC:
         xs = self.get_xs()
         accuracy_cost = cost_functions.accuracy_cost(
             xs,
-            self.target,
+            hilbert(xs),
+            self.target_timeseries,
+            self.target_period,
             self.weights,
             self.cost_matrix,
             self.dt,
@@ -616,7 +671,7 @@ class OC:
         :rtype:         np.ndarray of shape N x V x T
         """
         self.solve_adjoint()
-        df_du = cost_functions.derivative_control_strength_cost(self.control, self.weights)
+        df_du = cost_functions.derivative_control_strength_cost(self.control, self.weights, self.dt)
         d_du = self.Duh()
 
         return compute_gradient(
@@ -628,6 +683,7 @@ class OC:
             self.adjoint_state,
             self.control_matrix,
             d_du,
+            self.control_interval,
         )
 
     @abc.abstractmethod
@@ -664,12 +720,17 @@ class OC:
         dxdoth = self.compute_dxdoth()
         hx_list, del_list = self.compute_hx_list()
 
+        xs = self.get_xs()
+
         # Derivative of cost wrt. controllable 'state_vars'.
         df_dx = cost_functions.derivative_accuracy_cost(
-            self.get_xs(),
-            self.target,
+            xs,
+            hilbert(xs),
+            self.target_timeseries,
+            self.target_period,
             self.weights,
             self.cost_matrix,
+            self.dt,
             self.cost_interval,
         )
         self.adjoint_state = solve_adjoint(
@@ -784,10 +845,12 @@ class OC:
         self.cost_interval = convert_interval(
             self.cost_interval, self.T
         )  # Assure check in repeated calls of ".optimize()".
+        self.control_interval = convert_interval(self.control_interval, self.T)
 
         self.control = update_control_with_limit(
             self.N, self.dim_in, self.T, self.control, 0.0, np.zeros(self.control.shape), self.maximum_control_strength
         )  # To avoid issues in repeated executions.
+        self.control = limit_control_to_interval(self.N, self.dim_in, self.T, self.control, self.control_interval)
 
         if self.M == 1:
             print("Compute control for a deterministic system")

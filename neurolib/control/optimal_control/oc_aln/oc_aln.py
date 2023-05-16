@@ -1,4 +1,4 @@
-from neurolib.control.optimal_control.oc import OC, update_control_with_limit
+from neurolib.control.optimal_control.oc import OC, update_control_with_limit, limit_control_to_interval
 from neurolib.control.optimal_control import cost_functions
 import numpy as np
 import numba
@@ -29,6 +29,7 @@ class OcAln(OC):
         weights=None,
         print_array=[],
         cost_interval=(None, None),
+        control_interval=(None, None),
         cost_matrix=None,
         control_matrix=None,
         M=1,
@@ -41,6 +42,7 @@ class OcAln(OC):
             weights=weights,
             print_array=print_array,
             cost_interval=cost_interval,
+            control_interval=control_interval,
             cost_matrix=cost_matrix,
             control_matrix=control_matrix,
             M=M,
@@ -75,6 +77,7 @@ class OcAln(OC):
         self.control = update_control_with_limit(
             self.N, self.dim_in, self.T, control, 0.0, np.zeros(control.shape), self.maximum_control_strength
         )
+        self.control = limit_control_to_interval(self.N, self.dim_in, self.T, self.control, self.control_interval)
         self.fullstate = self.get_fullstate()
 
         if self.model.params.filter_sigma:
