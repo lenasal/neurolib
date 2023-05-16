@@ -40,7 +40,7 @@ def getdefaultweights():
     return weights
 
 
-@numba.njit
+# @numba.njit
 def compute_gradient(
     N,
     V,
@@ -76,7 +76,8 @@ def compute_gradient(
     :return:         The gradient of the total cost wrt. the control.
     :rtype:          np.ndarray of shape N x V x T
     """
-    grad = np.zeros(df_du.shape)
+    grad = np.zeros((df_du.shape))
+
     for n in range(N):
         for v in range(dim_out):
             for t in range(control_interval[0], control_interval[1]):
@@ -150,9 +151,70 @@ def decrease_step(controlled_model, N, dim_in, T, cost, cost0, step, control0, f
             controlled_model.update_input()
 
             controlled_model.zero_step_encountered = True
+            return step, counter, cost0
+
+    # Find best step size
+    cost_prev = cost
+    step *= factor_down  # Decrease step size.
+    controlled_model.control = update_control_with_limit(
+        N, dim_in, T, control0, step, cost_gradient, controlled_model.maximum_control_strength
+    )
+    controlled_model.update_input()
+    controlled_model.simulate_forward()
+
+    if noisy:
+        cost = controlled_model.compute_cost_noisy(controlled_model.M)
+    else:
+        cost = controlled_model.compute_total_cost()
+
+    counter = 0
+    while cost < cost_prev:  # Increase the step size as long as the cost is improving.
+        step *= factor_down
+        counter += 1
+
+        # Inplace updating of models control bc. forward-sim relies on models parameters
+        controlled_model.control = update_control_with_limit(
+            N, dim_in, T, control0, step, cost_gradient, controlled_model.maximum_control_strength
+        )
+        controlled_model.update_input()
+        controlled_model.simulate_forward()
+
+        if np.isnan(
+            controlled_model.get_xs()
+        ).any():  # Go back to last step (that was numerically stable and improved cost)
+            # and exit.
+            logging.info("Increasing step encountered NAN.")
+            step /= factor_down  # Undo the last step update by inverse operation.
+            controlled_model.control = update_control_with_limit(
+                N, dim_in, T, control0, step, cost_gradient, controlled_model.maximum_control_strength
+            )
+            controlled_model.update_input()
             break
 
-    return step, counter
+        else:
+            if noisy:
+                cost = controlled_model.compute_cost_noisy(controlled_model.M)
+            else:
+                cost = controlled_model.compute_total_cost()
+
+            if cost > cost_prev:  # If the cost increases: go back to last step (that resulted in best cost until
+                # then) and exit.
+                step /= factor_down  # Undo the last step update by inverse operation.
+                controlled_model.control = update_control_with_limit(
+                    N, dim_in, T, control0, step, cost_gradient, controlled_model.maximum_control_strength
+                )
+                controlled_model.update_input()
+                break
+
+            else:
+                cost_prev = cost  # Memorize cost with this step size for comparison in next step-update.
+
+            if counter == controlled_model.count_step:
+                # Terminate step size search at count limit, exit with the highest found, valid and best performing step
+                # size.
+                break
+
+    return step, counter, cost_prev
 
 
 def increase_step(controlled_model, N, dim_in, T, cost, cost0, step, control0, factor_up, cost_gradient):
@@ -240,7 +302,7 @@ def increase_step(controlled_model, N, dim_in, T, cost, cost0, step, control0, f
                 # size.
                 break
 
-    return step, counter
+    return step, counter, cost_prev
 
 
 @numba.njit
@@ -478,6 +540,7 @@ class OC:
         """
 
         self.model = copy.deepcopy(model)
+        self.simulate_forward()
 
         self.dt = self.model.params["dt"]  # maybe redundant but for now code clarity
         self.duration = self.model.params["duration"]  # maybe redundant but for now code clarity
@@ -525,8 +588,6 @@ class OC:
                     print("Weight ", k, " not in provided weight dictionary. Use default value.")
 
             self.weights = defaultweights
-
-        self.simulate_forward()
 
         if self.N == 1:
             self.Dmat_ndt = np.zeros((self.N, self.N)).astype(int)
@@ -659,7 +720,6 @@ class OC:
         control_strenght_cost = cost_functions.control_strength_cost(self.control, self.weights, self.dt)
         return accuracy_cost + control_strenght_cost
 
-    @abc.abstractmethod
     def compute_gradient(self):
         """Compute the gradient of the total cost wrt. the control:
         1. solve the adjoint equation backwards in time
@@ -747,13 +807,80 @@ class OC:
             self.model.name,
         )
 
-    def decrease_step(self, N, dim_in, T, cost, cost0, step, control0, factor_down, cost_gradient):
+    def decrease_step(self, cost, cost0, step, control0, factor_down, cost_gradient):
         """Iteratively decrease step size until cost is improved."""
-        return decrease_step(self, N, dim_in, T, cost, cost0, step, control0, factor_down, cost_gradient)
+        return decrease_step(self, self.N, self.dim_in, self.T, cost, cost0, step, control0, factor_down, cost_gradient)
 
-    def increase_step(self, N, dim_in, T, cost, cost0, step, control0, factor_up, cost_gradient):
+    def increase_step(self, cost, cost0, step, control0, factor_up, cost_gradient):
         """Iteratively increase step size while cost is improving."""
-        return increase_step(self, N, dim_in, T, cost, cost0, step, control0, factor_up, cost_gradient)
+        return increase_step(self, self.N, self.dim_in, self.T, cost, cost0, step, control0, factor_up, cost_gradient)
+
+    def step_size_nv(self, cost_gradient):
+
+        control0 = self.control.copy()
+        step0 = self.step
+
+        stepall, counterall, costall = self.step_size(cost_gradient)
+        zerostepall = self.zero_step_encountered
+        self.zero_step_encountered = False
+
+        minind = [-1, -1]
+        mincost = costall
+
+        steps = np.zeros((self.N, self.dim_in))
+        costs = steps.copy()
+        counters = steps.copy()
+        zerosteps = steps.copy()
+
+        for n in range(self.N):
+            for v in range(self.dim_in):
+
+                if self.control_matrix[n, v] == 0.0:
+                    continue
+
+                self.control = control0.copy()
+                self.update_input()
+                self.step = step0
+                grad = np.zeros((cost_gradient.shape))
+                grad[n, v, :] = cost_gradient[n, v, :]
+                steps[n, v], counters[n, v], costs[n, v] = self.step_size(grad)
+
+                if costs[n, v] < mincost:
+                    mincost = costs[n, v]
+                    minind = [n, v]
+                if self.zero_step_encountered:
+                    zerosteps[n, v] = 1
+                    self.zero_step_encountered = False
+
+        if zerostepall and np.amin(zerosteps) >= 1.0:
+            # all options ended with maximum counter
+            step, counter = 0.0, self.count_step
+            self.zero_step_encountered = True
+            grad = cost_gradient.copy()
+
+        else:
+            if minind == [-1, -1]:
+                grad = cost_gradient.copy()
+                step, counter, cost = stepall, counterall, costall
+                self.zero_step_encountered = False
+            else:
+                grad = np.zeros((cost_gradient.shape))
+                grad[minind[0], minind[1], :] = cost_gradient[minind[0], minind[1], :]
+                step, counter, cost = (
+                    steps[minind[0], minind[1]],
+                    counters[minind[0], minind[1]],
+                    costs[minind[0], minind[1]],
+                )
+                self.zero_step_encountered = False
+
+        self.step = step  # Memorize the last step size for the next optimization step with next gradient.
+        self.step_sizes_loops_history.append(counter)
+        self.step_sizes_history.append(step)
+
+        self.control = update_control_with_limit(
+            self.N, self.dim_in, self.T, control0, step, grad, self.maximum_control_strength
+        )
+        self.update_input()
 
     def step_size(self, cost_gradient):
         """Adaptively choose a step size for control update.
@@ -808,18 +935,14 @@ class OC:
         if (
             cost > cost0
         ):  # If the cost choosing the first (stable) step size is no improvement, reduce step size by bisection.
-            step, counter = self.decrease_step(
-                self.N, self.dim_in, self.T, cost, cost0, step, control0, self.factor_down, cost_gradient
-            )
+            step, counter, cost = self.decrease_step(cost, cost0, step, control0, self.factor_down, cost_gradient)
 
         elif (
             cost < cost0
         ):  # If the cost is improved with the first (stable) step size, search for larger steps with even better
             # reduction of cost.
 
-            step, counter = self.increase_step(
-                self.N, self.dim_in, self.T, cost, cost0, step, control0, self.factor_up, cost_gradient
-            )
+            step, counter, cost = self.increase_step(cost, cost0, step, control0, self.factor_up, cost_gradient)
 
         else:  # Remark: might be included as part of adaptive search for further improvement.
             step = 0.0  # For later analysis only.
@@ -831,7 +954,7 @@ class OC:
         self.step_sizes_loops_history.append(counter)
         self.step_sizes_history.append(step)
 
-        return step
+        return step, counter, cost
 
     def optimize(self, n_max_iterations):
         """Optimization method
@@ -885,7 +1008,7 @@ class OC:
                 print(f"Converged in iteration %s with cost %s" % (i, cost))
                 break
 
-            self.step_size(-self.gradient)
+            self.step_size_nv(-self.gradient)
             self.simulate_forward()
 
             cost = self.compute_total_cost()
@@ -935,7 +1058,7 @@ class OC:
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-                _ = self.step_size(-self.gradient)
+                _ = self.step_size_nv(-self.gradient)
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break
@@ -953,14 +1076,12 @@ class OC:
             if self.validate_per_step:  # if cost is computed for M_validation realizations in every step
                 for m in range(self.M):
                     self.simulate_forward()
-                    grad_m[m, :] = self.compute_gradient()
                 cost = self.compute_cost_noisy(self.M_validation)
             else:
                 cost_m = 0.0
                 for m in range(self.M):
                     self.simulate_forward()
                     cost_m += self.compute_total_cost()
-                    grad_m[m, :] = self.compute_gradient()
                 cost = cost_m / self.M
 
             if i in self.print_array:
