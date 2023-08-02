@@ -27,6 +27,7 @@ def getdefaultweights():
 
     weights["w_ac"] = 0.0
     weights["w_cc"] = 0.0
+    weights["w_cc1"] = 0.0
 
     weights["w_var"] = 0.0
     weights["w_var_osc"] = 0.0
