@@ -12,9 +12,9 @@ from numba.typed import Dict
 
 
 def getdefaultweights():
-    weights = numba.typed.Dict.empty(
-        key_type=numba.types.unicode_type,
-        value_type=numba.types.float64,
+    weights = Dict.empty(
+        key_type=types.unicode_type,
+        value_type=types.float64,
     )
     weights["w_p"] = 1.0
 
@@ -41,7 +41,7 @@ def getdefaultweights():
     return weights
 
 
-# @numba.njit
+@numba.njit
 def compute_gradient(
     N,
     V,
@@ -280,7 +280,6 @@ def increase_step(controlled_model, N, dim_in, T, cost, cost0, step, control0, f
             break
 
         else:
-
             if noisy:
                 cost = controlled_model.compute_cost_noisy(controlled_model.M)
             else:
@@ -356,7 +355,6 @@ def solve_adjoint(hx_list, del_list, hx_nw, fx, state_dim, dt, N, T, dmat_ndt, d
         for n in range(N):  # iterate through nodes
             for k in range(state_dim[1]):
                 if dxdoth[n, k, k] == 0:
-
                     res = fx_fullstate[n, k, t]
 
                     for hx, int_delay in zip(hx_list, del_list):
@@ -433,7 +431,6 @@ def update_control_with_limit(N, dim_in, T, control, step, gradient, u_max):
     control_new = control + step * gradient
 
     if u_max is not None:
-
         control_new = control + step * gradient
 
         for n in range(N):
@@ -499,44 +496,54 @@ class OC:
         validate_per_step=False,
     ):
         """
-        Base class for optimal control. Model specific methods should be implemented in derived class for each model.
+                Base class for optimal control. Model specific methods should be implemented in derived class for each model.
 
-        :param model:       An instance of neurolib's Model-class. Parameters like '.duration' and methods like '.run()'
-                            are used within the optimal control.
-        :type model:        neurolib.models.model
-        :param target:      Target time series of controllable variables.
-        :type target:       np.ndarray
-        :param weights:     Dictionary of weight parameters, defaults to 'None'.
-        :type weights:      dictionary, optional
-        :param maximum_control_strength:    Maximum absolute value a control signal can take. No limitation of the
-                                            absolute control strength if 'None'. Defaults to None.
-        :type:                              float or None, optional
-        :param print_array:                 Array of optimization-iteration-indices (starting at 1) in which cost is printed out.
-                                            Defaults to empty list `[]`.
-        :type print_array:                  list, optional
-        :param cost_interval:               (t_start, t_end). Indices of start and end point (both inclusive) of the
-                                            time interval in which the accuracy cost is evaluated. Default is full time
-                                            series. Defaults to (None, None).
-        :type cost_interval:                tuple, optional
-        :param control_interval:            (t_start, t_end). Indices of start and end point (both inclusive) of the
-                                            time interval in which control can be applied. Default is full time
-                                            series. Defaults to (None, None).
-        :type control_interval:             tuple, optional
-        :param cost_matrix:                 N x V binary matrix that defines nodes and channels of accuracy measurement, defaults
-                                            to None.
-        :type cost_matrix:                  np.ndarray
-        :param control_matrix:              N x V Binary matrix that defines nodes and variables where control inputs are active,
+                :param model:       An instance of neurolib's Model-class. Parameters like '.duration' and methods like '.run()'
+                                    are used within the optimal control.
+                :type model:        neurolib.models.model
+                :param target:      Target time series of controllable variables.
+                :type target:       np.ndarray
+                :param weights:     Dictionary of weight parameters, defaults to 'None'.
+                :type weights:      dictionary, optional
+                :param maximum_control_strength:    Maximum absolute value a control signal can take. No limitation of the
+                                                    absolute control strength if 'None'. Defaults to None.
+                :type:                              float or None, optional
+                :param print_array:                 Array of optimization-iteration-indices (starting at 1) in which cost is printed out.
+                                                    Defaults to empty list `[]`.
+                :type print_array:                  list, optional
+                :param cost_interval:               (t_start, t_end). Indices of start and end point (both inclusive) of the
+                                                    time interval in which the accuracy cost is evaluated. Default is full time
+                                                    series. Defaults to (None, None).
+                :type cost_interval:                tuple, optional
+                :param control_interval:            (t_start, t_end). Indices of start and end point (both inclusive) of the
+                                                    time interval in which control can be applied. Default is full time
+                                                    series. Defaults to (None, None).
+        <<<<<<< HEAD
+                :type control_interval:             tuple, optional
+                :param cost_matrix:                 N x V binary matrix that defines nodes and channels of accuracy measurement, defaults
+                                                    to None.
+                :type cost_matrix:                  np.ndarray
+                :param control_matrix:              N x V Binary matrix that defines nodes and variables where control inputs are active,
+                                                    defaults to None.
+                :type control_matrix:               np.ndarray
+        =======
+                :type control_interval:              tuple, optional
+                :param cost_matrix:                 N x V binary matrix that defines nodes and channels of accuracy measurement, defaults
+                                                    to None.
+                :type cost_matrix:                  np.ndarray
+                :param control_matrix:      N x V Binary matrix that defines nodes and variables where control inputs are active,
                                             defaults to None.
-        :type control_matrix:               np.ndarray
-        :param M:                   Number of noise realizations. M=1 implies deterministic case. Defaults to 1.
-        :type M:                    int, optional
-        :param M_validation:        Number of noise realizations for validation (only used in stochastic case, M>1).
-                                    Defaults to 0.
-        :type M_validation:         int, optional
-        :param validate_per_step:   True for validation in each iteration of the optimization, False for
-                                    validation only after final optimization iteration (only used in stochastic case,
-                                    M>1). Defaults to False.
-        :type validate_per_step:    bool, optional
+                :type control_matrix:       np.ndarray
+        >>>>>>> OCdev
+                :param M:                   Number of noise realizations. M=1 implies deterministic case. Defaults to 1.
+                :type M:                    int, optional
+                :param M_validation:        Number of noise realizations for validation (only used in stochastic case, M>1).
+                                            Defaults to 0.
+                :type M_validation:         int, optional
+                :param validate_per_step:   True for validation in each iteration of the optimization, False for
+                                            validation only after final optimization iteration (only used in stochastic case,
+                                            M>1). Defaults to False.
+                :type validate_per_step:    bool, optional
 
         """
 
@@ -817,7 +824,6 @@ class OC:
         return increase_step(self, self.N, self.dim_in, self.T, cost, cost0, step, control0, factor_up, cost_gradient)
 
     def step_size_nv(self, cost_gradient):
-
         control0 = self.control.copy()
         step0 = self.step
 
@@ -835,7 +841,6 @@ class OC:
 
         for n in range(self.N):
             for v in range(self.dim_in):
-
                 if self.control_matrix[n, v] == 0.0:
                     continue
 
@@ -966,9 +971,8 @@ class OC:
         :type n_max_iterations:  int
         """
 
-        self.cost_interval = convert_interval(
-            self.cost_interval, self.T
-        )  # Assure check in repeated calls of ".optimize()".
+        # If changed between repeated calls of ".optimize()".
+        self.cost_interval = convert_interval(self.cost_interval, self.T)
         self.control_interval = convert_interval(self.control_interval, self.T)
 
         self.control = update_control_with_limit(
@@ -1005,17 +1009,17 @@ class OC:
                 print("nan in gradient, break")
                 break
 
-            if self.zero_step_encountered:
-                print(f"Converged in iteration %s with cost %s" % (i, cost))
-                break
-
-            self.step_size_nv(-self.gradient)
+            self.step_size(-self.gradient)
             self.simulate_forward()
 
             cost = self.compute_total_cost()
             if i in self.print_array:
                 print(f"Cost in iteration %s: %s" % (i, cost))
             self.cost_history.append(cost)
+
+            if self.zero_step_encountered:
+                print(f"Converged in iteration %s with cost %s" % (i, cost))
+                break
 
         print(f"Final cost : %s" % (cost))
 
@@ -1052,14 +1056,13 @@ class OC:
             self.cost_history.append(cost)
 
         for i in range(1, n_max_iterations + 1):
-
             self.gradient = np.mean(grad_m, axis=0)
 
             count = 0
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-                _ = self.step_size_nv(-self.gradient)
+                self.step_size(-self.gradient)
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break
