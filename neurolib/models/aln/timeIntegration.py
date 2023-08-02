@@ -28,7 +28,6 @@ def timeIntegration(params):
     :return: Integrated activity variables of the model
     :rtype: (numpy.ndarray,)
     """
-
     dt = params["dt"]  # Time step for the Euler intergration (ms)
     duration = params["duration"]  # imulation duration (ms)
     RNGseed = params["seed"]  # seed for RNG
@@ -396,7 +395,6 @@ def timeIntegration_njit_elementwise(
     noise_exc,
     noise_inh,
 ):
-
     # squared Jee_max
     sq_Jee_max = Jee_max**2
     sq_Jei_max = Jei_max**2

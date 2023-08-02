@@ -1,4 +1,0 @@
-Wp range:
-below minimumg: numerical issues
-above maximum: very small amplitudes in control and activity
-between: shape and amplitude change continuously
