@@ -1,0 +1,16 @@
+         45 function calls in 3.136 seconds
+
+   Ordered by: cumulative time
+   List reduced from 21 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    3.136    3.136 {built-in method builtins.exec}
+        1    0.000    0.000    3.135    3.135 <string>:1(<module>)
+        1    3.135    3.135    3.135    3.135 cost_functions.py:355(derivative_cc_cost)
+        3    0.000    0.000    0.000    0.000 typeof.py:25(typeof)
+        1    0.000    0.000    0.000    0.000 numeric.py:149(ones)
+        3    0.000    0.000    0.000    0.000 functools.py:872(wrapper)
+        1    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(copyto)
+        1    0.000    0.000    0.000    0.000 {built-in method numpy.core._multiarray_umath.implement_array_function}
+        3    0.000    0.000    0.000    0.000 typeof.py:121(_typeof_int)
+        3    0.000    0.000    0.000    0.000 functools.py:816(dispatch)
