@@ -5,10 +5,9 @@ from neurolib.control.optimal_control import cost_functions
 from neurolib.utils.model_utils import computeDelayMatrix
 import logging
 import copy
-from scipy.signal import hilbert
 
 from numba.core import types
-from numba.typed import Dict
+from numba.typed import Dict, List
 
 
 def getdefaultweights():
@@ -20,17 +19,16 @@ def getdefaultweights():
 
     weights["w_f"] = 0.0
     weights["w_f_sync"] = 0.0
-    weights["w_f_pl"] = 0.0
 
-    weights["w_phase"] = 0.0
-    weights["w_ko"] = 0.0
+    # weights["w_phase"] = 0.0
+    # weights["w_ko"] = 0.0
 
-    weights["w_ac"] = 0.0
+    # weights["w_ac"] = 0.0
     weights["w_cc"] = 0.0
-    weights["w_cc1"] = 0.0
+    # weights["w_cc1"] = 0.0
 
     weights["w_var"] = 0.0
-    weights["w_var_osc"] = 0.0
+    # weights["w_var_osc"] = 0.0
 
     weights["w_2"] = 0.0
 
@@ -476,7 +474,7 @@ def convert_interval(interval, array_length):
     assert interval_0_new < interval_1_new, "Order of indices for interval is not valid."
     assert interval_1_new <= array_length, "Interval is not specified in valid range."
 
-    return interval_0_new, interval_1_new
+    return List([interval_0_new, interval_1_new])
 
 
 class OC:
@@ -496,54 +494,44 @@ class OC:
         validate_per_step=False,
     ):
         """
-                Base class for optimal control. Model specific methods should be implemented in derived class for each model.
+        Base class for optimal control. Model specific methods should be implemented in derived class for each model.
 
-                :param model:       An instance of neurolib's Model-class. Parameters like '.duration' and methods like '.run()'
-                                    are used within the optimal control.
-                :type model:        neurolib.models.model
-                :param target:      Target time series of controllable variables.
-                :type target:       np.ndarray
-                :param weights:     Dictionary of weight parameters, defaults to 'None'.
-                :type weights:      dictionary, optional
-                :param maximum_control_strength:    Maximum absolute value a control signal can take. No limitation of the
-                                                    absolute control strength if 'None'. Defaults to None.
-                :type:                              float or None, optional
-                :param print_array:                 Array of optimization-iteration-indices (starting at 1) in which cost is printed out.
-                                                    Defaults to empty list `[]`.
-                :type print_array:                  list, optional
-                :param cost_interval:               (t_start, t_end). Indices of start and end point (both inclusive) of the
-                                                    time interval in which the accuracy cost is evaluated. Default is full time
-                                                    series. Defaults to (None, None).
-                :type cost_interval:                tuple, optional
-                :param control_interval:            (t_start, t_end). Indices of start and end point (both inclusive) of the
-                                                    time interval in which control can be applied. Default is full time
-                                                    series. Defaults to (None, None).
-        <<<<<<< HEAD
-                :type control_interval:             tuple, optional
-                :param cost_matrix:                 N x V binary matrix that defines nodes and channels of accuracy measurement, defaults
-                                                    to None.
-                :type cost_matrix:                  np.ndarray
-                :param control_matrix:              N x V Binary matrix that defines nodes and variables where control inputs are active,
-                                                    defaults to None.
-                :type control_matrix:               np.ndarray
-        =======
-                :type control_interval:              tuple, optional
-                :param cost_matrix:                 N x V binary matrix that defines nodes and channels of accuracy measurement, defaults
-                                                    to None.
-                :type cost_matrix:                  np.ndarray
-                :param control_matrix:      N x V Binary matrix that defines nodes and variables where control inputs are active,
+        :param model:       An instance of neurolib's Model-class. Parameters like '.duration' and methods like '.run()'
+                            are used within the optimal control.
+        :type model:        neurolib.models.model
+        :param target:      Target time series of controllable variables.
+        :type target:       np.ndarray
+        :param weights:     Dictionary of weight parameters, defaults to 'None'.
+        :type weights:      dictionary, optional
+        :param maximum_control_strength:    Maximum absolute value a control signal can take. No limitation of the
+                                            absolute control strength if 'None'. Defaults to None.
+        :type:                              float or None, optional
+        :param print_array:                 Array of optimization-iteration-indices (starting at 1) in which cost is printed out.
+                                            Defaults to empty list `[]`.
+        :type print_array:                  list, optional
+        :param cost_interval:               (t_start, t_end). Indices of start and end point (both inclusive) of the
+                                            time interval in which the accuracy cost is evaluated. Default is full time
+                                            series. Defaults to (None, None).
+        :type cost_interval:                tuple, optional
+        :param control_interval:            (t_start, t_end). Indices of start and end point (both inclusive) of the
+                                            time interval in which control can be applied. Default is full time
+                                            series. Defaults to (None, None).
+        :type control_interval:             tuple, optional
+        :param cost_matrix:                 N x V binary matrix that defines nodes and channels of accuracy measurement, defaults
+                                            to None.
+        :type cost_matrix:                  np.ndarray
+        :param control_matrix:              N x V Binary matrix that defines nodes and variables where control inputs are active,
                                             defaults to None.
-                :type control_matrix:       np.ndarray
-        >>>>>>> OCdev
-                :param M:                   Number of noise realizations. M=1 implies deterministic case. Defaults to 1.
-                :type M:                    int, optional
-                :param M_validation:        Number of noise realizations for validation (only used in stochastic case, M>1).
-                                            Defaults to 0.
-                :type M_validation:         int, optional
-                :param validate_per_step:   True for validation in each iteration of the optimization, False for
-                                            validation only after final optimization iteration (only used in stochastic case,
-                                            M>1). Defaults to False.
-                :type validate_per_step:    bool, optional
+        :type control_matrix:               np.ndarray
+        :param M:                   Number of noise realizations. M=1 implies deterministic case. Defaults to 1.
+        :type M:                    int, optional
+        :param M_validation:        Number of noise realizations for validation (only used in stochastic case, M>1).
+                                    Defaults to 0.
+        :type M_validation:         int, optional
+        :param validate_per_step:   True for validation in each iteration of the optimization, False for
+                                    validation only after final optimization iteration (only used in stochastic case,
+                                    M>1). Defaults to False.
+        :type validate_per_step:    bool, optional
 
         """
 
@@ -682,6 +670,8 @@ class OC:
 
         self.ndt_de, self.ndt_di = 0.0, 0.0
 
+        self.compute_step_per_nv = False
+
     @abc.abstractmethod
     def get_xs(self):
         """Stack the initial condition with the simulation results for controllable state variables."""
@@ -717,7 +707,6 @@ class OC:
         xs = self.get_xs()
         accuracy_cost = cost_functions.accuracy_cost(
             xs,
-            hilbert(xs),
             self.target_timeseries,
             self.target_period,
             self.weights,
@@ -793,7 +782,6 @@ class OC:
         # Derivative of cost wrt. controllable 'state_vars'.
         df_dx = cost_functions.derivative_accuracy_cost(
             xs,
-            hilbert(xs),
             self.target_timeseries,
             self.target_period,
             self.weights,
@@ -842,6 +830,7 @@ class OC:
         for n in range(self.N):
             for v in range(self.dim_in):
                 if self.control_matrix[n, v] == 0.0:
+                    zerosteps[n, v] = 1
                     continue
 
                 self.control = control0.copy()
@@ -1009,7 +998,11 @@ class OC:
                 print("nan in gradient, break")
                 break
 
-            self.step_size(-self.gradient)
+            if self.compute_step_per_nv:
+                self.step_size_nv(-self.gradient)
+            else:
+                self.step_size(-self.gradient)
+
             self.simulate_forward()
 
             cost = self.compute_total_cost()
@@ -1062,7 +1055,10 @@ class OC:
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-                self.step_size(-self.gradient)
+                if self.compute_step_per_nv:
+                    self.step_size_nv(-self.gradient)
+                else:
+                    self.step_size(-self.gradient)
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break
