@@ -407,7 +407,7 @@ def limit_control_to_interval(N, dim_in, T, control, control_interval):
     return control_new
 
 
-@numba.njit
+#@numba.njit
 def update_control_with_limit(N, dim_in, T, control, step, gradient, u_max):
     """Computes the updated control signal. The absolute values of the new control are bounded by +/- 'u_max'. If
        'u_max' is 'None', no limit is applied.
@@ -946,6 +946,8 @@ class OC:
 
         self.step = step  # Memorize the last step size for the next optimization step with next gradient.
 
+        # <print(step, counter, cost)
+
         self.step_sizes_loops_history.append(counter)
         self.step_sizes_history.append(step)
 
@@ -1096,6 +1098,7 @@ class OC:
 
         self.control = oc
         self.update_input()
+
         self.cost_validation = self.compute_cost_noisy(self.M_validation)
         print(f"Final cost validated with %s noise realizations : %s" % (self.M_validation, self.cost_validation))
 

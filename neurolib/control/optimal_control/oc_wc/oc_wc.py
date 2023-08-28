@@ -135,12 +135,12 @@ class OcWc(OC):
         """Update the parameters in 'self.model' according to the current control such that 'self.simulate_forward'
         operates with the appropriate control signal.
         """
-        input = self.background + self.control
+        input = (self.background + self.control).copy()
+
         # ToDo: find elegant way to combine the cases
         if self.N == 1:
             self.model.params["exc_ext"] = input[:, 0, :].reshape(1, -1)  # Reshape as row vector to match access
             self.model.params["inh_ext"] = input[:, 1, :].reshape(1, -1)  # in model's time integration.
-
         else:
             self.model.params["exc_ext"] = input[:, 0, :]
             self.model.params["inh_ext"] = input[:, 1, :]
@@ -177,7 +177,7 @@ class OcWc(OC):
         xsd = self.get_xs_delay()
         ed = xsd[:, 0, :]
 
-        input = self.background + self.control
+        input = (self.background + self.control).copy()
         ue = input[:, 0, :]
         ui = input[:, 1, :]
 
