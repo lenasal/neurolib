@@ -221,30 +221,10 @@ def derivative_fourier_cost(data, dt, target_period, cost_matrix, interval):
             sinsum = compute_sin_sum(data[n, v, interval[0] : interval[1]], target_period, dt, T)
             denominator = compute_fourier_component(data[n, v, interval[0] : interval[1]], target_period, dt, T)
             if denominator != 0.0:
-                for i in range(1, data.shape[2]):
-                    derivative[n, v, i] -= (
-                        2.0 / T * (cossum * np.cos(argument * i) + sinsum * np.sin(argument * i)) / denominator
+                for t in range(1, data.shape[2]):
+                    derivative[n, v, t] -= (
+                        2.0 / T * (cossum * np.cos(argument * t) + sinsum * np.sin(argument * t)) / denominator
                     )
-
-    return derivative
-
-
-@numba.njit
-def derivative_fourier_cost_num(data, dt, target_period, cost_matrix, interval, dx=FOURIER_DX):
-    data_dx = data.copy()
-    cost0 = fourier_cost(data, dt, target_period, cost_matrix, interval)
-    derivative = np.zeros((data_dx.shape))
-
-    for n in range(data.shape[0]):
-        for v in range(data.shape[1]):
-            if cost_matrix[n, v] == 0.0:
-                continue
-
-            for i in range(1, data.shape[2]):
-                data_dx[n, v, i] += dx
-                cost1 = fourier_cost(data_dx, dt, target_period, cost_matrix, interval)
-                data_dx[n, v, i] -= dx
-                derivative[n, v, i] = (cost1[n, v] - cost0[n, v]) / dx
 
     return derivative
 
@@ -288,9 +268,9 @@ def derivative_fourier_cost_sync(data, dt, target_period, cost_matrix, interval)
             sinsum = compute_sin_sum(data_nodesum[interval[0] : interval[1]], target_period, dt, T)
 
             if denominator != 0.0:
-                for i in range(1, data.shape[2]):
-                    derivative[n, v, i] -= (
-                        2.0 / T * (cossum * np.cos(argument * i) + sinsum * np.sin(argument * i)) / denominator
+                for t in range(1, data.shape[2]):
+                    derivative[n, v, t] -= (
+                        2.0 / T * (cossum * np.cos(argument * t) + sinsum * np.sin(argument * t)) / denominator
                     )
 
     return derivative
@@ -965,6 +945,26 @@ def derivative_fourier_cost_sync_num(data, dt, target_period, cost_matrix, inter
                     cost1 = fourier_cost_sync(data_dx, dt, target_period, cost_matrix, interval)
                     data_dx[n, v, i] -= dx
                     derivative[n, v, i] = (cost1[v] - cost0[v]) / dx
+
+    return derivative
+
+
+    @numba.njit
+def derivative_fourier_cost_num(data, dt, target_period, cost_matrix, interval, dx=FOURIER_DX):
+    data_dx = data.copy()
+    cost0 = fourier_cost(data, dt, target_period, cost_matrix, interval)
+    derivative = np.zeros((data_dx.shape))
+
+    for n in range(data.shape[0]):
+        for v in range(data.shape[1]):
+            if cost_matrix[n, v] == 0.0:
+                continue
+
+            for i in range(1, data.shape[2]):
+                data_dx[n, v, i] += dx
+                cost1 = fourier_cost(data_dx, dt, target_period, cost_matrix, interval)
+                data_dx[n, v, i] -= dx
+                derivative[n, v, i] = (cost1[n, v] - cost0[n, v]) / dx
 
     return derivative
 

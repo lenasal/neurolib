@@ -2,10 +2,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 from scipy.optimize import fsolve
+from sigfig import round
 
 
 def findroots(array):
     roots = []
+    if np.amax(array) - np.amin(array) < 1e-3:
+        return roots
+
     for t in range(1, len(array)):
         if np.sign(array[t]) != np.sign(array[t - 1]):
             if np.abs(array[t] < np.abs(array[t - 1])):
@@ -16,10 +20,29 @@ def findroots(array):
     return roots
 
 
+def findroots_w1(array):
+    roots = np.arange(250, 2000, 125)
+    return roots
+
+    roots = []
+    t = 1
+    while t < len(array):
+        if np.sign(array[t]) < -1e-2:
+            if np.abs(array[t] < np.abs(array[t - 1])):
+                roots.append(t)
+            else:
+                roots.append(t - 1)
+            t += 150
+        else:
+            t += 1
+
+    return roots
+
+
 cmap = plt.cm.get_cmap("jet")
 
 
-def plot_1n_osc(state_list, control_list, dur, dt, w2array_list, indzoom, filename):
+def plot_1n_osc(state_list, control_list, dur, dt, w_array_list, indzoom, filename):
     rows, cols = 4, 4
     time = np.arange(0, dur + dt, dt)
 
@@ -34,15 +57,20 @@ def plot_1n_osc(state_list, control_list, dur, dt, w2array_list, indzoom, filena
     for c in range(cols):
         states = state_list[c].copy()
         controls = control_list[c].copy()
-        w2_array = w2array_list[c].copy()
-        for w in range(len(w2_array)):
-            index = float(w / (len(w2_array) - 1))
+        w_array = w_array_list[c].copy()
+
+        maxdur = 0
+
+        for w in range(len(w_array)):
+            index = float(w / (len(w_array) - 1))
             col = cmap(index)
             ax[0, c].plot(time, states[w][0, 0, :], color=col)
             ax[1, c].plot(time, controls[w][0, 0, :], color=col)
 
-            roots = findroots(controls[w][0, 0, :])
-            maxdur = 0
+            if "w2" in filename or "w_2" in filename or "w1D" in filename or "w_1D" in filename:
+                roots = findroots(controls[w][0, 0, :])
+            else:
+                roots = findroots_w1(controls[w][0, 0, :])
 
             if len(roots) > 4:
                 ind = int(indzoom[c, w])
@@ -50,36 +78,42 @@ def plot_1n_osc(state_list, control_list, dur, dt, w2array_list, indzoom, filena
                 if i1 - i0 > maxdur:
                     maxdur = i1 - i0
                 time_osc = np.linspace(0, (i1 - i0) * dt, i1 - i0, endpoint=True)
-                # print(i0, i1, time_osc.shape)
                 ax[2, c].plot(time_osc, controls[w][0, 0, i0:i1], color=col)
 
-        grad = np.linspace(w2_array[0], w2_array[-1], len(w2_array))
+        grad = np.linspace(w_array[0], w_array[-1], len(w_array))
         ax[3, c].imshow(np.vstack((grad, grad)), aspect="auto", cmap=cmap)
         ax[3, c].set_yticks([])
-        ax[3, c].set_xticks(np.arange(0, 10, 1))
-        ax[3, c].set_xticklabels(
-            np.around(1e3 * w2_array, 3),
-            rotation=90,
-        )
+        ax[3, c].set_xticks(np.arange(0, len(w_array), 1))
+        wlabel = []
+        for w in w_array:
+            wlabel.append(str(round(1e3 * w, sigfigs=3)))
+
+        ax[2, c].set_xlim(0, maxdur * dt)
+
+        ax[3, c].set_xticklabels(wlabel, rotation=90)
 
         ax[0, c].set_xlim(0, dur)
         ax[0, c].set_xticks([])
         ax[1, c].set_xlim(0, dur)
-        ax[2, c].set_xlim(0, maxdur * dt)
         ax[2, c].set_xlabel("Time [ms]")
 
-        ax[0, c].set_ylim(0, 0.5)
+        ax[0, c].set_ylim(0, 0.55)
 
     ax[0, 0].set_ylabel("Activity")
     ax[1, 0].set_ylabel("Control")
     ax[2, 0].set_ylabel("Control")
-    ax[3, 0].set_ylabel(r"$w_2$")
+    if "w2" in filename or "w_2" in filename:
+        ax[3, 0].set_ylabel(r"$10^3 \cdot w_2$")
+    elif "w1D" in filename or "w_1D" in filename:
+        ax[3, 0].set_ylabel(r"$10^3 \cdot w_{1D}$")
+    else:
+        ax[3, 0].set_ylabel(r"$10^3 \cdot w_{1}$")
 
     ax[0, 0].set_title(r"Point (A): down $\rightarrow$ osc")
     ax[0, 1].set_title(r"Point (B): down $\rightarrow$ osc")
     ax[0, 2].set_title(r"Point (C): up $\rightarrow$ osc")
     ax[0, 3].set_title(r"Point (D): up $\rightarrow$ osc")
-    ax[3, 0].set_title("  ")
+    ax[3, 0].set_title("  ", fontsize=40)
 
     fig.align_ylabels(ax[:, 0])
     # fig.constrained_layout()
