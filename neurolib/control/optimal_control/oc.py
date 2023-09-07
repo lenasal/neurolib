@@ -694,7 +694,6 @@ class OC:
         while cost > cost0:  # Decrease the step size until first step size is found where cost is improved.
             step *= factor_down  # Decrease step size.
             counter += 1
-            # print(step, cost, cost0)
 
             # Inplace updating of models control bc. forward-sim relies on models parameters.
             self.control = update_control_with_limit(
@@ -847,7 +846,6 @@ class OC:
                 self.compute_total_cost()
             )  # Cost after applying control update according to gradient with first valid
         # step size (numerically stable).
-        # print(cost, cost0)
         if (
             cost > cost0
         ):  # If the cost choosing the first (stable) step size is no improvement, reduce step size by bisection.
