@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-global FS
-FS = 16
+colors = ["red", "blue", "green", "orange"]
 
 
 def plot_oc_singlenode(
@@ -11,11 +10,10 @@ def plot_oc_singlenode(
     state,
     target,
     control,
-    orig_input=None,
-    cost_array=None,
-    color_x="red",
-    color_y="blue",
-    savepath=None,
+    orig_input,
+    cost_array=(),
+    plot_state_vars=[0, 1],
+    plot_control_vars=[0, 1],
 ):
     """Plot target and controlled dynamics for a network with a single node.
     :param duration:    Duration of simulation (in ms).
@@ -36,29 +34,18 @@ def plot_oc_singlenode(
     # Plot the target (dashed line) and unperturbed activity
     t_array = np.arange(0, duration + dt, dt)
 
-    ax[0].plot(t_array, state[0, 0, :], label="x", color=color_x)
-    ax[0].plot(t_array, state[0, 1, :], label="y", color=color_y)
-    if isinstance(target, np.ndarray):
-        ax[0].plot(t_array, target[0, 0, :], linestyle="dashed", label="Target x", color=color_x)
-        ax[0].plot(t_array, target[0, 1, :], linestyle="dashed", label="Target y", color=color_y)
-    elif isinstance(target, float):
-        k = int(np.ceil(duration / target))
-        for k_ in range(2, k, 2):
-            ax[0].axvspan(duration - k_ * target, duration - (k_ - 1) * target, color="grey", alpha=0.5)
-    ax[0].legend(loc="upper left")
-    ax[0].set_title("Activity")
+    for v in plot_state_vars:
+        ax[0].plot(t_array, state[0, v, :], label="state var " + str(v), color=colors[v])
+        ax[0].plot(t_array, target[0, v, :], linestyle="dashed", label="target var " + str(v), color=colors[v])
+    ax[0].legend(loc="upper right")
+    ax[0].set_title("Activity without stimulation and target activity")
 
     # Plot the target control signal (dashed line) and "initial" zero control signal
-    ax[1].plot(t_array, control[0, 0, :], label="stimulation x", color=color_x)
-    ax[1].plot(t_array, control[0, 1, :], label="stimulation y", color=color_y)
-    if orig_input is not None:
-        ax[1].plot(t_array, orig_input[0, 0, :], linestyle="dashed", label="input x", color=color_x)
-        ax[1].plot(t_array, orig_input[0, 1, :], linestyle="dashed", label="input y", color=color_y)
-    ax[1].legend(loc="upper left")
-    ax[1].set_title("Stimulation")
-
-    ax[0].set_xlim(0, duration)
-    ax[1].set_xlim(0, duration)
+    for v in plot_control_vars:
+        ax[1].plot(t_array, control[0, v, :], label="stimulation var " + str(v), color=colors[v])
+        ax[1].plot(t_array, orig_input[0, v, :], linestyle="dashed", label="input var " + str(v), color=colors[v])
+    ax[1].legend(loc="upper right")
+    ax[1].set_title("Active stimulation and input stimulation")
 
     if cost_array != None:
         ax[2].plot(cost_array)
@@ -77,11 +64,11 @@ def plot_oc_network(
     state,
     target,
     control,
-    orig_input=None,
-    cost_array=None,
-    step_array=None,
-    color_x="red",
-    color_y="blue",
+    orig_input,
+    cost_array=(),
+    step_array=(),
+    plot_state_vars=[0, 1],
+    plot_control_vars=[0, 1],
 ):
     """Plot target and controlled dynamics for a network with a single node.
     :param N:           Number of nodes in the network.
@@ -104,52 +91,20 @@ def plot_oc_network(
     fig, ax = plt.subplots(rows, N, figsize=(12, 3 * rows), constrained_layout=True)
 
     for n in range(N):
-        ax[0, n].plot(t_array, state[n, 0, :], label="x", color=color_x)
-        ax[0, n].plot(t_array, state[n, 1, :], label="y", color=color_y)
-        if isinstance(target, np.ndarray):
-            ax[0, n].plot(t_array, target[n, 0, :], linestyle="dashed", label="Target x", color=color_x)
-            ax[0, n].plot(t_array, target[n, 1, :], linestyle="dashed", label="Target y", color=color_y)
-        elif isinstance(target, float):
-            k = int(np.ceil(duration / target))
-            for k_ in range(2, k, 2):
-                ax[0, n].axvspan(duration - k_ * target, duration - (k_ - 1) * target, color="grey", alpha=0.5)
-        ax[0, n].legend(loc="upper left")
-        ax[0, n].set_title(f"Activity node %s" % (n))
+        for v in plot_state_vars:
+            ax[0, n].plot(t_array, state[n, v, :], label="state var " + str(v), color=colors[v])
+            ax[0, n].plot(t_array, target[n, v, :], linestyle="dashed", label="target var " + str(v), color=colors[v])
+        # ax[0, n].legend(loc="upper right")
+        ax[0, n].set_title(f"Activity and target, node %s" % (n))
 
         # Plot the target control signal (dashed line) and "initial" zero control signal
-        ax[1, n].plot(t_array, control[n, 0, :], label="stimulation x", color=color_x)
-        ax[1, n].plot(t_array, control[n, 1, :], label="stimulation y", color=color_y)
-        if orig_input is not None:
-            ax[1, n].plot(t_array, orig_input[n, 0, :], linestyle="dashed", label="input x", color=color_x)
-            ax[1, n].plot(t_array, orig_input[n, 1, :], linestyle="dashed", label="input y", color=color_y)
-        ax[1, n].legend(loc="upper left")
-        ax[1, n].set_title(f"Stimulation node %s" % (n))
-
-    if cost_array is not None:
-        ax[2, 0].plot(cost_array)
-        ax[2, 0].set_title("Cost throughout optimization.")
-
-        ax[2, 1].plot(step_array)
-        ax[2, 1].set_title("Step size throughout optimization.")
-
-        ax[2, 1].set_ylim(bottom=0, top=None)
-
-    plt.show()
-
-
-def plot_oc_nw(
-    N,
-    duration,
-    dt,
-    state,
-    target,
-    control,
-    filename=None,
-):
-
-    t_array = np.arange(0, duration + dt, dt)
-    rows = 2
-    fig, ax = plt.subplots(2, 1, figsize=(14, 6), constrained_layout=True)
+        for v in plot_control_vars:
+            ax[1, n].plot(t_array, control[n, v, :], label="stimulation var " + str(v), color=colors[v])
+            ax[1, n].plot(
+                t_array, orig_input[n, v, :], linestyle="dashed", label="input var " + str(v), color=colors[v]
+            )
+        # ax[1, n].legend(loc="upper right")
+        ax[1, n].set_title(f"Stimulation and input, node %s" % (n))
 
     for n in range(N):
         ax[0].plot(t_array, state[n, 0, :], label=f"Node %s" % (n))
@@ -188,7 +143,6 @@ def plot_oc_nw(
     control,
     filename=None,
 ):
-
     t_array = np.arange(0, duration + dt, dt)
     rows = 2
     fig, ax = plt.subplots(2, 1, figsize=(14, 6), constrained_layout=True)
