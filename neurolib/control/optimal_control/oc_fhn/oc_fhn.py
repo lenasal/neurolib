@@ -1,7 +1,6 @@
-from neurolib.control.optimal_control.oc import OC, update_control_with_limit
-from neurolib.control.optimal_control import cost_functions
-import numpy as np
 import numba
+
+from neurolib.control.optimal_control.oc import OC
 from neurolib.models.fhn.timeIntegration import compute_hx, compute_hx_nw, Dxdoth, Duh
 
 
@@ -42,77 +41,14 @@ class OcFhn(OC):
 
         assert self.model.name == "fhn"
 
-        assert self.T == self.model.params["x_ext"].shape[1]
-        assert self.T == self.model.params["y_ext"].shape[1]
-
-        # ToDo: here, a method like neurolib.model_utils.adjustArrayShape() should be applied!
-        if self.N == 1:  # single-node model
-            if self.model.params["x_ext"].ndim == 1:
-                print("not implemented yet")
-            else:
-                control = np.concatenate((self.model.params["x_ext"], self.model.params["y_ext"]), axis=0)[
-                    np.newaxis, :, :
-                ]
-        else:
-            control = np.stack((self.model.params["x_ext"], self.model.params["y_ext"]), axis=1)
-
-        for n in range(self.N):
-            assert (control[n, 0, :] == self.model.params["x_ext"][n, :]).all()
-            assert (control[n, 1, :] == self.model.params["y_ext"][n, :]).all()
-
-        self.control = update_control_with_limit(
-            self.N, self.dim_in, self.T, control, 0.0, np.zeros(control.shape), self.maximum_control_strength
-        )
-
-        self.model_params = self.get_model_params()
-
-    def get_xs(self):
-        """Stack the initial condition with the simulation results for dynamic variables 'x' and 'y' of FHN Model.
-
-        :rtype:     np.ndarray of shape N x V x T
-        """
-        if self.model.params["xs_init"].shape[1] == 1:
-            p1 = np.concatenate((self.model.params["xs_init"], self.model.params["ys_init"]), axis=1)[:, :, np.newaxis]
-            xs = np.concatenate(
-                (
-                    p1,
-                    np.stack((self.model.x, self.model.y), axis=1),
-                ),
-                axis=2,
-            )
-        else:
-            p1 = np.stack((self.model.params["xs_init"][:, -1], self.model.params["ys_init"][:, -1]), axis=1)[
-                :, :, np.newaxis
-            ]
-            xs = np.concatenate(
-                (
-                    p1,
-                    np.stack((self.model.x, self.model.y), axis=1),
-                ),
-                axis=2,
-            )
-
-        return xs
-
-    def update_input(self):
-        """Update the parameters in 'self.model' according to the current control such that 'self.simulate_forward'
-        operates with the appropriate control signal.
-        """
-        # ToDo: find elegant way to combine the cases
-        if self.N == 1:
-            self.model.params["x_ext"] = self.control[:, 0, :].reshape(1, -1)  # Reshape as row vector to match access
-            self.model.params["y_ext"] = self.control[:, 1, :].reshape(1, -1)  # in model's time integration.
-
-        else:
-            self.model.params["x_ext"] = self.control[:, 0, :]
-            self.model.params["y_ext"] = self.control[:, 1, :]
-
     def compute_dxdoth(self):
         """Derivative of systems dynamics wrt. change of systems variables."""
         return Dxdoth(self.N, self.dim_vars)
 
     def get_model_params(self):
-        """Model params as an ordered tuple"""
+        """Model params as an ordered tuple
+
+        :rtype:        tuple"""
         return (
             self.model.params.alpha,
             self.model.params.beta,
@@ -132,6 +68,7 @@ class OcFhn(OC):
             self.dim_in,
             self.dim_vars,
             self.T,
+            self.state_vars_dict,
         )
 
     def compute_hx_list(self):
@@ -155,6 +92,7 @@ class OcFhn(OC):
             self.dim_vars,
             self.T,
             self.get_xs(),
+            self.state_vars_dict,
         )
 
     def compute_hx_nw(self):
@@ -170,4 +108,5 @@ class OcFhn(OC):
             self.N,
             self.dim_vars,
             self.T,
+            self.state_vars_dict,
         )

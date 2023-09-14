@@ -1,16 +1,8 @@
-from neurolib.control.optimal_control.oc import OC, update_control_with_limit, limit_control_to_interval
-from neurolib.control.optimal_control import cost_functions
-import numpy as np
 import numba
-from neurolib.models.aln.timeIntegration import (
-    compute_hx,
-    compute_nw_input,
-    compute_hx_nw,
-    Duh,
-    Dxdoth,
-    compute_hx_de,
-    compute_hx_di,
-)
+import numpy as np
+
+from neurolib.control.optimal_control.oc import OC
+from neurolib.models.aln.timeIntegration import compute_hx, compute_hx_nw, Duh, Dxdoth, compute_hx_de, compute_hx_di
 
 
 class OcAln(OC):
@@ -52,157 +44,34 @@ class OcAln(OC):
 
         assert self.model.name == "aln"
 
-        assert self.T == self.model.params["ext_exc_current"].shape[1]
-        assert self.T == self.model.params["ext_inh_current"].shape[1]
-
-        # ToDo: here, a method like neurolib.model_utils.adjustArrayShape() should be applied!
-        if self.N == 1:  # single-node model
-            if self.model.params["ext_exc_current"].ndim == 1:
-                print("not implemented yet")
-            else:
-                control = np.concatenate(
-                    (self.model.params["ext_exc_current"], self.model.params["ext_inh_current"]), axis=0
-                )[np.newaxis, :, :]
-        else:
-            control = np.stack((self.model.params["ext_exc_current"], self.model.params["ext_inh_current"]), axis=1)
-
-        for n in range(self.N):
-            assert (control[n, 0, :] == self.model.params["ext_exc_current"][n, :]).all()
-            assert (control[n, 1, :] == self.model.params["ext_inh_current"][n, :]).all()
-
-            # in aln model, t=0 control does not affect the system
-            control[n, 0, 0] = 0.0
-            control[n, 1, 0] = 0.0
-
-        self.control = update_control_with_limit(
-            self.N, self.dim_in, self.T, control, 0.0, np.zeros(control.shape), self.maximum_control_strength
-        )
-        self.control = limit_control_to_interval(self.N, self.dim_in, self.T, self.control, self.control_interval)
         self.fullstate = self.get_fullstate()
 
         if self.model.params.filter_sigma:
             print("NOT IMPLEMENTED FOR FILTER_SIGMA=TRUE")
+            raise NotImplementedError
 
         self.ndt_de = np.around(self.model.params.de / self.dt).astype(int)
         self.ndt_di = np.around(self.model.params.di / self.dt).astype(int)
 
-        self.model_params = self.get_model_params()
         self.precomp_factors = self.get_precomp_factors()
 
-    def get_xs_delay(self):
-        """Concatenates the initial conditions with simulated values and pads delay contributions at end. In the models
-        timeIntegration, these values can be accessed in a circular fashion in the time-indexing.
-        """
-
-        if self.model.params["rates_exc_init"].shape[1] == 1:  # no delay
-            xs_begin = np.concatenate(
-                (
-                    self.model.params["rates_exc_init"],
-                    self.model.params["rates_inh_init"],
-                    self.model.params["IA_init"],
-                ),
-                axis=1,
-            )[:, :, np.newaxis]
-            xs = np.concatenate(
-                (
-                    xs_begin,
-                    np.stack((self.model.rates_exc, self.model.rates_inh, self.model.IA), axis=1),
-                ),
-                axis=2,
-            )
-        else:
-            xs_begin = np.stack(
-                (
-                    self.model.params["rates_exc_init"][:, -1],
-                    self.model.params["rates_inh_init"][:, -1],
-                    self.model.params["IA_init"][:, -1],
-                ),
-                axis=1,
-            )[:, :, np.newaxis]
-            xs_end = np.stack(
-                (
-                    self.model.params["rates_exc_init"][:, :-1],
-                    self.model.params["rates_inh_init"][:, :-1],
-                    self.model.params["IA_init"][:, :-1],
-                ),
-                axis=1,
-            )
-            xs = np.concatenate(
-                (
-                    xs_begin,
-                    np.stack((self.model.rates_exc, self.model.rates_inh, self.model.IA), axis=1),
-                ),
-                axis=2,
-            )
-            xs = np.concatenate(  # initial conditions for delay-steps are concatenated to the end of the array
-                (xs, xs_end),
-                axis=2,
-            )
-
-        return xs
-
-    def get_xs(self):
-        """Stack the initial condition with the simulation results for both ('exc' and 'inh') populations.
-
-        :return: N x V x T array containing all values of 'exc' and 'inh'.
-        :rtype:  np.ndarray
-        """
-        if self.model.params["rates_exc_init"].shape[1] == 1:
-            xs_begin = np.concatenate(
-                (
-                    self.model.params["rates_exc_init"],
-                    self.model.params["rates_inh_init"],
-                    self.model.params["IA_init"],
-                ),
-                axis=1,
-            )[:, :, np.newaxis]
-            xs = np.concatenate(
-                (
-                    xs_begin,
-                    np.stack((self.model.rates_exc, self.model.rates_inh, self.model.IA), axis=1),
-                ),
-                axis=2,
-            )
-        else:
-            xs_begin = np.stack(
-                (
-                    self.model.params["rates_exc_init"][:, -1],
-                    self.model.params["rates_inh_init"][:, -1],
-                    self.model.params["IA_init"][:, -1],
-                ),
-                axis=1,
-            )[:, :, np.newaxis]
-            xs = np.concatenate(
-                (
-                    xs_begin,
-                    np.stack((self.model.rates_exc, self.model.rates_inh, self.model.IA), axis=1),
-                ),
-                axis=2,
-            )
-
-        return xs
-
-    def update_input(self):
-        """Update the parameters in 'self.model' according to the current control such that 'self.simulate_forward'
-        operates with the appropriate control signal.
-        """
-        # ToDo: find elegant way to combine the cases
-        if self.N == 1:
-            self.model.params["ext_exc_current"] = self.control[:, 0, :].reshape(
-                1, -1
-            )  # Reshape as row vector to match access
-            self.model.params["ext_inh_current"] = self.control[:, 1, :].reshape(1, -1)  # in model's time integration.
-
-        else:
-            self.model.params["ext_exc_current"] = self.control[:, 0, :]
-            self.model.params["ext_inh_current"] = self.control[:, 1, :]
-
     def compute_dxdoth(self):
-        """Derivative of systems dynamics wrt. change of systems variables."""
-        return Dxdoth(self.N, self.dim_vars)
+        """Derivative of systems dynamics wrt. change of systems variables.
+
+        :return:        N x V x V array
+        :rtuype:        np.ndarray"""
+        return Dxdoth(
+            self.N,
+            self.dim_vars,
+            self.state_vars_dict,
+        )
 
     def get_model_params(self):
-        """Model params as an ordered tuple"""
+        """Model params as an ordered tuple.
+
+        :return:    22 ordered parameters
+        :rtype:     tuple
+        """
         return (
             self.model.params.sigmarange,
             self.model.params.ds,
@@ -229,7 +98,12 @@ class OcAln(OC):
         )
 
     def get_precomp_factors(self):
-        """Precomputed factors as an ordered tuple"""
+        """Precomputed factors as an ordered tuple.
+
+        :return:    12 prefactors
+        :rtype:     tuple
+        """
+
         return (
             self.model.params.cee
             * self.model.params.Ke
@@ -306,6 +180,11 @@ class OcAln(OC):
             self.fullstate,
             self.model.params.Cmat,
             self.Dmat_ndt,
+            self.control[:, 0, :],
+            self.control[:, 1, :],
+            self.control[:, 2, :],
+            self.control[:, 3, :],
+            self.state_vars_dict,
         )
 
     def compute_hx_list(self):
@@ -341,6 +220,7 @@ class OcAln(OC):
             self.Dmat_ndt,
             self.ndt_de,
             self.ndt_di,
+            self.state_vars_dict,
         )
 
     def compute_hx_de(self):
@@ -361,6 +241,7 @@ class OcAln(OC):
             self.Dmat_ndt,
             self.ndt_de,
             self.ndt_di,
+            self.state_vars_dict,
         )
 
     def compute_hx_di(self):
@@ -381,6 +262,7 @@ class OcAln(OC):
             self.Dmat_ndt,
             self.ndt_de,
             self.ndt_di,
+            self.state_vars_dict,
         )
 
     def compute_hx_nw(self):
@@ -402,6 +284,7 @@ class OcAln(OC):
             self.Dmat_ndt,
             self.ndt_de,
             self.ndt_di,
+            self.state_vars_dict,
         )
 
     def get_fullstate(self):
@@ -429,20 +312,16 @@ class OcAln(OC):
         fullstate[:, :, 1] = finalstate
 
         for t in range(0, T - 2 + maxdel):
-
             if t != 0:
                 self.setasinit(fullstate, t)
             self.model.params.duration = 2.0 * self.dt
-            if t <= T - 2:
-                self.model.params.ext_exc_current = control[:, 0, t : t + 2]
-                self.model.params.ext_inh_current = control[:, 1, t : t + 2]
-            elif t == T - 1:
-                ec = np.concatenate((control[:, 0, t:], np.zeros((N, 1))), axis=1)
-                self.model.params.ext_exc_current = np.concatenate((control[:, 0, t:], np.zeros((N, 1))), axis=1)
-                self.model.params.ext_inh_current = np.concatenate((control[:, 1, t:], np.zeros((N, 1))), axis=1)
-            else:
-                self.model.params.ext_exc_current = 0.0
-                self.model.params.ext_inh_current = 0.0
+            for iv_ind, iv in enumerate(self.model.input_vars):
+                if t <= T - 2:
+                    self.model.params[iv] = control[:, iv_ind, t : t + 2]
+                elif t == T - 1:
+                    self.model.params[iv] = np.concatenate((control[:, iv_ind, t:], np.zeros((N, 1))), axis=1)
+                else:
+                    self.model.params[iv] = 0.0
             self.model.run()
 
             finalstate = self.getfinalstate()
@@ -450,8 +329,8 @@ class OcAln(OC):
 
         # reset to starting values
         self.model.params.duration = duration
-        self.model.params.ext_exc_current = control[:, 0, :]
-        self.model.params.ext_inh_current = control[:, 1, :]
+        for iv_ind, iv in enumerate(self.model.input_vars):
+            self.model.params[iv] = control[:, iv_ind, :]
         self.setinitstate(initstate)
         self.simulate_forward()
 

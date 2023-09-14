@@ -32,25 +32,25 @@ class ALNModel(Model):
     ]
 
     state_vars = [
-        "rates_exc",  # 0
-        "rates_inh",  # 1
-        "mufe",  # 2
-        "mufi",  # 3
-        "IA",  # 4
-        "seem",  # 5
-        "seim",  # 6
-        "siem",  # 7
-        "siim",  # 8
-        "seev",  # 9
-        "seiv",  # 10
-        "siev",  # 11
-        "siiv",  # 12
-        "mue_ou",  # 13
-        "mui_ou",  # 14
+        "rates_exc",
+        "rates_inh",
+        "mufe",
+        "mufi",
+        "IA",
+        "seem",
+        "seim",
+        "siem",
+        "siim",
+        "seev",
+        "seiv",
+        "siev",
+        "siiv",
+        "mue_ou",
+        "mui_ou",
     ]
     output_vars = ["rates_exc", "rates_inh", "IA"]
     default_output = "rates_exc"
-    input_vars = ["ext_exc_current", "ext_exc_rate"]
+    input_vars = ["ext_exc_current", "ext_inh_current", "ext_exc_rate", "ext_inh_rate"]
     default_input = "ext_exc_rate"
 
     def __init__(self, params=None, Cmat=None, Dmat=None, lookupTableFileName=None, seed=None):
