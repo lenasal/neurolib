@@ -311,10 +311,12 @@ class OcAln(OC):
         finalstate = self.getfinalstate()
         fullstate[:, :, 1] = finalstate
 
+        self.model.params.duration = 2.0 * self.dt
+
         for t in range(0, T - 2 + maxdel):
             if t != 0:
                 self.setasinit(fullstate, t)
-            self.model.params.duration = 2.0 * self.dt
+
             for iv_ind, iv in enumerate(self.model.input_vars):
                 if t <= T - 2:
                     self.model.params[iv] = control[:, iv_ind, t : t + 2]
