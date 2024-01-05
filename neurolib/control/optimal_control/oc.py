@@ -3,10 +3,13 @@ import numba
 import numpy as np
 from neurolib.control.optimal_control import cost_functions
 from neurolib.utils.model_utils import computeDelayMatrix, adjustArrayShape
+from neurolib.utils import model_utils as mu
+
 import logging
 import copy
 
-# from jax import jacfwd
+from jax import jacfwd
+import jax.numpy as jnp
 
 from numba.core import types
 from numba.typed import Dict, List
@@ -319,6 +322,131 @@ def cost_as_control_func(
     return accuracy_cost + control_strenght_cost
 
 
+def timeInt(
+    params,
+    control,
+):
+    dt = params["dt"]  # Time step for the Euler intergration (ms)
+    duration = params["duration"]  # imulation duration (ms)
+
+    # ------------------------------------------------------------------------
+    # local parameters
+    alpha = params["alpha"]
+    beta = params["beta"]
+    gamma = params["gamma"]
+    delta = params["delta"]
+    epsilon = params["epsilon"]
+    tau = params["tau"]
+
+    Cmat = params["Cmat"]
+    N = len(Cmat)  # Number of nodes
+    K_gl = params["K_gl"]  # global coupling strength
+    # Interareal connection delay
+    lengthMat = params["lengthMat"]
+    signalV = params["signalV"]
+
+    if N == 1:
+        Dmat = jnp.zeros((N, N))
+    else:
+        # Interareal connection delays, Dmat(i,j) Connnection from jth node to ith (ms)
+        Dmat = mu.computeDelayMatrix(lengthMat, signalV)
+        # no self-feedback delay
+        Dmat[jnp.eye(len(Dmat)) == 1] = jnp.zeros(len(Dmat))
+    Dmat_ndt = jnp.around(Dmat / dt).astype(int)  # delay matrix in multiples of dt
+
+    # ------------------------------------------------------------------------
+
+    # Initialization
+    # Floating point issue in jnp.arange() workaraound: use integers in jnp.arange()
+    t = jnp.arange(1, round(duration, 6) / dt + 1) * dt  # Time variable (ms)
+
+    max_global_delay = jnp.max(Dmat_ndt)
+    startind = int(max_global_delay + 1)  # timestep to start integration at
+
+    xs = jnp.zeros((N, startind + len(t)))
+    ys = jnp.zeros((N, startind + len(t)))
+
+    # ------------------------------------------------------------------------
+    # Set initial values
+    # if initial values are just a Nx1 array
+    if jnp.shape(params["xs_init"])[1] == 1:
+        xs_init = jnp.dot(params["xs_init"], jnp.ones((1, startind)))
+        ys_init = jnp.dot(params["ys_init"], jnp.ones((1, startind)))
+    # if initial values are a Nxt array
+    else:
+        xs_init = params["xs_init"][:, -startind:]
+        ys_init = params["ys_init"][:, -startind:]
+
+    xs = xs.at[:, :startind].set(xs_init)
+    ys = ys.at[:, :startind].set(ys_init)
+
+    ### integrate ODE system:
+    for i in range(startind, startind + len(t)):
+        # loop through all the nodes
+        for no in range(N):
+            x_rhs = (
+                -alpha * xs[no, i - 1] ** 3
+                + beta * xs[no, i - 1] ** 2
+                + gamma * xs[no, i - 1]
+                - ys[no, i - 1]
+                + control[no, 0, i - 1]  # external input
+            )
+
+            # print(xs[no, i - 1], ys[no, i - 1], control[no, 0, i - 1])
+
+            y_rhs = (xs[no, i - 1] - delta - epsilon * ys[no, i - 1]) / tau + control[
+                no, 1, i - 1
+            ]  # external input
+
+            # Euler integration
+            xs = xs.at[no, i].set(xs[no, i - 1] + dt * x_rhs)
+            ys = ys.at[no, i].set(ys[no, i - 1] + dt * y_rhs)
+
+    return t, xs, ys
+
+
+def sim_and_cost(
+    control_jax,
+    model_jax,
+    target_jax,
+    N_jax,
+    V_jax,
+    T_jax,
+    cost_matrix_jax,
+    wp_jax,
+    we_jax,
+    dt_jax,
+):
+    model_jax.params.numba_int = False
+    t, xs, ys = timeInt(
+        model_jax.params,
+        control_jax,
+    )
+    model_jax.params.numba_int = True
+
+    sim_jax = jnp.zeros((N_jax, V_jax, T_jax))
+
+    sim_jax = sim_jax.at[:, 0, :].set(xs)
+    sim_jax = sim_jax.at[:, 1, :].set(ys)
+
+    cost = 0.0
+
+    for n in range(N_jax):
+        for v in range(V_jax):
+            for t in range(T_jax):
+                cost += (
+                    wp_jax
+                    / 2.0
+                    * cost_matrix_jax[n, v]
+                    * (sim_jax[n, v, t] - target_jax[n, v, t]) ** 2
+                )
+                cost += we_jax / 2.0 * control_jax[n, v, t] ** 2
+
+    # print("cost = ", cost[0])
+
+    return cost
+
+
 def convert_interval(interval, array_length):
     """Turn indices into positive values only. It is assumed in any case, that the first index defines the start and
        the second the stop index, both inclusive.
@@ -371,6 +499,7 @@ class OC:
         cost_matrix=None,
         control_matrix=None,
         grad_method=0,
+        jax_method=False,
         M=1,
         M_validation=0,
         validate_per_step=False,
@@ -605,6 +734,8 @@ class OC:
                 "No valid gradient method chosen, chose standard gradient computation"
             )
             self.grad_method = 0
+
+        self.jax_method = jax_method
 
         self.fluctuation_strength = 1e-1
 
@@ -1343,7 +1474,35 @@ class OC:
             self.cost_history.append(cost)
 
         for i in range(1, n_max_iterations + 1):
-            self.gradient = self.compute_gradient()
+            if self.jax_method == False:
+                self.gradient = self.compute_gradient()
+            else:
+                control_jax = jnp.array(self.control)
+                model_jax = self.model
+                target_jax = jnp.array(self.target_timeseries)
+                N_jax = self.N
+                V_jax = self.dim_in
+                T_jax = self.T
+                cost_matrix_jax = jnp.array(self.cost_matrix)
+                wp_jax = self.weights["w_p"]
+                we_jax = self.weights["w_2"]
+                dt_jax = (self.dt,)
+
+                jac = jacfwd(sim_and_cost, argnums=(0,))
+                grad_jax = jac(
+                    control_jax,
+                    model_jax,
+                    target_jax,
+                    N_jax,
+                    V_jax,
+                    T_jax,
+                    cost_matrix_jax,
+                    wp_jax,
+                    we_jax,
+                    dt_jax,
+                )
+
+                self.gradient = np.array(grad_jax[0])
 
             if np.isnan(self.gradient).any():
                 print("nan in gradient, break")
