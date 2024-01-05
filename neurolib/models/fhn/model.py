@@ -23,7 +23,6 @@ class FHNModel(Model):
     boldInputTransform = lambda self, x: x * 50
 
     def __init__(self, params=None, Cmat=None, Dmat=None, seed=None):
-
         self.Cmat = Cmat
         self.Dmat = Dmat
         self.seed = seed
@@ -33,7 +32,9 @@ class FHNModel(Model):
 
         # load default parameters if none were given
         if params is None:
-            params = dp.loadDefaultParams(Cmat=self.Cmat, Dmat=self.Dmat, seed=self.seed)
+            params = dp.loadDefaultParams(
+                Cmat=self.Cmat, Dmat=self.Dmat, seed=self.seed
+            )
 
         # Initialize base class Model
         super().__init__(integration=integration, params=params)

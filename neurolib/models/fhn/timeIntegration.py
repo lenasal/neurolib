@@ -117,7 +117,6 @@ def timeIntegration(params):
     noise_ys = np.zeros((N,))
 
     # ------------------------------------------------------------------------
-
     return timeIntegration_njit_elementwise(
         startind,
         t,
