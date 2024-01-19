@@ -41,17 +41,10 @@ class TestCostFunctions(unittest.TestCase):
     def test_precision_cost_nodes_channels(self):
         print(" Test precision cost full timeseries for node and channel selection.")
         N = 2
-<<<<<<< HEAD
-        x_target0 = self.get_arbitrary_array()
-        x_target1 = 2.0 * self.get_arbitrary_array()
-        target = np.concatenate((x_target0, x_target1), axis=0)
-        cost_mat = np.zeros((N, 2))
-=======
         target = np.concatenate(
             [p.TEST_INPUT_2N_6[:, np.newaxis, :], 2.0 * p.TEST_INPUT_2N_6[:, np.newaxis, :]], axis=1
         )
-        precision_cost_matrix = np.zeros((N, 2))
->>>>>>> OCdev
+        cost_mat = np.zeros((N, 2))
         dt = 0.1
         interval = (0, target.shape[2])
         zerostate = np.zeros((target.shape))
@@ -80,48 +73,25 @@ class TestCostFunctions(unittest.TestCase):
         print(" Test precision cost derivative full timeseries")
         weights = getdefaultweights()
         N = 1
-<<<<<<< HEAD
         cost_mat = np.ones((N, 2))
-        x_target = self.get_arbitrary_array()
-        x_sim = np.copy(x_target)
-=======
-        precision_cost_matrix = np.ones((N, 2))
         target = np.concatenate([p.TEST_INPUT_1N_6[:, np.newaxis, :], p.TEST_INPUT_1N_6[:, np.newaxis, :]], axis=1)
         x_sim = np.copy(target)
->>>>>>> OCdev
         x_sim[0, :, 0] = -x_sim[0, :, 0]  # create setting where result depends only on this first entries
         interval = (0, target.shape[2])
 
-        derivative_p_c = cost_functions.derivative_accuracy_cost(
-<<<<<<< HEAD
-            x_target, hilbert(x_target), x_sim, 0.0, weights, cost_mat, DT, interval
-        )
-
-        self.assertTrue(np.all(derivative_p_c[0, :, 1::] == 0))
-        self.assertTrue(np.all(derivative_p_c[0, :, 0] == 2 * weights["w_p"] * x_target[0, :, 0]))
-=======
-            target, x_sim, weights, precision_cost_matrix, interval
-        )
+        derivative_p_c = cost_functions.derivative_accuracy_cost(target, x_sim, weights, cost_mat, interval)
 
         self.assertTrue(np.all(derivative_p_c[0, :, 1::] == 0))
         self.assertTrue(np.all(derivative_p_c[0, :, 0] == 2 * (weights["w_p"] * target[0, :, 0])))
->>>>>>> OCdev
 
     def test_derivative_precision_cost_full_timeseries_nodes_channels(self):
         print(" Test precision cost derivative full timeseries for node and channel selection")
         weights = getdefaultweights()
         N = 2
-<<<<<<< HEAD
-        x_target0 = self.get_arbitrary_array()
-        x_target1 = 2.0 * self.get_arbitrary_array()
-        target = np.concatenate((x_target0, x_target1), axis=0)
-        cost_mat = np.zeros((N, 2))  # ToDo: overwrites previous definition, bug?
-=======
         target = np.concatenate(
             [p.TEST_INPUT_2N_6[:, np.newaxis, :], 2.0 * p.TEST_INPUT_2N_6[:, np.newaxis, :]], axis=1
         )
-        precision_cost_matrix = np.zeros((N, 2))  # ToDo: overwrites previous definition, bug?
->>>>>>> OCdev
+        cost_mat = np.zeros((N, 2))  # ToDo: overwrites previous definition, bug?
         zerostate = np.zeros((target.shape))
         interval = (0, target.shape[2])
 
@@ -153,7 +123,7 @@ class TestCostFunctions(unittest.TestCase):
         x_sim[0, :, 3] = -x_sim[0, :, 3]
         interval = (3, target.shape[2])
         weights = getdefaultweights()
-        precision_cost = cost_functions.accuracy_cost(target, x_sim, weights, precision_cost_matrix, dt, interval)
+        precision_cost = cost_functions.accuracy_cost(target, x_sim, weights, cost_mat, dt, interval)
         # Result should only depend on second half of the timeseries.
         self.assertEqual(precision_cost, weights["w_p"] / 2 * np.sum((2 * target[0, :, 3]) ** 2) * dt)
 
@@ -164,14 +134,12 @@ class TestCostFunctions(unittest.TestCase):
         print(" Test precision cost derivative in time interval")
         weights = getdefaultweights()
         N = 1
-        precision_cost_matrix = np.ones((N, 2))
+        cost_mat = np.ones((N, 2))
         target = np.concatenate([p.TEST_INPUT_1N_6[:, np.newaxis, :], p.TEST_INPUT_1N_6[:, np.newaxis, :]], axis=1)
         x_sim = np.copy(target)
         x_sim[0, :, 3] = -x_sim[0, :, 3]  # create setting where result depends only on this first entries
         interval = (3, target.shape[2])
-        derivative_p_c = cost_functions.derivative_accuracy_cost(
-            target, x_sim, weights, precision_cost_matrix, interval
-        )
+        derivative_p_c = cost_functions.derivative_accuracy_cost(target, x_sim, weights, cost_mat, interval)
 
         self.assertTrue(np.all(derivative_p_c[0, :, 0:3] == 0))
         self.assertTrue(np.all(derivative_p_c[0, :, 4::] == 0))
