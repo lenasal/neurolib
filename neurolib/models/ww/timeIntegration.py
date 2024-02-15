@@ -408,7 +408,7 @@ def compute_hx(
     V,
     T,
     dyn_vars,
-    dyn_vars_delay,
+    dyn_vars_delayed,
     control,
     sv,
 ):
@@ -430,8 +430,8 @@ def compute_hx(
     :type T:                int
     :param dyn_vars:        N x V x T array containing all values of 'exc' and 'inh'.
     :type dyn_vars:         np.ndarray
-    :param dyn_vars_delay:
-    :type dyn_vars_delay:   np.ndarray
+    :param dyn_vars_delayed:      N x V x T array containing all delayed values of 'exc' and 'inh'.
+    :type dyn_vars_delayed:       np.ndarray
     :param control:     N x 2 x T control inputs to 'exc' and 'inh'.
     :type control:      np.ndarray
     :param sv:                  dictionary of state vars and respective indices
@@ -441,7 +441,7 @@ def compute_hx(
     :rtype:             np.ndarray
     """
     hx = np.zeros((N, T, V, V))
-    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, dyn_vars_delay[:, sv["se"], :])
+    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, dyn_vars_delayed[:, sv["se"], :])
 
     for n in range(N):
         for t in range(T):
@@ -591,7 +591,7 @@ def compute_hx_nw(
     T,
     se,
     si,
-    se_delay,
+    se_delayed,
     ue,
     sv,
 ):
@@ -615,8 +615,8 @@ def compute_hx_nw(
     :type se:               np.ndarray
     :param si:              Array of the se-variable.
     :type si:               np.ndarray
-    :param se_delay:        Value of delayed se-variable.
-    :type se_delay:         np.ndarray
+    :param se_delayed:      Value of delayed se-variable.
+    :type se_delayed:       np.ndarray
     :param ue:              N x T array of the total input received by 'exc' population in every node at any time.
     :type ue:               np.ndarray
     :param sv:              dictionary of state vars and respective indices
@@ -645,7 +645,7 @@ def compute_hx_nw(
     ) = model_params
     hx_nw = np.zeros((N, N, T, V, V))
 
-    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, se_delay)
+    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, se_delayed)
     IE = w_exc * (exc_current_baseline + ue) + w_ee * J_NMDA * se - J_I * si + J_NMDA * nw_e
 
     for n1 in range(N):
@@ -672,7 +672,7 @@ def Duh(
     K_gl,
     cmat,
     dmat_ndt,
-    se_delay,
+    se_delayed,
     sv,
 ):
     """Jacobian of systems dynamics wrt. external inputs (control signals).
@@ -703,8 +703,8 @@ def Duh(
     :type cmat:             np.ndarray
     :param dmat_ndt:        delay index matrix
     :type dmat_ndt:         np.ndarray
-    :param se_delay:        N x T array containing values of 'exc' of all nodes through time.
-    :type se_delay:         np.ndarray
+    :param se_delayed:        N x T array containing values of 'exc' of all nodes through time.
+    :type se_delayed:         np.ndarray
     :param sv:              dictionary of state vars and respective indices
     :type sv:               dict
 
@@ -730,7 +730,7 @@ def Duh(
         w_ee,
     ) = model_params
 
-    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, se_delay)
+    nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, se_delayed)
 
     duh = np.zeros((N, V_vars, V_in, T))
     for t in range(T):
