@@ -305,10 +305,10 @@ def derivative_var_cost(x_sim, cost_matrix, interval):
 
     for v in range(x_sim.shape[1]):
         for t in range(interval[0], interval[1]):
-            xsum = 0.0
-            for n in range(x_sim.shape[0]):
-                if cost_matrix[n, v] != 0.0:
-                    xsum += x_sim[n, v, t] - xmean[v, t]
+            # xsum = 0.0
+            # for n in range(x_sim.shape[0]):
+            # if cost_matrix[n, v] != 0.0:
+            #    xsum += x_sim[n, v, t] - xmean[v, t]
 
             for n in range(x_sim.shape[0]):
                 if cost_matrix[n, v] != 0.0:
