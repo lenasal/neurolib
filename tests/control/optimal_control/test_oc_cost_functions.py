@@ -4,10 +4,6 @@ from neurolib.control.optimal_control import cost_functions
 from neurolib.control.optimal_control.oc import getdefaultweights
 from neurolib.models.fhn import FHNModel
 from neurolib.control.optimal_control import oc_fhn
-from scipy.signal import hilbert
-
-global DT
-DT = 1.0
 
 import test_oc_utils as test_oc_utils
 
@@ -18,22 +14,23 @@ class TestCostFunctions(unittest.TestCase):
     def test_precision_cost_full_timeseries(self):
         print(" Test precision cost full timeseries")
         N = 1
-        cost_mat = np.ones((N, 2))
+        precision_cost_matrix = np.ones((N, 2))
         dt = 0.1
         x_target = np.concatenate([p.TEST_INPUT_1N_6[:, np.newaxis, :], p.TEST_INPUT_1N_6[:, np.newaxis, :]], axis=1)
         interval = (0, x_target.shape[2])
         weights = getdefaultweights()
 
         self.assertAlmostEqual(
-            cost_functions.accuracy_cost(x_target, hilbert(x_target), x_target, 0.0, weights, cost_mat, dt, interval),
-            0,
-            places=8,
+            cost_functions.accuracy_cost(x_target, x_target, weights, precision_cost_matrix, dt, interval), 0, places=8
         )  # target and simulation coincide
 
         x_sim = np.copy(x_target)
         x_sim[:, 0] = -x_sim[:, 0]  # create setting where result depends only on this first entries
         self.assertAlmostEqual(
-            cost_functions.accuracy_cost(x_sim, hilbert(x_sim), x_target, 0.0, weights, cost_mat, dt, interval),
+            cost_functions.accuracy_cost(x_target, x_target, weights, precision_cost_matrix, dt, interval), 0, places=8
+        )
+        self.assertAlmostEqual(
+            cost_functions.accuracy_cost(x_target, x_sim, weights, precision_cost_matrix, dt, interval),
             weights["w_p"] / 2 * np.sum((2 * x_target[:, 0]) ** 2) * dt,
             places=8,
         )
@@ -44,42 +41,42 @@ class TestCostFunctions(unittest.TestCase):
         target = np.concatenate(
             [p.TEST_INPUT_2N_6[:, np.newaxis, :], 2.0 * p.TEST_INPUT_2N_6[:, np.newaxis, :]], axis=1
         )
-        cost_mat = np.zeros((N, 2))
+        precision_cost_matrix = np.zeros((N, 2))
         dt = 0.1
         interval = (0, target.shape[2])
         zerostate = np.zeros((target.shape))
         weights = getdefaultweights()
 
         self.assertAlmostEqual(
-            cost_functions.accuracy_cost(target, hilbert(target), zerostate, 0.0, weights, cost_mat, dt, interval),
+            cost_functions.accuracy_cost(target, zerostate, weights, precision_cost_matrix, dt, interval),
             0.0,
             places=8,
         )  # no cost if precision matrix is zero
 
         for i in range(N):
             for j in range(N):
-                cost_mat[i, j] = 1
+                precision_cost_matrix[i, j] = 1
                 result = weights["w_p"] * 0.5 * sum((target[i, j, :] ** 2)) * dt
                 self.assertAlmostEqual(
-                    cost_functions.accuracy_cost(
-                        target, hilbert(target), zerostate, 0.0, weights, cost_mat, dt, interval
-                    ),
+                    cost_functions.accuracy_cost(target, zerostate, weights, precision_cost_matrix, dt, interval),
                     result,
                     places=8,
                 )
-                cost_mat[i, j] = 0
+                precision_cost_matrix[i, j] = 0
 
     def test_derivative_precision_cost_full_timeseries(self):
         print(" Test precision cost derivative full timeseries")
         weights = getdefaultweights()
         N = 1
-        cost_mat = np.ones((N, 2))
+        precision_cost_matrix = np.ones((N, 2))
         target = np.concatenate([p.TEST_INPUT_1N_6[:, np.newaxis, :], p.TEST_INPUT_1N_6[:, np.newaxis, :]], axis=1)
         x_sim = np.copy(target)
         x_sim[0, :, 0] = -x_sim[0, :, 0]  # create setting where result depends only on this first entries
         interval = (0, target.shape[2])
 
-        derivative_p_c = cost_functions.derivative_accuracy_cost(target, x_sim, weights, cost_mat, interval)
+        derivative_p_c = cost_functions.derivative_accuracy_cost(
+            target, x_sim, weights, precision_cost_matrix, interval
+        )
 
         self.assertTrue(np.all(derivative_p_c[0, :, 1::] == 0))
         self.assertTrue(np.all(derivative_p_c[0, :, 0] == 2 * (weights["w_p"] * target[0, :, 0])))
@@ -91,24 +88,24 @@ class TestCostFunctions(unittest.TestCase):
         target = np.concatenate(
             [p.TEST_INPUT_2N_6[:, np.newaxis, :], 2.0 * p.TEST_INPUT_2N_6[:, np.newaxis, :]], axis=1
         )
-        cost_mat = np.zeros((N, 2))  # ToDo: overwrites previous definition, bug?
+        precision_cost_matrix = np.zeros((N, 2))  # ToDo: overwrites previous definition, bug?
         zerostate = np.zeros((target.shape))
         interval = (0, target.shape[2])
 
         derivative_p_c = cost_functions.derivative_accuracy_cost(
-            target, hilbert(target), zerostate, 0.0, weights, cost_mat, DT, interval
+            target, zerostate, weights, precision_cost_matrix, interval
         )
         self.assertTrue(np.all(derivative_p_c == 0))
 
         for i in range(N):
             for j in range(N):
-                cost_mat[i, j] = 1
+                precision_cost_matrix[i, j] = 1
                 derivative_p_c = cost_functions.derivative_accuracy_cost(
-                    target, hilbert(target), zerostate, 0.0, weights, cost_mat, DT, interval
+                    target, zerostate, weights, precision_cost_matrix, interval
                 )
-                result = weights["w_p"] * np.einsum("ijk,ij->ijk", target, cost_mat)
+                result = weights["w_p"] * np.einsum("ijk,ij->ijk", target, precision_cost_matrix)
                 self.assertTrue(np.all(derivative_p_c - result == 0))
-                cost_mat[i, j] = 0
+                precision_cost_matrix[i, j] = 0
 
     def test_precision_cost_in_interval(self):
         """This test is analogous to the 'test_precision_cost'. However, the signal is repeated twice, but only
@@ -116,15 +113,14 @@ class TestCostFunctions(unittest.TestCase):
         """
         print(" Test precision cost in time interval")
         N = 1
-        cost_mat = np.ones((N, 2))
+        precision_cost_matrix = np.ones((N, 2))
         dt = 0.1
         target = np.concatenate([p.TEST_INPUT_1N_6[:, np.newaxis, :], p.TEST_INPUT_1N_6[:, np.newaxis, :]], axis=1)
         x_sim = np.copy(target)
         x_sim[0, :, 3] = -x_sim[0, :, 3]
         interval = (3, target.shape[2])
         weights = getdefaultweights()
-        print(weights)
-        precision_cost = cost_functions.accuracy_cost(target, x_sim, weights, cost_mat, dt, interval)
+        precision_cost = cost_functions.accuracy_cost(target, x_sim, weights, precision_cost_matrix, dt, interval)
         # Result should only depend on second half of the timeseries.
         self.assertEqual(precision_cost, weights["w_p"] / 2 * np.sum((2 * target[0, :, 3]) ** 2) * dt)
 
@@ -135,12 +131,14 @@ class TestCostFunctions(unittest.TestCase):
         print(" Test precision cost derivative in time interval")
         weights = getdefaultweights()
         N = 1
-        cost_mat = np.ones((N, 2))
+        precision_cost_matrix = np.ones((N, 2))
         target = np.concatenate([p.TEST_INPUT_1N_6[:, np.newaxis, :], p.TEST_INPUT_1N_6[:, np.newaxis, :]], axis=1)
         x_sim = np.copy(target)
         x_sim[0, :, 3] = -x_sim[0, :, 3]  # create setting where result depends only on this first entries
         interval = (3, target.shape[2])
-        derivative_p_c = cost_functions.derivative_accuracy_cost(target, x_sim, weights, cost_mat, interval)
+        derivative_p_c = cost_functions.derivative_accuracy_cost(
+            target, x_sim, weights, precision_cost_matrix, interval
+        )
 
         self.assertTrue(np.all(derivative_p_c[0, :, 0:3] == 0))
         self.assertTrue(np.all(derivative_p_c[0, :, 4::] == 0))
@@ -149,18 +147,18 @@ class TestCostFunctions(unittest.TestCase):
     def test_L2_cost(self):
         print(" Test L2 cost")
         dt = 0.1
-        reference_result = p.INT_INPUT_L2_1N_6 * dt
+        reference_result = p.INT_INPUT_1N_6 * dt
         weights = getdefaultweights()
         weights["w_2"] = 1.0
         u = np.concatenate([p.TEST_INPUT_1N_6[:, np.newaxis, :], p.TEST_INPUT_1N_6[:, np.newaxis, :]], axis=1)
         L2_cost = cost_functions.control_strength_cost(u, weights, dt)
-
         self.assertAlmostEqual(L2_cost, reference_result, places=8)
 
     def test_derivative_L2_cost(self):
         print(" Test L2 cost derivative")
         u = np.concatenate([p.TEST_INPUT_1N_6[:, np.newaxis, :], p.TEST_INPUT_1N_6[:, np.newaxis, :]], axis=1)
-        self.assertTrue(np.all(cost_functions.derivative_L2_cost(u) == u))
+        desired_output = u
+        self.assertTrue(np.all(cost_functions.derivative_L2_cost(u) == desired_output))
 
     def test_L1D_cost(self):
         print(" Test L1D cost")
