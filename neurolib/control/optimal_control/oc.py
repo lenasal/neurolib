@@ -554,7 +554,7 @@ class OC:
 
         return xs
 
-    def get_xs_delay(self):
+    def get_xs_delayed(self):
         """Extract the complete state of the delayed dynamical system."""
         maxdel = self.model.getMaxDelay()
         if maxdel == 0:
