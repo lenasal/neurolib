@@ -83,7 +83,7 @@ class OcWw(OC):
         """
 
         xs = self.get_xs()
-        xsd = self.get_xs_delay()
+        xsd = self.get_xs_delayed()
 
         return Duh(
             self.model_params,
@@ -127,7 +127,7 @@ class OcWw(OC):
             self.dim_vars,
             self.T,
             self.get_xs(),
-            self.get_xs_delay(),
+            self.get_xs_delayed(),
             self.control,
             self.state_vars_dict,
         )
@@ -167,7 +167,7 @@ class OcWw(OC):
             self.T,
             xs[:, self.state_vars_dict["se"], :],
             xs[:, self.state_vars_dict["se"], :],
-            self.get_xs_delay()[:, self.state_vars_dict["se"], :],
+            self.get_xs_delayed()[:, self.state_vars_dict["se"], :],
             self.control[:, self.state_vars_dict["r_exc"], :],
             self.state_vars_dict,
         )
