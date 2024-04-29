@@ -131,7 +131,6 @@ class OcWc(OC):
         :return: N x N x T x (4x4) array
         :rtype: np.ndarray
         """
-
         xs = self.get_xs()
 
         return compute_hx_nw(
