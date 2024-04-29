@@ -206,6 +206,7 @@ def fourier_cost(data, dt, target_period, cost_matrix, interval):
 def derivative_fourier_cost(data, dt, target_period, cost_matrix, interval):
     derivative = np.zeros((data.shape))
     T = len(data[0, 0, interval[0] : interval[1]])
+
     k = numba.uint16(np.around(T * dt / target_period, 0))
     argument = -2.0 * np.pi * k / T
 
@@ -240,7 +241,6 @@ def fourier_cost_sync(data, dt, target_period, cost_matrix, interval):
                 data_nodesum += data[n, v, :]
 
         fc = compute_fourier_component(data_nodesum[interval[0] : interval[1]], target_period, dt, T)
-
         cost[v] -= fc**2 / T**2
 
     return cost
@@ -250,6 +250,7 @@ def fourier_cost_sync(data, dt, target_period, cost_matrix, interval):
 def derivative_fourier_cost_sync(data, dt, target_period, cost_matrix, interval):
     derivative = np.zeros((data.shape))
     T = len(data[0, 0, interval[0] : interval[1]])
+
     k = numba.uint16(np.around(T * dt / target_period, 0))
     argument = -2.0 * np.pi * k / T
 
