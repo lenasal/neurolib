@@ -59,13 +59,13 @@ def accuracy_cost(
             cost += fc[v]
 
     if weights["w_var"] != 0.0:
-        fvar = weights["w_var"] * var_cost(x, cost_matrix, interval)
+        fvar = weights["w_var"] * var_cost(x, cost_matrix, interval, dt)
         for v in range(x.shape[1]):
             for t in range(interval[0], interval[1]):
                 cost += fvar[v, t] * dt
 
     if weights["w_cc"] != 0.0:
-        fcc = weights["w_cc"] * cc_cost(x, cost_matrix, interval)
+        fcc = weights["w_cc"] * cc_cost(x, cost_matrix, interval, dt)
         for v in range(x.shape[1]):
             for t in range(interval[0], interval[1]):
                 cost += fcc[v, t] * dt
@@ -104,7 +104,7 @@ def derivative_accuracy_cost(
     if weights["w_f_sync"] != 0.0:
         der += weights["w_f_sync"] * derivative_fourier_cost_sync(x, dt, target_period, cost_matrix, interval)
     if weights["w_var"] != 0.0:
-        der += weights["w_var"] * derivative_var_cost(x, cost_matrix, interval)
+        der += weights["w_var"] * derivative_var_cost(x, cost_matrix, interval, dt)
     if weights["w_cc"] != 0.0:
         der += weights["w_cc"] * derivative_cc_cost(x, dt, cost_matrix, interval)
 
@@ -197,7 +197,7 @@ def fourier_cost(data, dt, target_period, cost_matrix, interval):
             fc = compute_fourier_component(data[n, v, interval[0] : interval[1]], target_period, dt, T)
 
             # cost[n, v] -= 2.0 * fc / T
-            cost[n, v] -= fc**2 / T**2
+            cost[n, v] -= fc**2 / (T**2 * data.shape[0])
 
     return cost
 
@@ -223,7 +223,7 @@ def derivative_fourier_cost(data, dt, target_period, cost_matrix, interval):
                     derivative[n, v, t] = 0.0
 
                 # derivative[n, v, t] *= 4.0 / (fcost[n, v] * T**2)
-                derivative[n, v, t] *= -2.0 / (T**2 * dt)
+                derivative[n, v, t] *= -2.0 / (T**2 * dt * data.shape[0])
 
     return derivative
 
@@ -241,7 +241,7 @@ def fourier_cost_sync(data, dt, target_period, cost_matrix, interval):
                 data_nodesum += data[n, v, :]
 
         fc = compute_fourier_component(data_nodesum[interval[0] : interval[1]], target_period, dt, T)
-        cost[v] -= fc**2 / T**2
+        cost[v] -= fc**2 / (T**2 * data.shape[0] ** 2)
 
     return cost
 
@@ -267,13 +267,13 @@ def derivative_fourier_cost_sync(data, dt, target_period, cost_matrix, interval)
                 for t1 in range(interval[0], interval[1]):
                     derivative[n, v, t] += data_nodesum[t1] * np.cos(argument * (t1 - t))
 
-                derivative[n, v, t] *= -2.0 / (T**2 * dt)
+                derivative[n, v, t] *= -2.0 / (T**2 * dt * data.shape[0] ** 2)
 
     return derivative
 
 
 @numba.njit
-def var_cost(x_sim, cost_matrix, interval):
+def var_cost(x_sim, cost_matrix, interval, dt):
     cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
     xmean = np.zeros((x_sim.shape[1], x_sim.shape[2]))
     for v in range(x_sim.shape[1]):
@@ -289,13 +289,13 @@ def var_cost(x_sim, cost_matrix, interval):
                     continue
                 cost[v, t] += (x_sim[n, v, t] - xmean[v, t]) ** 2
 
-    cost /= x_sim.shape[0]
+    cost /= x_sim.shape[0] * (interval[1] - interval[0]) * dt
 
     return cost
 
 
 @numba.njit
-def derivative_var_cost(x_sim, cost_matrix, interval):
+def derivative_var_cost(x_sim, cost_matrix, interval, dt):
     derivative = np.zeros(x_sim.shape)
     xmean = np.zeros((x_sim.shape[1], x_sim.shape[2]))
     for v in range(x_sim.shape[1]):
@@ -320,7 +320,7 @@ def derivative_var_cost(x_sim, cost_matrix, interval):
                         # * (1.0 - 1.0 / x_sim.shape[0])
                     )
 
-    derivative /= x_sim.shape[0]
+    derivative /= x_sim.shape[0] * (interval[1] - interval[0]) * dt
 
     return derivative
 
@@ -361,7 +361,7 @@ def getstd_nv(x, xmean, cost_matrix):
 
 
 @numba.njit
-def cc_cost(x_sim, cost_matrix, interval):
+def cc_cost(x_sim, cost_matrix, interval, dt):
     cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
 
     xmean = getmean_nv(x_sim[:, :, interval[0] : interval[1]], cost_matrix)
@@ -381,7 +381,7 @@ def cc_cost(x_sim, cost_matrix, interval):
                         (x_sim[n, v, t] - xmean[n, v]) * (x_sim[k, v, t] - xmean[k, v]) / (xstd[k, v] * xstd[n, v])
                     )
 
-    cost /= x_sim.shape[0] ** 2
+    cost /= x_sim.shape[0] ** 2 * (interval[1] - interval[0]) * dt
 
     return cost
 
@@ -429,7 +429,7 @@ def derivative_cc_cost(x_sim, dt, cost_matrix, interval):
                     sumand2 = (x_sim[k, v, t] - xmean[k, v]) / (xstd[n, v] * xstd[k, v])
                     derivative[n, v, t] -= sumand1 + sumand2
 
-    derivative /= (x_sim.shape[0]) ** 2
+    derivative /= (x_sim.shape[0]) ** 2 * (interval[1] - interval[0]) * dt
     return derivative
 
 
