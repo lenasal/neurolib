@@ -855,8 +855,8 @@ class OC:
                     self.update_input()
                     self.simulate_forward()
                     cost1 = self.compute_total_cost()
-
                     res0 = (cost1 - cost0) / (du * self.dt)
+
                     c1[n, v, t] -= 2.0 * du
                     self.control = c1.copy()
                     self.update_input()
