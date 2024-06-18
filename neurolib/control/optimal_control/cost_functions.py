@@ -177,11 +177,33 @@ def derivative_precision_cost(x_sim, x_target, cost_matrix, interval):
 @numba.njit
 def compute_fourier_component(X, target_period, dt, T):
     res = 0.0
-    k = numba.uint16(np.around(T * dt / target_period, 0))
-    exponent = -2.0 * complex(0, 1) * np.pi * k / T
+    exponent = -2.0 * complex(0, 1) * np.pi * dt / target_period
     for t in range(T):
-        res += X[t] * np.exp(exponent * t)
+        res += X[t] * np.exp(exponent * t) * dt
     return np.abs(res)
+
+
+@numba.njit
+def compute_fourier_component_1(X, target_period, dt, T):
+    res = 0.0
+    omega = 2.0 * np.pi / target_period
+    int0 = 0.0
+    int1 = 0.0
+    for t in range(T):
+        int0 += X[t] * np.cos(-omega * t * dt) * dt
+        int1 += X[t] * np.sin(-omega * t * dt) * dt
+
+    res = int0**2 + int1**2
+
+    res1 = 0.0
+    for t in range(T):
+        for t1 in range(T):
+            res1 += X[t] * X[t1] * np.cos(omega * (t1 - t) * dt) * dt**2
+
+    if np.abs(res - res1) > 1e-8:
+        print("computation difference ", res, res1)
+
+    return res
 
 
 @numba.njit
@@ -195,9 +217,13 @@ def fourier_cost(data, dt, target_period, cost_matrix, interval):
                 continue
 
             fc = compute_fourier_component(data[n, v, interval[0] : interval[1]], target_period, dt, T)
+            # alt_fc = compute_fourier_component_1(data[n, v, interval[0] : interval[1]], target_period, dt, T)
+
+            # if np.abs(fc**2 - alt_fc) > 1e-8:
+            #     print("WARNING DIFFERENCE ", n, fc**2, alt_fc)
 
             # cost[n, v] -= 2.0 * fc / T
-            cost[n, v] -= fc**2 / (T**2 * data.shape[0])
+            cost[n, v] -= fc**2 / ((T * dt) ** 2 * data.shape[0])
 
     return cost
 
@@ -207,8 +233,7 @@ def derivative_fourier_cost(data, dt, target_period, cost_matrix, interval):
     derivative = np.zeros((data.shape))
     T = len(data[0, 0, interval[0] : interval[1]])
 
-    k = numba.uint16(np.around(T * dt / target_period, 0))
-    argument = -2.0 * np.pi * k / T
+    argument = -2.0 * np.pi * dt / target_period
 
     for n in range(data.shape[0]):
         for v in range(data.shape[1]):
@@ -217,13 +242,15 @@ def derivative_fourier_cost(data, dt, target_period, cost_matrix, interval):
 
             for t in range(interval[0], interval[1]):
                 for t1 in range(interval[0], interval[1]):
-                    derivative[n, v, t] += data[n, v, t1] * np.cos(argument * (t1 - t))
+                    derivative[n, v, t] += data[n, v, t1] * np.cos(argument * (t1 - t)) * dt
 
-                if np.abs(derivative[n, v, t]) < 1e-14:
-                    derivative[n, v, t] = 0.0
+                # if np.abs(derivative[n, v, t]) < 1e-14:
+                #    derivative[n, v, t] = 0.0
+
+                # derivative[n, v, t] += data[n, v, t] ** 2
 
                 # derivative[n, v, t] *= 4.0 / (fcost[n, v] * T**2)
-                derivative[n, v, t] *= -2.0 / (T**2 * dt * data.shape[0])
+                derivative[n, v, t] *= -2.0 / ((T * dt) ** 2 * data.shape[0])
 
     return derivative
 
@@ -241,7 +268,7 @@ def fourier_cost_sync(data, dt, target_period, cost_matrix, interval):
                 data_nodesum += data[n, v, :]
 
         fc = compute_fourier_component(data_nodesum[interval[0] : interval[1]], target_period, dt, T)
-        cost[v] -= fc**2 / (T**2 * data.shape[0] ** 2)
+        cost[v] -= fc**2 / ((T * dt) ** 2 * data.shape[0] ** 2)
 
     return cost
 
@@ -266,6 +293,7 @@ def derivative_fourier_cost_sync(data, dt, target_period, cost_matrix, interval)
             for t in range(interval[0], interval[1]):
                 for t1 in range(interval[0], interval[1]):
                     derivative[n, v, t] += data_nodesum[t1] * np.cos(argument * (t1 - t))
+                # derivative[n, v, t] += data_nodesum[t] * data[n, v, t]
 
                 derivative[n, v, t] *= -2.0 / (T**2 * dt * data.shape[0] ** 2)
 
@@ -273,14 +301,20 @@ def derivative_fourier_cost_sync(data, dt, target_period, cost_matrix, interval)
 
 
 @numba.njit
+def getmean_vt(x):
+    xmean = np.zeros((x.shape[1], x.shape[2]))
+    for v in range(x.shape[1]):
+        for t in range(x.shape[2]):
+            for n in range(x.shape[0]):
+                xmean[v, t] += x[n, v, t]
+            xmean[v, t] /= x.shape[0]
+    return xmean
+
+
+@numba.njit
 def var_cost(x_sim, cost_matrix, interval, dt):
     cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
-    xmean = np.zeros((x_sim.shape[1], x_sim.shape[2]))
-    for v in range(x_sim.shape[1]):
-        for t in range(interval[0], interval[1]):
-            for n in range(x_sim.shape[0]):
-                xmean[v, t] += x_sim[n, v, t]
-            xmean[v, t] /= x_sim.shape[0]
+    xmean = getmean_vt(x_sim)
 
     for v in range(x_sim.shape[1]):
         for t in range(interval[0], interval[1]):
@@ -297,12 +331,7 @@ def var_cost(x_sim, cost_matrix, interval, dt):
 @numba.njit
 def derivative_var_cost(x_sim, cost_matrix, interval, dt):
     derivative = np.zeros(x_sim.shape)
-    xmean = np.zeros((x_sim.shape[1], x_sim.shape[2]))
-    for v in range(x_sim.shape[1]):
-        for t in range(interval[0], interval[1]):
-            for n in range(x_sim.shape[0]):
-                xmean[v, t] += x_sim[n, v, t]
-            xmean[v, t] /= x_sim.shape[0]
+    xmean = getmean_vt(x_sim)
 
     for v in range(x_sim.shape[1]):
         for t in range(interval[0], interval[1]):
@@ -373,10 +402,10 @@ def cc_cost(x_sim, cost_matrix, interval, dt):
         for n in range(x_sim.shape[0]):
             if cost_matrix[n, v] == 0.0:
                 continue
-            for t in range(interval[0], interval[1]):
-                for k in range(n + 1, x_sim.shape[0]):
-                    if cost_matrix[k, v] == 0.0:
-                        continue
+            for k in range(n + 1, x_sim.shape[0]):
+                if cost_matrix[k, v] == 0.0:
+                    continue
+                for t in range(interval[0], interval[1]):
                     cost[v, t] -= (
                         (x_sim[n, v, t] - xmean[n, v]) * (x_sim[k, v, t] - xmean[k, v]) / (xstd[k, v] * xstd[n, v])
                     )
