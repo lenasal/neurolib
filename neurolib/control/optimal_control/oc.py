@@ -1069,8 +1069,11 @@ class OC:
             self.cost_history.append(cost)
 
             if self.zero_step_encountered:
-                print(f"Converged in iteration %s with cost %s" % (i, cost))
-                break
+                if self.grad_method == 0:
+                    print(f"Converged in iteration %s with cost %s" % (i, cost))
+                    break
+                elif self.grad_method == 2:
+                    self.fluctuation_strength *= 0.9
 
         print(f"Final cost : %s" % (cost))
 
