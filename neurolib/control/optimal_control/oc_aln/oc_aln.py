@@ -31,6 +31,7 @@ class OcAln(OC):
         control_interval=(None, None),
         cost_matrix=None,
         control_matrix=None,
+        grad_method=0,
         M=1,
         M_validation=0,
         validate_per_step=False,
@@ -44,6 +45,7 @@ class OcAln(OC):
             cost_matrix=cost_matrix,
             control_interval=control_interval,
             control_matrix=control_matrix,
+            grad_method=grad_method,
             M=M,
             M_validation=M_validation,
             validate_per_step=validate_per_step,
@@ -206,9 +208,7 @@ class OcAln(OC):
         hx_de = self.compute_hx_de()
         hx_di = self.compute_hx_di()
 
-        return numba.typed.List([hx, hx_de, hx_di]), numba.typed.List(
-            [0, self.ndt_de, self.ndt_di]
-        )
+        return numba.typed.List([hx, hx_de, hx_di]), numba.typed.List([0, self.ndt_de, self.ndt_di])
 
     def compute_hx(self):
         """Jacobians of ALNModel wrt. the 'e'- and 'i'-variable for each time step.
@@ -328,9 +328,7 @@ class OcAln(OC):
                 if t <= T - 2:
                     self.model.params[iv] = control[:, iv_ind, t : t + 2]
                 elif t == T - 1:
-                    self.model.params[iv] = np.concatenate(
-                        (control[:, iv_ind, t:], np.zeros((N, 1))), axis=1
-                    )
+                    self.model.params[iv] = np.concatenate((control[:, iv_ind, t:], np.zeros((N, 1))), axis=1)
                 else:
                     self.model.params[iv] = 0.0
             self.model.run()
@@ -362,14 +360,9 @@ class OcAln(OC):
 
         for n in range(N):
             for v in range(V):
-                if (
-                    "rates" in self.model.init_vars[v]
-                    or "IA" in self.model.init_vars[v]
-                ):
+                if "rates" in self.model.init_vars[v] or "IA" in self.model.init_vars[v]:
                     if t >= T:
-                        self.model.params[self.model.init_vars[v]] = fullstate[
-                            :, v, t - T : t + 1
-                        ]
+                        self.model.params[self.model.init_vars[v]] = fullstate[:, v, t - T : t + 1]
                     else:
                         init = np.concatenate(
                             (fullstate[:, v, -T + t + 1 :], fullstate[:, v, : t + 1]),
@@ -392,13 +385,8 @@ class OcAln(OC):
 
         for n in range(N):
             for v in range(V):
-                if (
-                    "rates" in self.model.init_vars[v]
-                    or "IA" in self.model.init_vars[v]
-                ):
-                    initstate[n, v, :] = self.model.params[self.model.init_vars[v]][
-                        n, -T:
-                    ]
+                if "rates" in self.model.init_vars[v] or "IA" in self.model.init_vars[v]:
+                    initstate[n, v, :] = self.model.params[self.model.init_vars[v]][n, -T:]
 
                 else:
                     initstate[n, v, :] = self.model.params[self.model.init_vars[v]][n]
@@ -415,10 +403,7 @@ class OcAln(OC):
         state = np.zeros((N, V))
         for n in range(N):
             for v in range(V):
-                if (
-                    "rates" in self.model.state_vars[v]
-                    or "IA" in self.model.state_vars[v]
-                ):
+                if "rates" in self.model.state_vars[v] or "IA" in self.model.state_vars[v]:
                     state[n, v] = self.model.state[self.model.state_vars[v]][n, -1]
 
                 else:
@@ -437,10 +422,7 @@ class OcAln(OC):
 
         for n in range(N):
             for v in range(V):
-                if (
-                    "rates" in self.model.init_vars[v]
-                    or "IA" in self.model.init_vars[v]
-                ):
+                if "rates" in self.model.init_vars[v] or "IA" in self.model.init_vars[v]:
                     self.model.params[self.model.init_vars[v]] = state[:, v, -T:]
                 else:
                     self.model.params[self.model.init_vars[v]] = state[:, v, -1]
