@@ -558,6 +558,8 @@ class OC:
             self.grad_method = 0
 
         self.fluctuation_strength = 1e-1
+        
+        self.channelwise_optimization = False
 
         self.model_params = self.get_model_params()
 
@@ -939,6 +941,78 @@ class OC:
 
         return step, counter
 
+    def step_size_nv(self, cost_gradient):
+        control0 = self.control.copy()
+        step0 = self.step
+
+        stepall, counterall, costall = self.step_size(cost_gradient)
+        zerostepall = self.zero_step_encountered
+        self.zero_step_encountered = False
+
+        minind = [-1, -1]
+        mincost = costall
+
+        steps = np.zeros((self.N, self.dim_in))
+        costs = steps.copy()
+        counters = steps.copy()
+        zerosteps = steps.copy()
+
+        for n in range(self.N):
+            for v in range(self.dim_in):
+                if self.control_matrix[n, v] == 0.0:
+                    zerosteps[n, v] = 1
+                    continue
+
+                self.control = control0.copy()
+                self.update_input()
+                self.step = step0
+                grad = np.zeros((cost_gradient.shape))
+                grad[n, v, :] = cost_gradient[n, v, :]
+                steps[n, v], counters[n, v], costs[n, v] = self.step_size(grad)
+
+                if costs[n, v] < mincost:
+                    mincost = costs[n, v]
+                    minind = [n, v]
+                if self.zero_step_encountered:
+                    zerosteps[n, v] = 1
+                    self.zero_step_encountered = False
+
+        if zerostepall and np.amin(zerosteps) >= 1.0:
+            # all options ended with maximum counter
+            step, counter = 0.0, self.count_step
+            self.zero_step_encountered = True
+            grad = cost_gradient.copy()
+
+        else:
+            if minind == [-1, -1]:
+                grad = cost_gradient.copy()
+                step, counter, cost = stepall, counterall, costall
+                self.zero_step_encountered = False
+            else:
+                grad = np.zeros((cost_gradient.shape))
+                grad[minind[0], minind[1], :] = cost_gradient[minind[0], minind[1], :]
+                step, counter, cost = (
+                    steps[minind[0], minind[1]],
+                    counters[minind[0], minind[1]],
+                    costs[minind[0], minind[1]],
+                )
+                self.zero_step_encountered = False
+
+        self.step = step  # Memorize the last step size for the next optimization step with next gradient.
+        self.step_sizes_loops_history.append(counter)
+        self.step_sizes_history.append(step)
+
+        self.control = update_control_with_limit(
+            self.N,
+            self.dim_in,
+            self.T,
+            control0,
+            step,
+            grad,
+            self.maximum_control_strength,
+        )
+        self.update_input()
+
     def step_size(self, cost_gradient):
         """Adaptively choose a step size for control update.
 
@@ -1011,7 +1085,7 @@ class OC:
         self.step_sizes_loops_history.append(counter)
         self.step_sizes_history.append(step)
 
-        return step
+        return step, counter, cost
 
     def optimize(self, n_max_iterations):
         """Optimization method
@@ -1060,7 +1134,11 @@ class OC:
                 print("nan in gradient, break")
                 break
 
-            self.step_size(-self.gradient)
+            if self.channelwise_optimization:
+                self.step_size_nv(-self.gradient)
+            else:
+                self.step_size(-self.gradient)
+                
             self.simulate_forward()
 
             cost = self.compute_total_cost()
@@ -1116,7 +1194,12 @@ class OC:
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-                self.step_size(-self.gradient)
+                
+                if self.channelwise_optimization:
+                    self.step_size_nv(-self.gradient)
+                else:
+                    self.step_size(-self.gradient)
+                    
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break
