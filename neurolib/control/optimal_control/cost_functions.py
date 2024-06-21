@@ -199,9 +199,11 @@ def compute_fourier_component(
     T,
 ):
     res = 0.0
-    omega = -2.0 * np.pi * dt / target_period
+    #omega = -2.0 * np.pi * dt / target_period
+    k = numba.uint16(np.around(T * dt / target_period, 0))
+    omega = -2.0 * complex(0, 1) * np.pi * k / T
     for t in range(T):
-        res += X[t] * np.exp(omega * complex(0, 1) * t) * dt
+        res += X[t] * np.exp(omega * t) * dt
     return np.abs(res)
 
 
