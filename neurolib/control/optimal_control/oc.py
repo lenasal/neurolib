@@ -24,8 +24,6 @@ def getdefaultweights():
     weights["w_var"] = 0.0
 
     weights["w_2"] = 0.0
-    weights["w_1"] = 0.0
-    weights["w_1T"] = 0.0
     weights["w_1D"] = 0.0
 
     return weights
@@ -720,7 +718,40 @@ class OC:
         control_strenght_cost = cost_functions.control_strength_cost(self.control, self.weights, self.dt)
         return accuracy_cost + control_strenght_cost
 
-    @abc.abstractmethod
+    def compute_gradient_num(self):
+        # compute the gradient numerically
+        c0 = self.control.copy()
+        c1 = c0.copy()
+        grad = np.zeros((c0.shape))
+        du = 1e-8
+
+        self.simulate_forward()
+        cost0 = self.compute_total_cost()
+
+        for n in range(self.N):
+            for v in range(self.dim_in):
+                for t in range(self.T):
+                    c1[n, v, t] += du
+                    self.control = c1.copy()
+                    self.update_input()
+                    self.simulate_forward()
+                    cost1 = self.compute_total_cost()
+
+                    res0 = (cost1 - cost0) / (du * self.dt)
+                    c1[n, v, t] -= 2.0 * du
+                    self.control = c1.copy()
+                    self.update_input()
+                    self.simulate_forward()
+                    cost1 = self.compute_total_cost()
+                    res1 = (cost1 - cost0) / (-du * self.dt)
+
+                    grad[n, v, t] = (res0 + res1) / 2.0
+                    c1[n, v, t] += du
+
+        self.control = c0.copy()
+        self.update_input()
+        return grad
+
     def compute_gradient(
         self,
     ):
@@ -1042,7 +1073,7 @@ class OC:
         while True:  # Reduce the step size, if numerical instability occurs in the forward-simulation.
             # inplace updating of models control bc. forward-sim relies on models parameters
             self.control = update_control_with_limit(
-                self.N, self.dim_in, self.T, control0, step, cost_gradient, self.maximum_control_strength
+                self.N, self.dim_in, self.T, control0, step, cost_gradient, self.maximum_control_strength,
             )
             self.update_input()
 

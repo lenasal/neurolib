@@ -312,10 +312,11 @@ def derivative_fourier_cost_sync(
 @numba.njit
 def getmean_vt(
     x,
+    interval,
 ):
     xmean = np.zeros((x.shape[1], x.shape[2]))
     for v in range(x.shape[1]):
-        for t in range(x.shape[2]):
+        for t in range(interval[0], interval[1]):
             for n in range(x.shape[0]):
                 xmean[v, t] += x[n, v, t]
             xmean[v, t] /= x.shape[0]
@@ -330,7 +331,7 @@ def var_cost(
     dt,
 ):
     cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
-    xmean = getmean_vt(x_sim)
+    xmean = getmean_vt(x_sim, interval)
 
     for v in range(x_sim.shape[1]):
         for t in range(interval[0], interval[1]):
@@ -352,7 +353,7 @@ def derivative_var_cost(
     dt,
 ):
     derivative = np.zeros(x_sim.shape)
-    xmean = getmean_vt(x_sim)
+    xmean = getmean_vt(x_sim, interval)
 
     for v in range(x_sim.shape[1]):
         for t in range(interval[0], interval[1]):
@@ -432,7 +433,7 @@ def cc_cost(
                         (x_sim[n, v, t] - xmean[n, v]) * (x_sim[k, v, t] - xmean[k, v]) / (xstd[k, v] * xstd[n, v])
                     )
 
-    cost /= x_sim.shape[0] ** 2 * (interval[1] - interval[0]) * dt
+    cost *= 2. / (x_sim.shape[0] * (x_sim.shape[0]-1) * (interval[1] - interval[0]) * dt)
 
     return cost
 
@@ -489,7 +490,7 @@ def derivative_cc_cost(
                     sumand2 = (x_sim[k, v, t] - xmean[k, v]) / (xstd[n, v] * xstd[k, v])
                     derivative[n, v, t] -= sumand1 + sumand2
 
-    derivative /= (x_sim.shape[0]) ** 2 * (interval[1] - interval[0]) * dt
+    derivative *= 2. / (x_sim.shape[0] * (x_sim.shape[0]-1) * (interval[1] - interval[0]) * dt)
     return derivative
 
 
