@@ -199,7 +199,7 @@ def compute_fourier_component(
     T,
 ):
     res = 0.0
-    #omega = -2.0 * np.pi * dt / target_period
+    # omega = -2.0 * np.pi * dt / target_period
     k = numba.uint16(np.around(T * dt / target_period, 0))
     omega = -2.0 * complex(0, 1) * np.pi * k / T
     for t in range(T):
@@ -433,7 +433,7 @@ def cc_cost(
                         (x_sim[n, v, t] - xmean[n, v]) * (x_sim[k, v, t] - xmean[k, v]) / (xstd[k, v] * xstd[n, v])
                     )
 
-    cost *= 2. / (x_sim.shape[0] * (x_sim.shape[0]-1) * (interval[1] - interval[0]) * dt)
+    cost *= 2.0 / (x_sim.shape[0] * (x_sim.shape[0] - 1) * (interval[1] - interval[0]) * dt)
 
     return cost
 
@@ -490,7 +490,7 @@ def derivative_cc_cost(
                     sumand2 = (x_sim[k, v, t] - xmean[k, v]) / (xstd[n, v] * xstd[k, v])
                     derivative[n, v, t] -= sumand1 + sumand2
 
-    derivative *= 2. / (x_sim.shape[0] * (x_sim.shape[0]-1) * (interval[1] - interval[0]) * dt)
+    derivative *= 2.0 / (x_sim.shape[0] * (x_sim.shape[0] - 1) * (interval[1] - interval[0]) * dt)
     return derivative
 
 
