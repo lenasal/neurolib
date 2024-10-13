@@ -22,6 +22,10 @@ def getdefaultweights():
 
     weights["w_cc"] = 0.0
     weights["w_var"] = 0.0
+    weights["w_var_mean"] = 0.0
+    weights["w_ko"] = 0.0
+    weights["w_ac"] = 0.0
+    weights["w_osc_var"] = 0.0
 
     weights["w_2"] = 0.0
     weights["w_1D"] = 0.0
@@ -29,7 +33,6 @@ def getdefaultweights():
     return weights
 
 
-@numba.njit
 def compute_gradient(
     N,
     V,
@@ -556,7 +559,7 @@ class OC:
             self.grad_method = 0
 
         self.fluctuation_strength = 1e-1
-        
+
         self.channelwise_optimization = False
 
         self.model_params = self.get_model_params()
@@ -705,9 +708,9 @@ class OC:
         """Compute the total cost as weighted sum precision of all contributing cost terms.
         :rtype: float
         """
-        xs = self.get_xs()
+
         accuracy_cost = cost_functions.accuracy_cost(
-            xs,
+            self.get_xs(),
             self.target_timeseries,
             self.target_period,
             self.weights,
@@ -718,12 +721,11 @@ class OC:
         control_strenght_cost = cost_functions.control_strength_cost(self.control, self.weights, self.dt)
         return accuracy_cost + control_strenght_cost
 
-    def compute_gradient_num(self):
+    def compute_gradient_num(self, du=1e-8):
         # compute the gradient numerically
         c0 = self.control.copy()
         c1 = c0.copy()
         grad = np.zeros((c0.shape))
-        du = 1e-8
 
         self.simulate_forward()
         cost0 = self.compute_total_cost()
@@ -868,7 +870,6 @@ class OC:
         while cost > cost0:  # Decrease the step size until first step size is found where cost is improved.
             step *= factor_down  # Decrease step size.
             counter += 1
-            # print(step, cost, cost0)
 
             # Inplace updating of models control bc. forward-sim relies on models parameters.
             self.control = update_control_with_limit(
@@ -1073,7 +1074,13 @@ class OC:
         while True:  # Reduce the step size, if numerical instability occurs in the forward-simulation.
             # inplace updating of models control bc. forward-sim relies on models parameters
             self.control = update_control_with_limit(
-                self.N, self.dim_in, self.T, control0, step, cost_gradient, self.maximum_control_strength,
+                self.N,
+                self.dim_in,
+                self.T,
+                control0,
+                step,
+                cost_gradient,
+                self.maximum_control_strength,
             )
             self.update_input()
 
@@ -1093,7 +1100,6 @@ class OC:
                 self.compute_total_cost()
             )  # Cost after applying control update according to gradient with first valid
         # step size (numerically stable).
-        # print(cost, cost0)
         if (
             cost > cost0
         ):  # If the cost choosing the first (stable) step size is no improvement, reduce step size by bisection.
@@ -1169,7 +1175,7 @@ class OC:
                 self.step_size_nv(-self.gradient)
             else:
                 self.step_size(-self.gradient)
-                
+
             self.simulate_forward()
 
             cost = self.compute_total_cost()
@@ -1225,12 +1231,12 @@ class OC:
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-                
+
                 if self.channelwise_optimization:
                     self.step_size_nv(-self.gradient)
                 else:
                     self.step_size(-self.gradient)
-                    
+
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break
