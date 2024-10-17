@@ -347,12 +347,14 @@ def derivative_fourier_cost_sync(
 def getmean_vt(
     x,
     interval,
+    cost_matrix,
 ):
     xmean = np.zeros((x.shape[1], x.shape[2]))
     for v in range(x.shape[1]):
         for t in range(interval[0], interval[1]):
             for n in range(x.shape[0]):
-                xmean[v, t] += x[n, v, t]
+                if cost_matrix[n, v] != 0:
+                    xmean[v, t] += x[n, v, t]
             xmean[v, t] /= x.shape[0]
     return xmean
 
@@ -361,12 +363,14 @@ def getmean_vt(
 def getmean_v(
     x,
     interval,
+    cost_matrix,
 ):
     xmean = np.zeros((x.shape[1]))
     for v in range(x.shape[1]):
         for t in range(interval[0], interval[1]):
             for n in range(x.shape[0]):
-                xmean[v] += x[n, v, t]
+                if cost_matrix[n, v] != 0:
+                    xmean[v] += x[n, v, t]
         xmean[v] /= x.shape[0] * x.shape[2]
     return xmean
 
@@ -379,7 +383,7 @@ def var_cost(
     dt,
 ):
     cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
-    xmean = getmean_vt(x_sim, interval)
+    xmean = getmean_vt(x_sim, interval, cost_matrix)
 
     for v in range(x_sim.shape[1]):
         for t in range(interval[0], interval[1]):
@@ -401,7 +405,7 @@ def derivative_var_cost(
     dt,
 ):
     derivative = np.zeros(x_sim.shape)
-    xmean = getmean_vt(x_sim, interval)
+    xmean = getmean_vt(x_sim, interval, cost_matrix)
 
     for v in range(x_sim.shape[1]):
         for t in range(interval[0], interval[1]):
@@ -457,14 +461,14 @@ def var_mean_cost(
     dt,
 ):
     cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
-    xmean_vt = getmean_vt(x_sim, interval)
-    xmean_v = getmean_v(x_sim, interval)
+    xmean_vt = getmean_vt(x_sim, interval, cost_matrix)
+    xmean_v = getmean_v(x_sim, interval, cost_matrix)
 
     for v in range(x_sim.shape[1]):
         for t in range(interval[0], interval[1]):
-            cost[v, t] += (xmean_vt[v, t] - xmean_v[v]) ** 2
+            cost[v, t] = -((xmean_vt[v, t] - xmean_v[v]) ** 2)
 
-    cost /= (interval[1] - interval[0]) * dt
+    cost /= x_sim.shape[0] * (interval[1] - interval[0]) * dt
 
     return cost
 
@@ -477,8 +481,8 @@ def derivative_var_mean_cost(
     dt,
 ):
     derivative = np.zeros(x_sim.shape)
-    xmean_vt = getmean_vt(x_sim, interval)
-    xmean_v = getmean_v(x_sim, interval)
+    xmean_vt = getmean_vt(x_sim, interval, cost_matrix)
+    xmean_v = getmean_v(x_sim, interval, cost_matrix)
 
     for v in range(x_sim.shape[1]):
         for t in range(interval[0], interval[1]):
@@ -486,14 +490,14 @@ def derivative_var_mean_cost(
             for n in range(x_sim.shape[0]):
                 if cost_matrix[n, v] != 0.0:
                     derivative[n, v, t] = (
-                        +2.0
+                        -2.0
                         * (xmean_vt[v, t] - xmean_v[v])
                         * x_sim[n, v, t]
                         * (1.0 - 1.0 / (interval[1] - interval[0]))
                         / x_sim.shape[0]
                     )
 
-    derivative /= (interval[1] - interval[0]) * dt
+    derivative /= x_sim.shape[0] * (interval[1] - interval[0]) * dt
 
     return derivative
 
