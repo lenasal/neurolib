@@ -138,4 +138,4 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-./neurolib/whole-brain/*.pickle
+neurolib/whole-brain/*.pickle
