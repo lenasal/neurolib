@@ -34,7 +34,8 @@ def plotExplorationResults(
     savename=None,
     **kwargs,
 ):
-    """ """
+    """
+    """
     # PREPARE DATA
     # ------------------
     # copy here, because we add another column that we do not want to keep later
@@ -126,22 +127,9 @@ def plotExplorationResults(
             else:
                 mask = None
 
-            image = alphaMask(
-                image,
-                mask_threshold,
-                mask_alpha,
-                mask=mask,
-                invert=mask_invert,
-                style=mask_style,
-            )
+            image = alphaMask(image, mask_threshold, mask_alpha, mask=mask, invert=mask_invert, style=mask_style,)
 
-        im = ax.imshow(
-            image,
-            extent=image_extent,
-            origin="lower",
-            aspect="auto",
-            clim=plot_clim,
-        )
+        im = ax.imshow(image, extent=image_extent, origin="lower", aspect="auto", clim=plot_clim,)
 
         # ANNOTATIONs
         # ------------------
@@ -202,12 +190,7 @@ def plotExplorationResults(
 
         # tick marks
         ax.tick_params(
-            axis="both",
-            direction="out",
-            length=3,
-            width=1,
-            bottom=True,
-            left=True,
+            axis="both", direction="out", length=3, width=1, bottom=True, left=True,
         )
 
         # multiply / rescale axis
@@ -260,16 +243,7 @@ def contourPlotDf(
     # unpack, why necessary??
     contour_kwargs = contour_kwargs["contour_kwargs"]
 
-    contours = ax.contour(
-        Xi,
-        Yi,
-        dataframe,
-        colors=color,
-        levels=levels,
-        zorder=1,
-        alpha=alpha,
-        **contour_kwargs,
-    )
+    contours = ax.contour(Xi, Yi, dataframe, colors=color, levels=levels, zorder=1, alpha=alpha, **contour_kwargs,)
 
     clabel = contour_kwargs["clabel"] if "clabel" in contour_kwargs else False
     if clabel:
@@ -324,19 +298,11 @@ def plotResult(search, runId, z_bold=False, **kwargs):
 
     bold = result.BOLD[:, bold_transient:]
     bold_z = stats.zscore(bold, axis=1)
-    t_bold = np.linspace(
-        2,
-        len(bold.T) * 2,
-        len(bold.T),
-    )
+    t_bold = np.linspace(2, len(bold.T) * 2, len(bold.T),)
 
     output = result[search.model.default_output]
     output_dt = search.model.params.dt
-    t_output = np.linspace(
-        output_dt,
-        len(output.T) * output_dt,
-        len(output.T),
-    )
+    t_output = np.linspace(output_dt, len(output.T) * output_dt, len(output.T),)
 
     axs[0].set_title(f"FC (run {runId})")
     axs[0].imshow(func.fc(bold))
@@ -363,7 +329,8 @@ def plotResult(search, runId, z_bold=False, **kwargs):
 
 
 def processExplorationResults(search, **kwargs):
-    """Process results from the exploration."""
+    """Process results from the exploration. 
+    """
 
     dfResults = search.dfResults
 
@@ -438,15 +405,7 @@ def processExplorationResults(search, **kwargs):
 
                 # calculate mean correlation of functional connectivity
                 # of the simulation and the empirical data
-                dfResults.loc[i, "fc"] = np.mean(
-                    [
-                        func.matrix_correlation(
-                            func.fc(bold),
-                            fc,
-                        )
-                        for fc in ds.FCs
-                    ]
-                )
+                dfResults.loc[i, "fc"] = np.mean([func.matrix_correlation(func.fc(bold), fc,) for fc in ds.FCs])
                 # if BOLD simulation is longer than 5 minutes, calculate kolmogorov of FCD
                 skip_fcd = kwargs["skip_fcd"] if "skip_fcd" in kwargs else False
                 if t_bold[-1] > 5 * 1000 * 60 and not skip_fcd:
@@ -484,10 +443,10 @@ def findCloseResults(dfResults, dist=None, relative=False, **kwargs):
 
     Use the parameters to filter for as kwargs:
     Usage: findCloseResults(search.dfResults, mue_ext_mean=2.0, mui_ext_mean=2.5)
-
-    Alternatively, use ranges a la [min, max] for each parameter.
+    
+    Alternatively, use ranges a la [min, max] for each parameter. 
     Usage: findCloseResults(search.dfResults, mue_ext_mean=[2.0, 3.0], mui_ext_mean=2.5)
-
+    
     :param dfResults: Pandas dataframe to filter
     :type dfResults: pandas.DataFrame
     :param dist: Distance to specified points in kwargs, defaults to None

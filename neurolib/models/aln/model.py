@@ -60,6 +60,7 @@ class ALNModel(Model):
         :param Dmat: Distance matrix between all nodes (in mm)
         :param lookupTableFileName: Filename for precomputed transfer functions and tables
         :param seed: Random number generator seed
+        :param simulateChunkwise: Chunkwise time integration (for lower memory use)
         """
 
         # Global attributes

@@ -48,8 +48,9 @@ class BoxSearch:
         :type evalFunction: function, optional
         :param filename: HDF5 storage file name, if left empty, defaults to ``exploration.hdf``
         :type filename: str
-        :param saveAllModelOutputs: If True, save all outputs of model, else only default output of the model
-            (and BOLD if available), defaults to False
+        :param saveAllModelOutputs: If True, save all outputs of model, else only default output of the model will be
+            saved. Note: if saveAllModelOutputs==False and the model's parameter model.params['bold']==True, then BOLD
+            output will be saved as well, defaults to False
         :type saveAllModelOutputs: bool
 
         :param ncores: Number of cores to simulate on (max cores default), defaults to None
@@ -253,6 +254,9 @@ class BoxSearch:
                 traj,
             )
             # save BOLD output
+            # if "bold" in self.model.params:
+            #     if self.model.params["bold"] and "BOLD" in self.model.outputs:
+            #         self.saveToPypet(self.model.outputs["BOLD"], traj)
             if "BOLD" in self.model.outputs:
                 self.saveToPypet(self.model.outputs["BOLD"], traj)
 

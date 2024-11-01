@@ -16,6 +16,13 @@ def getdefaultweights():
         value_type=types.float64,
     )
     weights["w_p"] = 1.0
+
+    weights["w_f_osc"] = 0.0
+    weights["w_f_sync"] = 0.0
+
+    weights["w_cc"] = 0.0
+    weights["w_var"] = 0.0
+
     weights["w_2"] = 0.0
     weights["w_1D"] = 0.0
 
@@ -32,6 +39,7 @@ def compute_gradient(
     control_matrix,
     d_du,
     control_interval,
+    factors,
 ):
     """Compute the gradient of the total cost wrt. the control signals (explicitly and implicitly) given the adjoint
        state, the Jacobian of the total cost wrt. explicit control contributions and the Jacobian of the dynamics
@@ -54,6 +62,9 @@ def compute_gradient(
     :type control_matrix:  np.ndarray of shape N x V
     :param d_du:     Jacobian of systems dynamics wrt. the external inputs (control).
     :type d_du:      np.ndarray of shape V x V
+    :param factors:     factors of (random) variation in gradient
+    :type factor:       np.ndarray
+
     :return:         The gradient of the total cost wrt. the control.
     :rtype:          np.ndarray of shape N x V x T
     """
@@ -61,9 +72,9 @@ def compute_gradient(
     for n in range(N):
         for v in range(dim_out):
             for t in range(control_interval[0], control_interval[1]):
-                grad[n, v, t] = df_du[n, v, t]
+                grad[n, v, t] = factors[0] * df_du[n, v, t]
                 for k in range(V):
-                    grad[n, v, t] += control_matrix[n, v] * adjoint_state[n, k, t] * d_du[n, k, v, t]
+                    grad[n, v, t] += factors[1] * control_matrix[n, v] * adjoint_state[n, k, t] * d_du[n, k, v, t]
     return grad
 
 
@@ -146,7 +157,16 @@ def solve_adjoint(
 
 
 @numba.njit
-def adjoint_input(hx_list, del_list, t, T_lim, state_dim1, adj, n, k):
+def adjoint_input(
+    hx_list,
+    del_list,
+    t,
+    T_lim,
+    state_dim1,
+    adj,
+    n,
+    k,
+):
     """Compute input to adjoint state for backwards integration
 
     :param hx_list:     list of Jacobians of systems dynamics wrt. 'state_vars'
@@ -178,7 +198,17 @@ def adjoint_input(hx_list, del_list, t, T_lim, state_dim1, adj, n, k):
 
 
 @numba.njit
-def adjoint_nw_input(N, n, k, dmat_ndt, t, T_lim, state_dim1, adj, hxnw):
+def adjoint_nw_input(
+    N,
+    n,
+    k,
+    dmat_ndt,
+    t,
+    T_lim,
+    state_dim1,
+    adj,
+    hxnw,
+):
     """Compute input to adjoint state from network connections for backwards integration
 
     :param N:           Number of nodes in the network.
@@ -212,7 +242,13 @@ def adjoint_nw_input(N, n, k, dmat_ndt, t, T_lim, state_dim1, adj, hxnw):
 
 
 @numba.njit
-def limit_control_to_interval(N, dim_in, T, control, control_interval):
+def limit_control_to_interval(
+    N,
+    dim_in,
+    T,
+    control,
+    control_interval,
+):
     control_new = control.copy()
 
     for n in range(N):
@@ -226,7 +262,15 @@ def limit_control_to_interval(N, dim_in, T, control, control_interval):
 
 
 @numba.njit
-def update_control_with_limit(N, dim_in, T, control, step, gradient, u_max):
+def update_control_with_limit(
+    N,
+    dim_in,
+    T,
+    control,
+    step,
+    gradient,
+    u_max,
+):
     """Computes the updated control signal. The absolute values of the new control are bounded by +/- 'u_max'. If
        'u_max' is 'None', no limit is applied.
 
@@ -258,7 +302,10 @@ def update_control_with_limit(N, dim_in, T, control, step, gradient, u_max):
     return control_new
 
 
-def convert_interval(interval, array_length):
+def convert_interval(
+    interval,
+    array_length,
+):
     """Turn indices into positive values only. It is assumed in any case, that the first index defines the start and
        the second the stop index, both inclusive.
 
@@ -307,6 +354,7 @@ class OC:
         control_interval=(None, None),
         cost_matrix=None,
         control_matrix=None,
+        grad_method=0,
         M=1,
         M_validation=0,
         validate_per_step=False,
@@ -341,6 +389,8 @@ class OC:
         :param control_matrix:      N x V Binary matrix that defines nodes and variables where control inputs are active,
                                     defaults to None.
         :type control_matrix:       np.ndarray
+        :param grad_method:         Gradient descent method (0 - standard; 1 - random variation in wrights of accuracy vs. strength, 2 - random variantion around gradient)
+        :type grad_method:          int
         :param M:                   Number of noise realizations. M=1 implies deterministic case. Defaults to 1.
         :type M:                    int, optional
         :param M_validation:        Number of noise realizations for validation (only used in stochastic case, M>1).
@@ -355,7 +405,6 @@ class OC:
 
         self.model = copy.deepcopy(model)
 
-        self.target = target  # ToDo: dimensions-check
         self.maximum_control_strength = maximum_control_strength
 
         if type(weights) != type(dict()):
@@ -382,6 +431,22 @@ class OC:
         self.dim_out = len(self.model.output_vars)
 
         self.state_vars_dict = self.get_state_vars_dict()
+
+        if isinstance(target, int):
+            target = float(target)
+
+        if isinstance(target, np.ndarray):
+            print("Optimal control with target time series")
+            self.target_timeseries = target
+            self.target_period = 0.0
+        elif isinstance(target, float):
+            print("Optimal control with target oscillation period")
+            self.target_timeseries = np.zeros((self.N, self.dim_out, self.T))
+            self.target_period = target
+        elif isinstance(target, list):
+            print("Optimal control with target oscillation period")
+            self.target_timeseries = np.zeros((self.N, self.dim_out, self.T))
+            self.target_period = target
 
         self.adjust_init()
         self.simulate_forward()
@@ -476,12 +541,29 @@ class OC:
         self.check_params()
 
         self.control = update_control_with_limit(
-            self.N, self.dim_in, self.T, control, 0.0, np.zeros(control.shape), self.maximum_control_strength
+            self.N,
+            self.dim_in,
+            self.T,
+            control,
+            0.0,
+            np.zeros(control.shape),
+            self.maximum_control_strength,
         )
+
+        self.grad_method = grad_method
+        if self.grad_method not in [0, 1, 2]:
+            print("No valid gradient method chosen, chose standard gradient computation")
+            self.grad_method = 0
+
+        self.fluctuation_strength = 1e-1
+        
+        self.channelwise_optimization = False
 
         self.model_params = self.get_model_params()
 
-    def check_params(self):
+    def check_params(
+        self,
+    ):
         """Checks a subset of parameters and throws an error if a wrong dimension is found."""
         # check if cost matrix is binary
         assert np.array_equal(self.cost_matrix, self.cost_matrix.astype(bool))
@@ -498,7 +580,9 @@ class OC:
             for n in range(self.N):
                 assert (self.control[n, v, :] == self.model.params[iv][n, :]).all()
 
-    def get_state_vars_dict(self):
+    def get_state_vars_dict(
+        self,
+    ):
         """Creates a numba dictionary which maps the state variable names with their indices."""
         state_vars_dict = Dict.empty(
             key_type=types.unicode_type,
@@ -509,7 +593,9 @@ class OC:
 
         return state_vars_dict
 
-    def adjust_init(self):
+    def adjust_init(
+        self,
+    ):
         """Adjust the shape of the array provided as init to the model. Use adjustArrayShape function from model_utils."""
         init_dur = self.model.getMaxDelay() + 1
         for init_var in self.model.init_vars:
@@ -521,13 +607,17 @@ class OC:
             iv = self.model.params[init_var]
             self.model.params[init_var] = adjustArrayShape(iv, np.ones((self.N, init_dur)))
 
-    def adjust_input(self):
+    def adjust_input(
+        self,
+    ):
         """Adjust the shape of the array provided as input to the model. Use adjustArrayShape function from model_utils."""
         for input_var in self.model.input_vars:
             iv = self.model.params[input_var]
             self.model.params[input_var] = adjustArrayShape(iv, np.ones((self.N, self.T)))
 
-    def get_xs(self):
+    def get_xs(
+        self,
+    ):
         """Extract the complete state of the dynamical system."""
         xs = np.zeros((self.N, self.dim_out, self.T))
 
@@ -540,7 +630,9 @@ class OC:
 
         return xs
 
-    def get_xs_delay(self):
+    def get_xs_delay(
+        self,
+    ):
         """Extract the complete state of the delayed dynamical system."""
         maxdel = self.model.getMaxDelay()
         if maxdel == 0:
@@ -565,7 +657,9 @@ class OC:
 
         return xs
 
-    def update_input(self):
+    def update_input(
+        self,
+    ):
         """Update the parameters in 'self.model' according to the current control such that 'self.simulate_forward'
         operates with the appropriate control signal.
         """
@@ -576,35 +670,46 @@ class OC:
             else:
                 self.model.params[iv] = self.control[:, ind_iv, :]
 
-    def simulate_forward(self):
+    def simulate_forward(
+        self,
+    ):
         """Updates 'state_vars' of 'self.model' in accordance to the current 'self.control'. Results for the controllable state
         variables can be accessed with self.get_xs()
         """
         self.model.run()
 
     @abc.abstractmethod
-    def get_model_params(self):
+    def get_model_params(
+        self,
+    ):
         """Model params as an ordered tuple"""
         pass
 
     @abc.abstractmethod
-    def Dxdot(self):
+    def Dxdot(
+        self,
+    ):
         """V x V Jacobian of systems dynamics wrt. change of all 'state_vars'."""
         pass
 
     @abc.abstractmethod
-    def Duh(self):
+    def Duh(
+        self,
+    ):
         """Jacobian of systems dynamics wrt. external inputs (control signals) to all 'state_vars'."""
         pass
 
-    def compute_total_cost(self):
+    def compute_total_cost(
+        self,
+    ):
         """Compute the total cost as weighted sum precision of all contributing cost terms.
         :rtype: float
         """
         xs = self.get_xs()
         accuracy_cost = cost_functions.accuracy_cost(
             xs,
-            self.target,
+            self.target_timeseries,
+            self.target_period,
             self.weights,
             self.cost_matrix,
             self.dt,
@@ -613,8 +718,43 @@ class OC:
         control_strenght_cost = cost_functions.control_strength_cost(self.control, self.weights, self.dt)
         return accuracy_cost + control_strenght_cost
 
-    @abc.abstractmethod
-    def compute_gradient(self):
+    def compute_gradient_num(self):
+        # compute the gradient numerically
+        c0 = self.control.copy()
+        c1 = c0.copy()
+        grad = np.zeros((c0.shape))
+        du = 1e-8
+
+        self.simulate_forward()
+        cost0 = self.compute_total_cost()
+
+        for n in range(self.N):
+            for v in range(self.dim_in):
+                for t in range(self.T):
+                    c1[n, v, t] += du
+                    self.control = c1.copy()
+                    self.update_input()
+                    self.simulate_forward()
+                    cost1 = self.compute_total_cost()
+
+                    res0 = (cost1 - cost0) / (du * self.dt)
+                    c1[n, v, t] -= 2.0 * du
+                    self.control = c1.copy()
+                    self.update_input()
+                    self.simulate_forward()
+                    cost1 = self.compute_total_cost()
+                    res1 = (cost1 - cost0) / (-du * self.dt)
+
+                    grad[n, v, t] = (res0 + res1) / 2.0
+                    c1[n, v, t] += du
+
+        self.control = c0.copy()
+        self.update_input()
+        return grad
+
+    def compute_gradient(
+        self,
+    ):
         """Compute the gradient of the total cost wrt. the control:
         1. solve the adjoint equation backwards in time
         2. compute derivatives of cost wrt. control
@@ -628,6 +768,13 @@ class OC:
         df_du = cost_functions.derivative_control_strength_cost(self.control, self.weights, self.dt)
         d_du = self.Duh()
 
+        if self.grad_method == 0:
+            factors = [1.0, 1.0]
+        elif self.grad_method == 1:
+            factors = np.random.rand(2)
+        elif self.grad_method == 2:
+            factors = [1.0, 1.0]
+
         return compute_gradient(
             self.N,
             self.dim_vars,
@@ -637,6 +784,7 @@ class OC:
             self.control_matrix,
             d_du,
             self.control_interval,
+            numba.typed.List(factors),
         )
 
     @abc.abstractmethod
@@ -666,9 +814,11 @@ class OC:
         # Derivative of cost wrt. controllable 'state_vars'.
         df_dx = cost_functions.derivative_accuracy_cost(
             self.get_xs(),
-            self.target,
+            self.target_timeseries,
+            self.target_period,
             self.weights,
             self.cost_matrix,
+            self.dt,
             self.cost_interval,
         )
         self.adjoint_state = solve_adjoint(
@@ -822,6 +972,78 @@ class OC:
 
         return step, counter
 
+    def step_size_nv(self, cost_gradient):
+        control0 = self.control.copy()
+        step0 = self.step
+
+        stepall, counterall, costall = self.step_size(cost_gradient)
+        zerostepall = self.zero_step_encountered
+        self.zero_step_encountered = False
+
+        minind = [-1, -1]
+        mincost = costall
+
+        steps = np.zeros((self.N, self.dim_in))
+        costs = steps.copy()
+        counters = steps.copy()
+        zerosteps = steps.copy()
+
+        for n in range(self.N):
+            for v in range(self.dim_in):
+                if self.control_matrix[n, v] == 0.0:
+                    zerosteps[n, v] = 1
+                    continue
+
+                self.control = control0.copy()
+                self.update_input()
+                self.step = step0
+                grad = np.zeros((cost_gradient.shape))
+                grad[n, v, :] = cost_gradient[n, v, :]
+                steps[n, v], counters[n, v], costs[n, v] = self.step_size(grad)
+
+                if costs[n, v] < mincost:
+                    mincost = costs[n, v]
+                    minind = [n, v]
+                if self.zero_step_encountered:
+                    zerosteps[n, v] = 1
+                    self.zero_step_encountered = False
+
+        if zerostepall and np.amin(zerosteps) >= 1.0:
+            # all options ended with maximum counter
+            step, counter = 0.0, self.count_step
+            self.zero_step_encountered = True
+            grad = cost_gradient.copy()
+
+        else:
+            if minind == [-1, -1]:
+                grad = cost_gradient.copy()
+                step, counter, cost = stepall, counterall, costall
+                self.zero_step_encountered = False
+            else:
+                grad = np.zeros((cost_gradient.shape))
+                grad[minind[0], minind[1], :] = cost_gradient[minind[0], minind[1], :]
+                step, counter, cost = (
+                    steps[minind[0], minind[1]],
+                    counters[minind[0], minind[1]],
+                    costs[minind[0], minind[1]],
+                )
+                self.zero_step_encountered = False
+
+        self.step = step  # Memorize the last step size for the next optimization step with next gradient.
+        self.step_sizes_loops_history.append(counter)
+        self.step_sizes_history.append(step)
+
+        self.control = update_control_with_limit(
+            self.N,
+            self.dim_in,
+            self.T,
+            control0,
+            step,
+            grad,
+            self.maximum_control_strength,
+        )
+        self.update_input()
+
     def step_size(self, cost_gradient):
         """Adaptively choose a step size for control update.
 
@@ -851,7 +1073,7 @@ class OC:
         while True:  # Reduce the step size, if numerical instability occurs in the forward-simulation.
             # inplace updating of models control bc. forward-sim relies on models parameters
             self.control = update_control_with_limit(
-                self.N, self.dim_in, self.T, control0, step, cost_gradient, self.maximum_control_strength
+                self.N, self.dim_in, self.T, control0, step, cost_gradient, self.maximum_control_strength,
             )
             self.update_input()
 
@@ -894,7 +1116,7 @@ class OC:
         self.step_sizes_loops_history.append(counter)
         self.step_sizes_history.append(step)
 
-        return step
+        return step, counter, cost
 
     def optimize(self, n_max_iterations):
         """Optimization method
@@ -943,7 +1165,11 @@ class OC:
                 print("nan in gradient, break")
                 break
 
-            self.step_size(-self.gradient)
+            if self.channelwise_optimization:
+                self.step_size_nv(-self.gradient)
+            else:
+                self.step_size(-self.gradient)
+                
             self.simulate_forward()
 
             cost = self.compute_total_cost()
@@ -952,8 +1178,11 @@ class OC:
             self.cost_history.append(cost)
 
             if self.zero_step_encountered:
-                print(f"Converged in iteration %s with cost %s" % (i, cost))
-                break
+                if self.grad_method == 0:
+                    print(f"Converged in iteration %s with cost %s" % (i, cost))
+                    break
+                elif self.grad_method == 2:
+                    self.fluctuation_strength *= 0.9
 
         print(f"Final cost : %s" % (cost))
 
@@ -996,7 +1225,12 @@ class OC:
             while count < self.count_noisy_step:
                 count += 1
                 self.zero_step_encountered = False
-                self.step_size(-self.gradient)
+                
+                if self.channelwise_optimization:
+                    self.step_size_nv(-self.gradient)
+                else:
+                    self.step_size(-self.gradient)
+                    
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
                     break

@@ -74,8 +74,8 @@ def loadDefaultParams(Cmat=None, Dmat=None, seed=None):
 
     # ------------------------------------------------------------------------
 
-    params.exc_init = 0.05 * np.random.uniform(0, 1, (params.N, 1))
-    params.inh_init = 0.05 * np.random.uniform(0, 1, (params.N, 1))
+    params.exc_init = 0.5 * np.random.uniform(0, 1, (params.N, 1))
+    params.inh_init = 0.5 * np.random.uniform(0, 1, (params.N, 1))
 
     # Ornstein-Uhlenbeck noise state variables
     params.exc_ou = np.zeros((params.N,))
