@@ -87,13 +87,24 @@ pip install .
 ```
 It is recommended to clone or fork the entire repository since it will also include all examples and tests.
 
+<<<<<<< HEAD
+=======
+(Optional) [Install JAX](https://jax.readthedocs.io/en/latest/installation.html) to run simulations on GPU or TPU and benefit from a >10x performance improvement for large networks.
+
+>>>>>>> upstream/jax
 ## Project layout
 
 ```
 neurolib/	 				# Main module
 ├── models/ 					# Neural mass models
+<<<<<<< HEAD
 	├──model.py 				# Base model class
 	└── /.../ 				# Implemented mass models
+=======
+	├── model.py 				# Base model class
+	└── /.../ 				# Implemented mass models
+  └── jax/					# models implemented with JAX
+>>>>>>> upstream/jax
 ├── optimize/ 					# Optimization submodule
 	├── evolution/ 				# Evolutionary optimization
 	└── exploration/ 			# Parameter exploration
