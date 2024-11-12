@@ -217,8 +217,7 @@ def timeIntegration_njit_elementwise(
                 / tau_exc
                 * (
                     -excs[no, i - 1]
-                    + (1 - excs[no, i - 1])
-                    * S_E(
+                    + S_E(
                         c_excexc * excs[no, i - 1]  # input from within the excitatory population
                         - c_inhexc * inhs[no, i - 1]  # input from the inhibitory population
                         + exc_input_d[no]  # input from other nodes
@@ -233,8 +232,7 @@ def timeIntegration_njit_elementwise(
                 / tau_inh
                 * (
                     -inhs[no, i - 1]
-                    + (1 - inhs[no, i - 1])
-                    * S_I(
+                    + S_I(
                         c_excinh * excs[no, i - 1]  # input from the excitatory population
                         - c_inhinh * inhs[no, i - 1]  # input from within the inhibitory population
                         + inh_ext_baseline  # baseline external input (static)
@@ -520,10 +518,7 @@ def compute_hx_nw(
         for n2 in range(N):
             for t in range(T - 1):
                 hx_nw[n1, n2, t, sv["exc"], sv["exc"]] = (
-                    (1.0 - e[n1, t])
-                    * logistic_der(exc_input[n1, t], a_exc, mu_exc)
-                    * K_gl
-                    * cmat[n1, n2]
+                    (1.0 - e[n1, t]) * logistic_der(exc_input[n1, t], a_exc, mu_exc) * K_gl * cmat[n1, n2]
                 ) / tau_exc
 
     return -hx_nw

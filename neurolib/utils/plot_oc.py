@@ -4,6 +4,68 @@ import numpy as np
 colors = ["red", "blue", "green", "orange"]
 
 
+def plot_oc_jax_singlenode(
+    duration,
+    dt,
+    state,
+    target,
+    control,
+    orig_input,
+    cost_array=(),
+):
+    """Plot target and controlled dynamics for a single node.
+    :param duration:    Duration of simulation (in ms).
+    :type duration:     float
+    :param dt:          Time discretization (in ms).
+    :type dt:           float
+    :param state:       The state of the system controlled with the found oc-input.
+    :type state:        np.ndarray
+    :param target:      The target state.
+    :type target:       np.ndarray
+    :param control:     The control signal found by the oc-algorithm.
+    :type control:      np.ndarray
+    :param orig_input:  The inputs that were used to generate target time series.
+    :type orig_input:   np.ndarray
+    :param cost_array:  Array of costs in optimization iterations.
+    :type cost_array:   np.ndarray, optional
+    :param plot_state_vars:  List of indices of state variables that should be plotted
+    :type plot_state_vars:   List, optional
+    :param plot_control_vars:  List of indices of control variables that should be plotted
+    :type plot_control_vars:   List, optional
+
+    """
+    fig, ax = plt.subplots(3, 1, figsize=(8, 6), constrained_layout=True)
+
+    # Plot the target (dashed line) and unperturbed activity
+    t_array = np.arange(0, duration + dt, dt)
+
+    # Plot the controlled state and the initial/ original state (dashed line)
+    ax[0].plot(t_array, state[0, :], label="exc ", color="red")
+    ax[0].plot(t_array, target[0, :], linestyle="dashed", label="target exc ", color="red")
+    ax[0].legend(loc="upper right")
+    ax[0].set_title("Activity without stimulation and target activity")
+
+    # Plot the computed control signal and the initial/ original control signal (dashed line)
+    ax[1].plot(
+        t_array,
+        control[0, :],
+        label="stimulation exc ",
+        color="red",
+    )
+    ax[1].plot(
+        t_array,
+        orig_input[0, :],
+        linestyle="dashed",
+        label="input exc ",
+        color="red",
+    )
+    ax[1].legend(loc="upper right")
+    ax[1].set_title("Active stimulation and input stimulation")
+    ax[2].plot(cost_array)
+    ax[2].set_title("Cost throughout optimization.")
+    plt.show()
+
+
 def plot_oc_singlenode(
     duration,
     dt,
@@ -43,9 +105,7 @@ def plot_oc_singlenode(
 
     # Plot the controlled state and the initial/ original state (dashed line)
     for v in plot_state_vars:
-        ax[0].plot(
-            t_array, state[0, v, :], label="state var " + str(v), color=colors[v]
-        )
+        ax[0].plot(t_array, state[0, v, :], label="state var " + str(v), color=colors[v])
         ax[0].plot(
             t_array,
             target[0, v, :],
@@ -122,9 +182,7 @@ def plot_oc_network(
     # Plot the controlled state and the initial/ original state (dashed line)
     for n in range(N):
         for v in plot_state_vars:
-            ax[0, n].plot(
-                t_array, state[n, v, :], label="state var " + str(v), color=colors[v]
-            )
+            ax[0, n].plot(t_array, state[n, v, :], label="state var " + str(v), color=colors[v])
             ax[0, n].plot(
                 t_array,
                 target[n, v, :],

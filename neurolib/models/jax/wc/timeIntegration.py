@@ -281,8 +281,7 @@ def get_update_step(
             / tau_exc
             * (
                 -exc_history[:, -1]
-                + (1 - exc_history[:, -1])
-                * S_E(
+                + S_E(
                     c_excexc * exc_history[:, -1]  # input from within the excitatory population
                     - c_inhexc * inh_history[:, -1]  # input from the inhibitory population
                     + exc_input_d  # input from other nodes
@@ -297,8 +296,7 @@ def get_update_step(
             / tau_inh
             * (
                 -inh_history[:, -1]
-                + (1 - inh_history[:, -1])
-                * S_I(
+                + S_I(
                     c_excinh * exc_history[:, -1]  # input from the excitatory population
                     - c_inhinh * inh_history[:, -1]  # input from within the inhibitory population
                     + inh_ext_baseline  # baseline external input (static)
@@ -307,6 +305,7 @@ def get_update_step(
                 + inh_ou  # ou noise
             )
         )
+
         # Euler integration
         # make sure e and i variables do not exceed 1 (can only happen with noise)
         exc_new = jnp.clip(exc_history[:, -1] + dt * exc_rhs, 0, 1)
