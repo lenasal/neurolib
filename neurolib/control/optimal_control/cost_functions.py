@@ -152,7 +152,6 @@ def precision_cost(
         for v in range(x_target.shape[1]):
             if cost_matrix[n, v] != 0:
                 for t in range(interval[0], interval[1]):
-                    print("t = ", t, (x_target[n, v, t], x_sim[n, v, t]))
                     cost[n, v, t] = 0.5 * cost_matrix[n, v] * (x_target[n, v, t] - x_sim[n, v, t]) ** 2
 
     return cost
