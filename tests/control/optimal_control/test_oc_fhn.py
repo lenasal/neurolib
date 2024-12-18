@@ -26,9 +26,7 @@ class TestFHN(unittest.TestCase):
             cost_mat = np.zeros((model.params.N, len(model.output_vars)))
             control_mat = np.zeros((model.params.N, len(model.state_vars)))
             control_mat[0, input_channel] = 1.0  # only allow inputs to input_channel
-            cost_mat[
-                0, np.abs(input_channel - 1).astype(int)
-            ] = 1.0  # only measure other channel
+            cost_mat[0, np.abs(input_channel - 1).astype(int)] = 1.0  # only measure other channel
 
             test_oc_utils.set_input(model, p.ZERO_INPUT_1N_6)
             model.params[model.input_vars[input_channel]] = p.TEST_INPUT_1N_6
@@ -54,9 +52,7 @@ class TestFHN(unittest.TestCase):
                 model_controlled.optimize(p.ITERATIONS)
                 control = model_controlled.control
 
-                c_diff = (
-                    np.abs(control[0, input_channel, :] - p.TEST_INPUT_1N_6[0, :]),
-                )
+                c_diff = (np.abs(control[0, input_channel, :] - p.TEST_INPUT_1N_6[0, :]),)
 
                 if np.amax(c_diff) < p.LIMIT_DIFF:
                     control_coincide = True
@@ -115,6 +111,7 @@ class TestFHN(unittest.TestCase):
 
             for i in range(p.LOOPS):
                 model_controlled.optimize(p.ITERATIONS)
+                model_controlled.channelwise_optimization = not (model_controlled.channelwise_optimization)
                 control = model_controlled.control
 
                 c_diff_max = np.amax(np.abs(control[0, 0, :] - p.TEST_INPUT_2N_8[0, :]))
@@ -269,9 +266,7 @@ class TestFHN(unittest.TestCase):
             control_matrix=control_mat,
         )
 
-        self.assertTrue(
-            np.max(np.abs(model_controlled.control) <= maximum_control_strength)
-        )
+        self.assertTrue(np.max(np.abs(model_controlled.control) <= maximum_control_strength))
 
     # Arbitrary network and control setting, initial control violates the maximum absolute criterion.
     def test_u_max_after_optimizations(self):
@@ -299,9 +294,7 @@ class TestFHN(unittest.TestCase):
         )
 
         model_controlled.optimize(1)
-        self.assertTrue(
-            np.max(np.abs(model_controlled.control) <= maximum_control_strength)
-        )
+        self.assertTrue(np.max(np.abs(model_controlled.control) <= maximum_control_strength))
 
     def test_adjust_init(self):
         print("Test adjust_init function of OC class")
@@ -339,10 +332,7 @@ class TestFHN(unittest.TestCase):
                 for init_var0 in model.init_vars:
                     if "ou" in init_var0:
                         continue
-                    self.assertTrue(
-                        model_controlled.model.params[init_var0].shape
-                        == targetinitshape
-                    )
+                    self.assertTrue(model_controlled.model.params[init_var0].shape == targetinitshape)
 
     def test_adjust_input(self):
         print("Test test_adjust_input function of OC class")
@@ -352,9 +342,7 @@ class TestFHN(unittest.TestCase):
         model = FHNModel(Cmat=cmat, Dmat=dmat)
         model.params.duration = p.TEST_DURATION_6
 
-        target = np.zeros(
-            (model.params.N, len(model.state_vars), p.TEST_INPUT_2N_6.shape[1])
-        )
+        target = np.zeros((model.params.N, len(model.state_vars), p.TEST_INPUT_2N_6.shape[1]))
         targetinputshape = (target.shape[0], target.shape[2])
 
         for test_input in [
@@ -375,10 +363,7 @@ class TestFHN(unittest.TestCase):
                 )
 
                 for input_var0 in model.input_vars:
-                    self.assertTrue(
-                        model_controlled.model.params[input_var0].shape
-                        == targetinputshape
-                    )
+                    self.assertTrue(model_controlled.model.params[input_var0].shape == targetinputshape)
 
     # tests if the control is only active in the control interval
     # single-node case
