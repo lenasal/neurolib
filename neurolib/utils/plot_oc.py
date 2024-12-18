@@ -43,9 +43,7 @@ def plot_oc_singlenode(
 
     # Plot the controlled state and the initial/ original state (dashed line)
     for v in plot_state_vars:
-        ax[0].plot(
-            t_array, state[0, v, :], label="state var " + str(v), color=colors[v]
-        )
+        ax[0].plot(t_array, state[0, v, :], label="state var " + str(v), color=colors[v])
         ax[0].plot(
             t_array,
             target[0, v, :],
@@ -122,9 +120,7 @@ def plot_oc_network(
     # Plot the controlled state and the initial/ original state (dashed line)
     for n in range(N):
         for v in plot_state_vars:
-            ax[0, n].plot(
-                t_array, state[n, v, :], label="state var " + str(v), color=colors[v]
-            )
+            ax[0, n].plot(t_array, state[n, v, :], label="state var " + str(v), color=colors[v])
             ax[0, n].plot(
                 t_array,
                 target[n, v, :],
@@ -158,5 +154,21 @@ def plot_oc_network(
     ax[2, 1].set_title("Step size throughout optimization.")
     ax[2, 1].set_ylim(bottom=0, top=None)
 
+    plt.show()
 
-plt.show()
+
+def plot_wb_nw(state, control, duration, dt, control_vars=[0]):
+    t_array = np.arange(0, duration + dt, dt)
+    N = state.shape[0]
+    fig, ax = plt.subplots(2, 1, figsize=(8, 8), constrained_layout=True)
+
+    for n in range(N):
+        for c in control_vars:
+            ax[0].plot(t_array, state[n, c, :])
+
+            ax[1].plot(t_array, control[n, c, :])
+
+    ax[0].set_ylabel("Activity")
+    ax[1].set_ylabel("Control")
+
+    plt.show()

@@ -16,7 +16,17 @@ def getdefaultweights():
         value_type=types.float64,
     )
     weights["w_p"] = 1.0
+
+    weights["w_f"] = 0.0
+    weights["w_f_sync"] = 0.0
+
+    weights["w_cc"] = 0.0
+    weights["w_var"] = 0.0
+
     weights["w_2"] = 0.0
+
+    weights["w_1"] = 0.0
+    weights["w_1T"] = 0.0
     weights["w_1D"] = 0.0
 
     return weights
@@ -355,7 +365,6 @@ class OC:
 
         self.model = copy.deepcopy(model)
 
-        self.target = target  # ToDo: dimensions-check
         self.maximum_control_strength = maximum_control_strength
 
         if type(weights) != type(dict()):
@@ -382,6 +391,22 @@ class OC:
         self.dim_out = len(self.model.output_vars)
 
         self.state_vars_dict = self.get_state_vars_dict()
+
+        if isinstance(target, int):
+            target = float(target)
+
+        if isinstance(target, np.ndarray):
+            print("Optimal control with target time series")
+            self.target_timeseries = target
+            self.target_period = 0.0
+        elif isinstance(target, float):
+            print("Optimal control with target oscillation period")
+            self.target_timeseries = np.zeros((self.N, self.dim_out, self.T))
+            self.target_period = target
+        elif isinstance(target, list):
+            print("Optimal control with target oscillation period")
+            self.target_timeseries = np.zeros((self.N, self.dim_out, self.T))
+            self.target_period = target
 
         self.adjust_init()
         self.simulate_forward()
@@ -606,7 +631,8 @@ class OC:
         xs = self.get_xs()
         accuracy_cost = cost_functions.accuracy_cost(
             xs,
-            self.target,
+            self.target_timeseries,
+            self.target_period,
             self.weights,
             self.cost_matrix,
             self.dt,
@@ -668,9 +694,11 @@ class OC:
         # Derivative of cost wrt. controllable 'state_vars'.
         df_dx = cost_functions.derivative_accuracy_cost(
             self.get_xs(),
-            self.target,
+            self.target_timeseries,
+            self.target_period,
             self.weights,
             self.cost_matrix,
+            self.dt,
             self.cost_interval,
         )
         self.adjoint_state = solve_adjoint(
