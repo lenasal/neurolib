@@ -17,7 +17,7 @@ def getdefaultweights():
     )
     weights["w_p"] = 1.0
 
-    weights["w_f"] = 0.0
+    weights["w_f_osc"] = 0.0
     weights["w_f_sync"] = 0.0
 
     weights["w_cc"] = 0.0
@@ -892,6 +892,7 @@ class OC:
 
         minind = [-1, -1]
         mincost = costall
+        mincost = 1e8
 
         steps = np.zeros((self.N, self.dim_in))
         costs = steps.copy()
@@ -1143,8 +1144,8 @@ class OC:
 
                 if self.channelwise_optimization:
                     self.step_size_nv(-self.gradient)
-            else:
-                self.step_size(-self.gradient)
+                else:
+                    self.step_size(-self.gradient)
 
                 if not self.zero_step_encountered:
                     consecutive_zero_step = 0
@@ -1205,3 +1206,56 @@ class OC:
             cost_validation += self.compute_total_cost()
             m += 1
         return cost_validation / M
+
+    def find_M(self, sigma, limit=1e-3):
+        """Find a number for M for averaging in noisy systems. This methods helps to assure that results are comparable when varying parameters.
+
+        :param sigma:               noise strength value (sigma)
+        :type sigma:                float
+        :param limit:               limit value of"""
+        assert sigma > 0
+        assert limit > 0
+
+        # set control to zero and copy model
+        c0 = self.control.copy()
+        self.control = np.zeros(self.control.shape)
+        self.update_input()
+        mod = copy.deepcopy(self.model)
+
+        # reset control
+        self.control = c0.copy()
+        self.update_input()
+
+        # define values of sigma to perform evaluation for
+        M = []
+        mod.params.duration = 10.0
+
+        mod.params.sigma_ou = sigma
+        mod.run()
+
+        for k in range(100):
+
+            M_ = 0
+
+            for n in range(self.N):
+                allstates = []
+                meanstates = []
+
+                m = 1
+
+                while True:
+                    mod.run()
+                    allstates.append(mod[mod.output_vars[0]][0, -1])
+                    meanstates.append(np.mean(allstates))
+
+                    if m >= 3:
+                        p, var = np.polyfit(np.arange(1, m + 1, 1), meanstates, 1, cov=True)
+                        if np.sqrt(var[0, 0]) < limit:
+                            M_ = max(m, M_)
+                            break
+
+                    m += 1
+
+            M.append(M_)
+
+        return int(np.mean(M))

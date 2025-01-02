@@ -40,11 +40,11 @@ def accuracy_cost(
                 for t in range(interval[0], interval[1]):
                     cost += cost_timeseries[n, v, t] * dt
 
-    if weights["w_f"] != 0.0:
-        fc = fourier_cost(x, dt, target_period, cost_matrix, interval)
+    if weights["w_f_osc"] != 0.0:
+        fc = fourier_cost_osc(x, dt, target_period, cost_matrix, interval)
         for n in range(x.shape[0]):
             for v in range(x.shape[1]):
-                cost += weights["w_f"] * fc[n, v]
+                cost += weights["w_f_osc"] * fc[n, v]
 
     if weights["w_f_sync"] != 0.0:
         fc = weights["w_f_sync"] * fourier_cost_sync(x, dt, target_period, cost_matrix, interval)
@@ -92,8 +92,8 @@ def derivative_accuracy_cost(
 
     if weights["w_p"] != 0.0:
         der += weights["w_p"] * derivative_precision_cost(x, target_timeseries, cost_matrix, interval)
-    if weights["w_f"] != 0.0:
-        der += weights["w_f"] * derivative_fourier_cost(x, dt, target_period, cost_matrix, interval)
+    if weights["w_f_osc"] != 0.0:
+        der += weights["w_f_osc"] * derivative_fourier_cost_osc(x, dt, target_period, cost_matrix, interval)
     if weights["w_f_sync"] != 0.0:
         der += weights["w_f_sync"] * derivative_fourier_cost_sync(x, dt, target_period, cost_matrix, interval)
     if weights["w_var"] != 0.0:
@@ -168,16 +168,29 @@ def derivative_precision_cost(x_sim, x_target, cost_matrix, interval):
 
 
 @numba.njit
-def compute_fourier_component(X, target_period, dt, T):
+def compute_fourier_component(
+    X,
+    target_period,
+    dt,
+    T,
+):
     res = 0.0
-    exponent = -2.0 * complex(0, 1) * np.pi * dt / target_period
+    # omega = -2.0 * np.pi * dt / target_period
+    k = numba.uint16(np.around(T * dt / target_period, 0))
+    omega = -2.0 * complex(0, 1) * np.pi * k / T
     for t in range(T):
-        res += X[t] * np.exp(exponent * t) * dt
+        res += X[t] * np.exp(omega * t) * dt
     return np.abs(res)
 
 
 @numba.njit
-def fourier_cost(data, dt, target_period, cost_matrix, interval):
+def fourier_cost_osc(
+    data,
+    dt,
+    target_period,
+    cost_matrix,
+    interval,
+):
     cost = np.zeros((cost_matrix.shape[0], cost_matrix.shape[1]))
     T = len(data[0, 0, interval[0] : interval[1]])
 
@@ -193,11 +206,16 @@ def fourier_cost(data, dt, target_period, cost_matrix, interval):
 
 
 @numba.njit
-def derivative_fourier_cost(data, dt, target_period, cost_matrix, interval):
+def derivative_fourier_cost_osc(
+    data,
+    dt,
+    target_period,
+    cost_matrix,
+    interval,
+):
     derivative = np.zeros((data.shape))
     T = len(data[0, 0, interval[0] : interval[1]])
-
-    argument = -2.0 * np.pi * dt / target_period
+    omega = -2.0 * np.pi * dt / target_period
 
     for n in range(data.shape[0]):
         for v in range(data.shape[1]):
@@ -206,15 +224,20 @@ def derivative_fourier_cost(data, dt, target_period, cost_matrix, interval):
 
             for t in range(interval[0], interval[1]):
                 for t1 in range(interval[0], interval[1]):
-                    derivative[n, v, t] += data[n, v, t1] * np.cos(argument * (t1 - t)) * dt
-
+                    derivative[n, v, t] += data[n, v, t1] * np.cos(omega * (t1 - t)) * dt
                 derivative[n, v, t] *= -2.0 / ((T * dt) ** 2 * data.shape[0])
 
     return derivative
 
 
 @numba.njit
-def fourier_cost_sync(data, dt, target_period, cost_matrix, interval):
+def fourier_cost_sync(
+    data,
+    dt,
+    target_period,
+    cost_matrix,
+    interval,
+):
     cost = np.zeros((cost_matrix.shape[1]))
     T = len(data[0, 0, interval[0] : interval[1]])
 
@@ -232,11 +255,17 @@ def fourier_cost_sync(data, dt, target_period, cost_matrix, interval):
 
 
 @numba.njit
-def derivative_fourier_cost_sync(data, dt, target_period, cost_matrix, interval):
+def derivative_fourier_cost_sync(
+    data,
+    dt,
+    target_period,
+    cost_matrix,
+    interval,
+):
     derivative = np.zeros((data.shape))
     T = len(data[0, 0, interval[0] : interval[1]])
 
-    argument = -2.0 * np.pi * dt / target_period
+    omega = -2.0 * np.pi * dt / target_period
 
     for v in range(cost_matrix.shape[1]):
         data_nodesum = np.zeros((data.shape[2]))
@@ -249,10 +278,9 @@ def derivative_fourier_cost_sync(data, dt, target_period, cost_matrix, interval)
         for n in range(data.shape[0]):
             for t in range(interval[0], interval[1]):
                 for t1 in range(interval[0], interval[1]):
-                    derivative[n, v, t] += data_nodesum[t1] * np.cos(argument * (t1 - t))
-                # derivative[n, v, t] += data_nodesum[t] * data[n, v, t]
+                    derivative[n, v, t] += data_nodesum[t1] * np.cos(omega * (t1 - t)) * dt
 
-                derivative[n, v, t] *= -2.0 / (T**2 * dt * data.shape[0] ** 2)
+                derivative[n, v, t] *= -2.0 / ((T * dt) ** 2 * data.shape[0] ** 2)
 
     return derivative
 
