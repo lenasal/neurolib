@@ -61,6 +61,7 @@ class OcWc(OC):
             self.model.params.a_inh,
             self.model.params.mu_exc,
             self.model.params.mu_inh,
+            self.model.params.factor,
             self.model.params.c_excexc,
             self.model.params.c_inhexc,
             self.model.params.c_excinh,
