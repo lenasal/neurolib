@@ -4,6 +4,17 @@ import scipy.io
 from numba.typed import Dict
 from numba.core import types
 import pickle
+
+print(os.getcwd())
+print(os.path.abspath('data_var_L2.py'))
+import sys
+print(sys.path)
+
+from neurolib.model.wc import WCModel
+
+datadir = os.path.join(os.getcwd(), "neurolib", "whole-brain")
+
+
 from neurolib.models.wc import WCModel
 from neurolib.control.optimal_control import oc_wc, cost_functions
 
