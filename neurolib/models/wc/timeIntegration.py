@@ -32,6 +32,8 @@ def timeIntegration(params):
     mu_exc = params["mu_exc"]  #
     mu_inh = params["mu_inh"]  #
 
+    factor = params["factor"]
+
     # external input parameters:
     # Parameter of the Ornstein-Uhlenbeck process for the external input(ms)
     tau_ou = params["tau_ou"]
@@ -138,6 +140,7 @@ def timeIntegration(params):
         a_inh,
         mu_exc,
         mu_inh,
+        factor,
         c_excexc,
         c_excinh,
         c_inhexc,
@@ -177,6 +180,7 @@ def timeIntegration_njit_elementwise(
     a_inh,
     mu_exc,
     mu_inh,
+    factor,
     c_excexc,
     c_excinh,
     c_inhexc,
@@ -217,7 +221,8 @@ def timeIntegration_njit_elementwise(
                 / tau_exc
                 * (
                     -excs[no, i - 1]
-                    + S_E(
+                    + (1.0 - factor * excs[no, i - 1])
+                    * S_E(
                         c_excexc * excs[no, i - 1]  # input from within the excitatory population
                         - c_inhexc * inhs[no, i - 1]  # input from the inhibitory population
                         + exc_input_d[no]  # input from other nodes
@@ -232,7 +237,8 @@ def timeIntegration_njit_elementwise(
                 / tau_inh
                 * (
                     -inhs[no, i - 1]
-                    + S_I(
+                    + (1.0 - factor * inhs[no, i - 1])
+                    * S_I(
                         c_excinh * excs[no, i - 1]  # input from the excitatory population
                         - c_inhinh * inhs[no, i - 1]  # input from within the inhibitory population
                         + inh_ext_baseline  # baseline external input (static)
@@ -336,6 +342,7 @@ def jacobian_wc(
         a_inh,
         mu_exc,
         mu_inh,
+        factor,
         c_excexc,
         c_inhexc,
         c_excinh,
@@ -347,14 +354,24 @@ def jacobian_wc(
     jacobian = np.zeros((V, V))
     input_exc = c_excexc * e - c_inhexc * i + nw_e + exc_ext_baseline + ue
     jacobian[sv["exc"], sv["exc"]] = (
-        -(-1.0 - logistic(input_exc, a_exc, mu_exc) + (1.0 - e) * c_excexc * logistic_der(input_exc, a_exc, mu_exc))
+        -(
+            -1.0
+            - factor * logistic(input_exc, a_exc, mu_exc)
+            + (1.0 - factor * e) * c_excexc * logistic_der(input_exc, a_exc, mu_exc)
+        )
         / tau_exc
     )
-    jacobian[sv["exc"], sv["inh"]] = -((1.0 - e) * (-c_inhexc) * logistic_der(input_exc, a_exc, mu_exc)) / tau_exc
+    jacobian[sv["exc"], sv["inh"]] = (
+        -((1.0 - factor * e) * (-c_inhexc) * logistic_der(input_exc, a_exc, mu_exc)) / tau_exc
+    )
     input_inh = c_excinh * e - c_inhinh * i + inh_ext_baseline + ui
-    jacobian[sv["inh"], sv["exc"]] = -((1.0 - i) * c_excinh * logistic_der(input_inh, a_inh, mu_inh)) / tau_inh
+    jacobian[sv["inh"], sv["exc"]] = -((1.0 - factor * i) * c_excinh * logistic_der(input_inh, a_inh, mu_inh)) / tau_inh
     jacobian[sv["inh"], sv["inh"]] = (
-        -(-1.0 - logistic(input_inh, a_inh, mu_inh) + (1.0 - i) * (-c_inhinh) * logistic_der(input_inh, a_inh, mu_inh))
+        -(
+            -1.0
+            - factor * logistic(input_inh, a_inh, mu_inh)
+            + (1.0 - factor * i) * (-c_inhinh) * logistic_der(input_inh, a_inh, mu_inh)
+        )
         / tau_inh
     )
     return jacobian
@@ -502,6 +519,7 @@ def compute_hx_nw(
         a_inh,
         mu_exc,
         mu_inh,
+        factor,
         c_excexc,
         c_inhexc,
         c_excinh,
@@ -518,7 +536,7 @@ def compute_hx_nw(
         for n2 in range(N):
             for t in range(T - 1):
                 hx_nw[n1, n2, t, sv["exc"], sv["exc"]] = (
-                    (1.0 - e[n1, t]) * logistic_der(exc_input[n1, t], a_exc, mu_exc) * K_gl * cmat[n1, n2]
+                    (1.0 - factor * e[n1, t]) * logistic_der(exc_input[n1, t], a_exc, mu_exc) * K_gl * cmat[n1, n2]
                 ) / tau_exc
 
     return -hx_nw
@@ -584,6 +602,7 @@ def Duh(
         a_inh,
         mu_exc,
         mu_inh,
+        factor,
         c_excexc,
         c_inhexc,
         c_excinh,
@@ -598,9 +617,13 @@ def Duh(
     for t in range(T):
         for n in range(N):
             input_exc = c_excexc * e[n, t] - c_inhexc * i[n, t] + nw_e[n, t] + exc_ext_baseline + ue[n, t]
-            duh[n, sv["exc"], sv["exc"], t] = -(1.0 - e[n, t]) * logistic_der(input_exc, a_exc, mu_exc) / tau_exc
+            duh[n, sv["exc"], sv["exc"], t] = (
+                -(1.0 - factor * e[n, t]) * logistic_der(input_exc, a_exc, mu_exc) / tau_exc
+            )
             input_inh = c_excinh * e[n, t] - c_inhinh * i[n, t] + inh_ext_baseline + ui[n, t]
-            duh[n, sv["inh"], sv["inh"], t] = -(1.0 - i[n, t]) * logistic_der(input_inh, a_inh, mu_inh) / tau_inh
+            duh[n, sv["inh"], sv["inh"], t] = (
+                -(1.0 - factor * i[n, t]) * logistic_der(input_inh, a_inh, mu_inh) / tau_inh
+            )
     return duh
 
 

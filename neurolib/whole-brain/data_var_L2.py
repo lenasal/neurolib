@@ -136,55 +136,57 @@ dt = 0.1
 
 it = 4
 
-for d in [data_0, data_1, data_2]:
-    # for d in [data_0, data_2]:
+for k in range(2):
 
-    for wi in range(3):
-        print("------------------------------------------------------------ wi = ", wi)
+    for d in [data_0, data_1, data_2]:
+        print("###########################################################")
 
-        # if wi not in [2]: continue
+        for wi in range(3):
+            print("------------------------------------------------------------ wi = ", wi)
 
-        model = WCModel(Cmat=cmat_av, Dmat=dmat_av, seed=0)
-        model.params.exc_init = d["init_state"][0]
-        model.params.inh_init = d["init_state"][1]
-        setparams(model)
+            # if wi not in [2]: continue
 
-        model.params["exc_ext_baseline"] = d["coordinates"][0]
-        model.params["inh_ext_baseline"] = d["coordinates"][1]
-        model.params.duration = duration
-        dt = model.params.dt
+            model = WCModel(Cmat=cmat_av, Dmat=dmat_av, seed=0)
+            model.params.exc_init = d["init_state"][0]
+            model.params.inh_init = d["init_state"][1]
+            setparams(model)
 
-        model.run()
+            model.params["exc_ext_baseline"] = d["coordinates"][0]
+            model.params["inh_ext_baseline"] = d["coordinates"][1]
+            model.params.duration = duration
+            dt = model.params.dt
 
-        model_controlled = oc_wc.OcWc(
-            model,
-            target_period,
-            print_array=pr,
-            cost_interval=(int0, int1),
-            control_interval=(int0, int1),
-            cost_matrix=costmat,
-            control_matrix=controlmat,
-        )
-        model_controlled.weights["w_p"] = 0.0
-        model_controlled.weights["w_2"] = 1.0
-        model_controlled.weights["w_var"] = d["weights"][wi]
+            model.run()
 
-        model_controlled.maximum_control_strength = max_cntrl
+            model_controlled = oc_wc.OcWc(
+                model,
+                target_period,
+                print_array=pr,
+                cost_interval=(int0, int1),
+                control_interval=(int0, int1),
+                cost_matrix=costmat,
+                control_matrix=controlmat,
+            )
+            model_controlled.weights["w_p"] = 0.0
+            model_controlled.weights["w_2"] = 1.0
+            model_controlled.weights["w_var"] = d["weights"][wi]
 
-        model_controlled.control = d["control"][wi].copy()
-        model_controlled.update_input()
-        model_controlled.simulate_forward()
-        model_controlled.optimize(0)
+            model_controlled.maximum_control_strength = max_cntrl
 
-        for j in range(1):
-            model_controlled.grad_method = 0
-            model_controlled.channelwise_optimization = True
-            optimize_model(model_controlled, [-2, 0, 2], wi, it)
-            model_controlled.channelwise_optimization = False
-            optimize_model(model_controlled, [-2, 0, 2], wi, it)
+            model_controlled.control = d["control"][wi].copy()
+            model_controlled.update_input()
+            model_controlled.simulate_forward()
+            model_controlled.optimize(0)
 
-            model_controlled.grad_method = 1
-            model_controlled.channelwise_optimization = True
-            optimize_model(model_controlled, [-2, 0, 2], wi, it)
-            model_controlled.channelwise_optimization = False
-            optimize_model(model_controlled, [-2, 0, 2], wi, it)
+            for j in range(1):
+                model_controlled.grad_method = 0
+                model_controlled.channelwise_optimization = True
+                optimize_model(model_controlled, [-2, 0, 2], wi, it)
+                model_controlled.channelwise_optimization = False
+                optimize_model(model_controlled, [-2, 0, 2], wi, it)
+
+                model_controlled.grad_method = 1
+                model_controlled.channelwise_optimization = True
+                optimize_model(model_controlled, [-2, 0, 2], wi, it)
+                model_controlled.channelwise_optimization = False
+                optimize_model(model_controlled, [-2, 0, 2], wi, it)

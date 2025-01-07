@@ -72,6 +72,8 @@ def loadDefaultParams(Cmat=None, Dmat=None, seed=None):
     params.exc_ext = 0  # time-dependent external input to E
     params.inh_ext = 0  # time-dependent external input to I
 
+    params.factor = 0.0
+
     # ------------------------------------------------------------------------
 
     params.exc_init = 0.5 * np.random.uniform(0, 1, (params.N, 1))
