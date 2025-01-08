@@ -33,7 +33,6 @@ def getdefaultweights():
 def compute_gradient(
     N,
     V,
-    dim_out,
     df_du,
     adjoint_state,
     control_matrix,
@@ -70,11 +69,9 @@ def compute_gradient(
     """
     grad = np.zeros(df_du.shape)
     for n in range(N):
-        for v in range(dim_out):
-            for t in range(control_interval[0], control_interval[1]):
-                grad[n, v, t] = factors[0] * df_du[n, v, t]
-                for k in range(V):
-                    grad[n, v, t] += factors[1] * control_matrix[n, v] * adjoint_state[n, k, t] * d_du[n, k, v, t]
+        for t in range(control_interval[0], control_interval[1]):
+            grad[n, t] = factors[0] * df_du[n, t]
+            grad[n, t] += factors[1] * control_matrix[n] * adjoint_state[n, 0, t] * d_du[n, t]
     return grad
 
 
@@ -127,10 +124,7 @@ def solve_adjoint(
     adjoint_state = np.zeros(state_dim)
     fx_fullstate = np.zeros(state_dim)
 
-    for sv_ind, sv in enumerate(state_vars):
-        for ov_ind, ov in enumerate(output_vars):
-            if sv == ov:
-                fx_fullstate[:, sv_ind, :] = fx[:, ov_ind, :]
+    fx_fullstate[:, 0, :] = fx[:, :]
 
     for t in range(T - 2, -1, -1):  # backwards iteration including 0th index
         for n in range(N):  # iterate through nodes
@@ -244,7 +238,6 @@ def adjoint_nw_input(
 @numba.njit
 def limit_control_to_interval(
     N,
-    dim_in,
     T,
     control,
     control_interval,
@@ -252,11 +245,10 @@ def limit_control_to_interval(
     control_new = control.copy()
 
     for n in range(N):
-        for v in range(dim_in):
-            for t in range(0, control_interval[0]):
-                control_new[n, v, t] = 0.0
-            for t in range(control_interval[1], T):
-                control_new[n, v, t] = 0.0
+        for t in range(0, control_interval[0]):
+            control_new[n, t] = 0.0
+        for t in range(control_interval[1], T):
+            control_new[n, t] = 0.0
 
     return control_new
 
@@ -264,7 +256,6 @@ def limit_control_to_interval(
 @numba.njit
 def update_control_with_limit(
     N,
-    dim_in,
     T,
     control,
     step,
@@ -294,10 +285,9 @@ def update_control_with_limit(
         control_new = control + step * gradient
 
         for n in range(N):
-            for v in range(dim_in):
-                for t in range(T):
-                    if np.greater(np.abs(control_new[n, v, t]), u_max):
-                        control_new[n, v, t] = np.sign(control_new[n, v, t]) * u_max
+            for t in range(T):
+                if np.greater(np.abs(control_new[n, t]), u_max):
+                    control_new[n, t] = np.sign(control_new[n, t]) * u_max
 
     return control_new
 
@@ -427,9 +417,6 @@ class OC:
         self.T = np.around(self.duration / self.dt, 0).astype(int) + 1  # Total number of time steps
 
         self.dim_vars = len(self.model.state_vars)
-        self.dim_in = len(self.model.input_vars)
-        self.dim_out = len(self.model.output_vars)
-
         self.state_vars_dict = self.get_state_vars_dict()
 
         if isinstance(target, int):
@@ -441,11 +428,11 @@ class OC:
             self.target_period = 0.0
         elif isinstance(target, float):
             print("Optimal control with target oscillation period")
-            self.target_timeseries = np.zeros((self.N, self.dim_out, self.T))
+            self.target_timeseries = np.zeros((self.N, self.T))
             self.target_period = target
         elif isinstance(target, list):
             print("Optimal control with target oscillation period")
-            self.target_timeseries = np.zeros((self.N, self.dim_out, self.T))
+            self.target_timeseries = np.zeros((self.N, self.T))
             self.target_period = target
 
         self.adjust_init()
@@ -469,11 +456,11 @@ class OC:
 
         self.cost_matrix = cost_matrix
         if isinstance(self.cost_matrix, type(None)):
-            self.cost_matrix = np.ones((self.N, self.dim_out))  # default: measure precision in all variables and nodes
+            self.cost_matrix = np.ones((self.N))  # default: measure precision in all variables and nodes
 
         self.control_matrix = control_matrix
         if isinstance(self.control_matrix, type(None)):
-            self.control_matrix = np.ones((self.N, self.dim_in))  # default: all channels and all nodes active
+            self.control_matrix = np.ones((self.N))  # default: all channels and all nodes active
 
         self.M = max(1, M)
         self.M_validation = M_validation
@@ -533,16 +520,14 @@ class OC:
 
         self.adjust_input()
 
-        control = np.zeros((self.N, self.dim_in, self.T))
-        for v, iv in enumerate(self.model.input_vars):
-            control[:, v, :] = self.model.params[iv]
+        control = np.zeros((self.N, self.T))
+        control[:, :] = self.model.params[self.model.input_vars[0]]
 
         self.control = control.copy()
         self.check_params()
 
         self.control = update_control_with_limit(
             self.N,
-            self.dim_in,
             self.T,
             control,
             0.0,
@@ -576,9 +561,8 @@ class OC:
             assert self.T == self.model.params[input_var].shape[1]
 
         # check if control agrees with model input
-        for v, iv in enumerate(self.model.input_vars):
-            for n in range(self.N):
-                assert (self.control[n, v, :] == self.model.params[iv][n, :]).all()
+        for n in range(self.N):
+            assert (self.control[n, :] == self.model.params[self.model.input_vars[0]][n, :]).all()
 
     def get_state_vars_dict(
         self,
@@ -619,7 +603,7 @@ class OC:
         self,
     ):
         """Extract the complete state of the dynamical system."""
-        xs = np.zeros((self.N, self.dim_out, self.T))
+        xs = np.zeros((self.N, len(self.model.output_vars), self.T))
 
         for ind_ov, ov in enumerate(self.model.output_vars):
             xs[:, ind_ov, 1:] = self.model[ov]
@@ -638,7 +622,7 @@ class OC:
         if maxdel == 0:
             return self.get_xs()
 
-        xs = np.zeros((self.N, self.dim_out, self.T + maxdel))
+        xs = np.zeros((self.N, len(self.model.output_vars), self.T + maxdel))
 
         for ind_ov, ov in enumerate(self.model.output_vars):
             xs[:, ind_ov, 1:-maxdel] = self.model[ov]
@@ -664,11 +648,10 @@ class OC:
         operates with the appropriate control signal.
         """
         # TODO: find elegant way to combine the cases
-        for ind_iv, iv in enumerate(self.model.input_vars):
-            if self.N == 1:
-                self.model.params[iv] = self.control[:, ind_iv, :].reshape(1, -1)
-            else:
-                self.model.params[iv] = self.control[:, ind_iv, :]
+        if self.N == 1:
+            self.model.params[self.model.input_vars[0]] = self.control[:, :].reshape(1, -1)
+        else:
+            self.model.params[self.model.input_vars[0]] = self.control[:, :]
 
     def simulate_forward(
         self,
@@ -707,7 +690,7 @@ class OC:
         """
         xs = self.get_xs()
         accuracy_cost = cost_functions.accuracy_cost(
-            xs,
+            xs[:, 0, :],
             self.target_timeseries,
             self.target_period,
             self.weights,
@@ -729,24 +712,23 @@ class OC:
         cost0 = self.compute_total_cost()
 
         for n in range(self.N):
-            for v in range(self.dim_in):
-                for t in range(self.T):
-                    c1[n, v, t] += du
-                    self.control = c1.copy()
-                    self.update_input()
-                    self.simulate_forward()
-                    cost1 = self.compute_total_cost()
+            for t in range(self.T):
+                c1[n, t] += du
+                self.control = c1.copy()
+                self.update_input()
+                self.simulate_forward()
+                cost1 = self.compute_total_cost()
 
-                    res0 = (cost1 - cost0) / (du * self.dt)
-                    c1[n, v, t] -= 2.0 * du
-                    self.control = c1.copy()
-                    self.update_input()
-                    self.simulate_forward()
-                    cost1 = self.compute_total_cost()
-                    res1 = (cost1 - cost0) / (-du * self.dt)
+                res0 = (cost1 - cost0) / (du * self.dt)
+                c1[n, t] -= 2.0 * du
+                self.control = c1.copy()
+                self.update_input()
+                self.simulate_forward()
+                cost1 = self.compute_total_cost()
+                res1 = (cost1 - cost0) / (-du * self.dt)
 
-                    grad[n, v, t] = (res0 + res1) / 2.0
-                    c1[n, v, t] += du
+                grad[n, t] = (res0 + res1) / 2.0
+                c1[n, t] += du
 
         self.control = c0.copy()
         self.update_input()
@@ -778,7 +760,6 @@ class OC:
         return compute_gradient(
             self.N,
             self.dim_vars,
-            self.dim_in,
             df_du,
             self.adjoint_state,
             self.control_matrix,
@@ -813,7 +794,7 @@ class OC:
 
         # Derivative of cost wrt. controllable 'state_vars'.
         df_dx = cost_functions.derivative_accuracy_cost(
-            self.get_xs(),
+            self.get_xs()[:, 0, :],
             self.target_timeseries,
             self.target_period,
             self.weights,
@@ -872,7 +853,7 @@ class OC:
 
             # Inplace updating of models control bc. forward-sim relies on models parameters.
             self.control = update_control_with_limit(
-                self.N, self.dim_in, self.T, control0, step, cost_gradient, self.maximum_control_strength
+                self.N, self.T, control0, step, cost_gradient, self.maximum_control_strength
             )
             self.update_input()
 
@@ -888,7 +869,7 @@ class OC:
                 # cost.
                 step = 0.0  # For later analysis only.
                 self.control = update_control_with_limit(
-                    self.N, self.dim_in, self.T, control0, 0.0, np.zeros(control0.shape), self.maximum_control_strength
+                    self.N, self.T, control0, 0.0, np.zeros(control0.shape), self.maximum_control_strength
                 )
                 self.update_input()
 
@@ -933,7 +914,7 @@ class OC:
 
             # Inplace updating of models control bc. forward-sim relies on models parameters
             self.control = update_control_with_limit(
-                self.N, self.dim_in, self.T, control0, step, cost_gradient, self.maximum_control_strength
+                self.N, self.T, control0, step, cost_gradient, self.maximum_control_strength
             )
             self.update_input()
 
@@ -943,7 +924,7 @@ class OC:
                 logging.info("Increasing step encountered NAN.")
                 step /= factor_up  # Undo the last step update by inverse operation.
                 self.control = update_control_with_limit(
-                    self.N, self.dim_in, self.T, control0, step, cost_gradient, self.maximum_control_strength
+                    self.N, self.T, control0, step, cost_gradient, self.maximum_control_strength
                 )
                 self.update_input()
                 break
@@ -958,7 +939,7 @@ class OC:
                     # then) and exit.
                     step /= factor_up  # Undo the last step update by inverse operation.
                     self.control = update_control_with_limit(
-                        self.N, self.dim_in, self.T, control0, step, cost_gradient, self.maximum_control_strength
+                        self.N, self.T, control0, step, cost_gradient, self.maximum_control_strength
                     )
                     self.update_input()
                     break
@@ -980,33 +961,32 @@ class OC:
         zerostepall = self.zero_step_encountered
         self.zero_step_encountered = False
 
-        minind = [-1, -1]
+        minind = -1
         mincost = costall
 
-        steps = np.zeros((self.N, self.dim_in))
+        steps = np.zeros((self.N))
         costs = steps.copy()
         counters = steps.copy()
         zerosteps = steps.copy()
 
         for n in range(self.N):
-            for v in range(self.dim_in):
-                if self.control_matrix[n, v] == 0.0:
-                    zerosteps[n, v] = 1
-                    continue
+            if self.control_matrix[n] == 0.0:
+                zerosteps[n] = 1
+                continue
 
-                self.control = control0.copy()
-                self.update_input()
-                self.step = step0
-                grad = np.zeros((cost_gradient.shape))
-                grad[n, v, :] = cost_gradient[n, v, :]
-                steps[n, v], counters[n, v], costs[n, v] = self.step_size(grad)
+            self.control = control0.copy()
+            self.update_input()
+            self.step = step0
+            grad = np.zeros((cost_gradient.shape))
+            grad[n, :] = cost_gradient[n, :]
+            steps[n], counters[n], costs[n] = self.step_size(grad)
 
-                if costs[n, v] < mincost:
-                    mincost = costs[n, v]
-                    minind = [n, v]
-                if self.zero_step_encountered:
-                    zerosteps[n, v] = 1
-                    self.zero_step_encountered = False
+            if costs[n] < mincost:
+                mincost = costs[n]
+                minind = [n]
+            if self.zero_step_encountered:
+                zerosteps[n] = 1
+                self.zero_step_encountered = False
 
         if zerostepall and np.amin(zerosteps) >= 1.0:
             # all options ended with maximum counter
@@ -1015,17 +995,17 @@ class OC:
             grad = cost_gradient.copy()
 
         else:
-            if minind == [-1, -1]:
+            if minind == [-1]:
                 grad = cost_gradient.copy()
                 step, counter, cost = stepall, counterall, costall
                 self.zero_step_encountered = False
             else:
                 grad = np.zeros((cost_gradient.shape))
-                grad[minind[0], minind[1], :] = cost_gradient[minind[0], minind[1], :]
+                grad[minind, :] = cost_gradient[minind, :]
                 step, counter, cost = (
-                    steps[minind[0], minind[1]],
-                    counters[minind[0], minind[1]],
-                    costs[minind[0], minind[1]],
+                    steps[minind],
+                    counters[minind],
+                    costs[minind],
                 )
                 self.zero_step_encountered = False
 
@@ -1035,7 +1015,6 @@ class OC:
 
         self.control = update_control_with_limit(
             self.N,
-            self.dim_in,
             self.T,
             control0,
             step,
@@ -1074,7 +1053,6 @@ class OC:
             # inplace updating of models control bc. forward-sim relies on models parameters
             self.control = update_control_with_limit(
                 self.N,
-                self.dim_in,
                 self.T,
                 control0,
                 step,
@@ -1138,9 +1116,9 @@ class OC:
         self.control_interval = convert_interval(self.control_interval, self.T)
 
         self.control = update_control_with_limit(
-            self.N, self.dim_in, self.T, self.control, 0.0, np.zeros(self.control.shape), self.maximum_control_strength
+            self.N, self.T, self.control, 0.0, np.zeros(self.control.shape), self.maximum_control_strength
         )  # To avoid issues in repeated executions.
-        self.control = limit_control_to_interval(self.N, self.dim_in, self.T, self.control, self.control_interval)
+        self.control = limit_control_to_interval(self.N, self.T, self.control, self.control_interval)
 
         if self.M == 1:
             print("Compute control for a deterministic system")

@@ -83,18 +83,14 @@ class OcWc(OC):
         return Duh(
             self.model_params,
             self.N,
-            self.dim_in,
-            self.dim_vars,
             self.T,
-            self.control[:, self.state_vars_dict["exc"], :],
-            self.control[:, self.state_vars_dict["inh"], :],
+            self.control[:, :],
             xs[:, self.state_vars_dict["exc"], :],
             xs[:, self.state_vars_dict["inh"], :],
             self.model.params.K_gl,
             self.model.params.Cmat,
             self.Dmat_ndt,
             xsd[:, self.state_vars_dict["exc"], :],
-            self.state_vars_dict,
         )
 
     def compute_hx_list(self):
@@ -146,6 +142,6 @@ class OcWc(OC):
             xs[:, self.state_vars_dict["exc"], :],
             xs[:, self.state_vars_dict["inh"], :],
             self.get_xs_delay()[:, self.state_vars_dict["exc"], :],
-            self.control[:, self.state_vars_dict["exc"], :],
+            self.control[:, :],
             self.state_vars_dict,
         )

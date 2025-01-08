@@ -44,32 +44,27 @@ def accuracy_cost(
     # integrate over nodes, channels, and time
     if weights["w_p"] != 0.0:
         for n in range(x.shape[0]):
-            for v in range(x.shape[1]):
-                for t in range(interval[0], interval[1]):
-                    cost += cost_timeseries[n, v, t] * dt
+            for t in range(interval[0], interval[1]):
+                cost += cost_timeseries[n, t] * dt
 
     if weights["w_f_osc"] != 0.0:
         fc = fourier_cost_osc(x, dt, target_period, cost_matrix, interval)
         for n in range(x.shape[0]):
-            for v in range(x.shape[1]):
-                cost += weights["w_f_osc"] * fc[n, v]
+            cost += weights["w_f_osc"] * fc[n]
 
     if weights["w_f_sync"] != 0.0:
         fc = weights["w_f_sync"] * fourier_cost_sync(x, dt, target_period, cost_matrix, interval)
-        for v in range(x.shape[1]):
-            cost += fc[v]
+        cost += fc
 
     if weights["w_var"] != 0.0:
         fvar = weights["w_var"] * var_cost(x, cost_matrix, interval, dt)
-        for v in range(x.shape[1]):
-            for t in range(interval[0], interval[1]):
-                cost += fvar[v, t] * dt
+        for t in range(interval[0], interval[1]):
+            cost += fvar[t] * dt
 
     if weights["w_cc"] != 0.0:
         fcc = weights["w_cc"] * cc_cost(x, cost_matrix, interval, dt)
-        for v in range(x.shape[1]):
-            for t in range(interval[0], interval[1]):
-                cost += fcc[v, t] * dt
+        for t in range(interval[0], interval[1]):
+            cost += fcc[t] * dt
 
     return cost
 
@@ -104,7 +99,7 @@ def derivative_accuracy_cost(
     :rtype:                 ndarray
     """
 
-    der = np.zeros((cost_matrix.shape[0], cost_matrix.shape[1], x.shape[2]))
+    der = np.zeros((cost_matrix.shape[0], x.shape[1]))
 
     if weights["w_p"] != 0.0:
         der += weights["w_p"] * derivative_precision_cost(x, target_timeseries, cost_matrix, interval)
@@ -149,10 +144,9 @@ def precision_cost(
 
     # integrate over nodes, channels, and time
     for n in range(x_target.shape[0]):
-        for v in range(x_target.shape[1]):
-            if cost_matrix[n, v] != 0:
-                for t in range(interval[0], interval[1]):
-                    cost[n, v, t] = 0.5 * cost_matrix[n, v] * (x_target[n, v, t] - x_sim[n, v, t]) ** 2
+        if cost_matrix[n] != 0:
+            for t in range(interval[0], interval[1]):
+                cost[n, t] = 0.5 * cost_matrix[n] * (x_target[n, t] - x_sim[n, t]) ** 2
 
     return cost
 
@@ -185,9 +179,8 @@ def derivative_precision_cost(
 
     # integrate over nodes, variables, and time
     for n in range(x_target.shape[0]):
-        for v in range(x_target.shape[1]):
-            for t in range(interval[0], interval[1]):
-                derivative[n, v, t] = -cost_matrix[n, v] * (x_target[n, v, t] - x_sim[n, v, t])
+        for t in range(interval[0], interval[1]):
+            derivative[n, t] = -cost_matrix[n] * (x_target[n, t] - x_sim[n, t])
 
     return derivative
 
@@ -216,16 +209,15 @@ def fourier_cost_osc(
     cost_matrix,
     interval,
 ):
-    cost = np.zeros((cost_matrix.shape[0], cost_matrix.shape[1]))
-    T = len(data[0, 0, interval[0] : interval[1]])
+    cost = np.zeros((cost_matrix.shape[0]))
+    T = len(data[0, interval[0] : interval[1]])
 
     for n in range(data.shape[0]):
-        for v in range(data.shape[1]):
-            if cost_matrix[n, v] == 0.0:
-                continue
+        if cost_matrix[n] == 0.0:
+            continue
 
-            fc = compute_fourier_component(data[n, v, interval[0] : interval[1]], target_period, dt, T)
-            cost[n, v] -= fc**2 / ((T * dt) ** 2 * data.shape[0])
+        fc = compute_fourier_component(data[n, interval[0] : interval[1]], target_period, dt, T)
+        cost[n] -= fc**2 / ((T * dt) ** 2 * data.shape[0])
 
     return cost
 
@@ -239,18 +231,17 @@ def derivative_fourier_cost_osc(
     interval,
 ):
     derivative = np.zeros((data.shape))
-    T = len(data[0, 0, interval[0] : interval[1]])
+    T = len(data[0, interval[0] : interval[1]])
     omega = -2.0 * np.pi * dt / target_period
 
     for n in range(data.shape[0]):
-        for v in range(data.shape[1]):
-            if cost_matrix[n, v] == 0.0:
-                continue
+        if cost_matrix[n] == 0.0:
+            continue
 
-            for t in range(interval[0], interval[1]):
-                for t1 in range(interval[0], interval[1]):
-                    derivative[n, v, t] += data[n, v, t1] * np.cos(omega * (t1 - t)) * dt
-                derivative[n, v, t] *= -2.0 / ((T * dt) ** 2 * data.shape[0])
+        for t in range(interval[0], interval[1]):
+            for t1 in range(interval[0], interval[1]):
+                derivative[n, t] += data[n, t1] * np.cos(omega * (t1 - t)) * dt
+            derivative[n, t] *= -2.0 / ((T * dt) ** 2 * data.shape[0])
 
     return derivative
 
@@ -263,18 +254,17 @@ def fourier_cost_sync(
     cost_matrix,
     interval,
 ):
-    cost = np.zeros((cost_matrix.shape[1]))
-    T = len(data[0, 0, interval[0] : interval[1]])
+    cost = 0.0
+    T = len(data[0, interval[0] : interval[1]])
 
-    for v in range(cost_matrix.shape[1]):
-        data_nodesum = np.zeros((data.shape[2]))
+    data_nodesum = np.zeros((data.shape[1]))
 
-        for n in range(data.shape[0]):
-            if cost_matrix[n, v] != 0.0:
-                data_nodesum += data[n, v, :]
+    for n in range(data.shape[0]):
+        if cost_matrix[n] != 0.0:
+            data_nodesum += data[n, :]
 
-        fc = compute_fourier_component(data_nodesum[interval[0] : interval[1]], target_period, dt, T)
-        cost[v] -= fc**2 / ((T * dt) ** 2 * data.shape[0] ** 2)
+    fc = compute_fourier_component(data_nodesum[interval[0] : interval[1]], target_period, dt, T)
+    cost -= fc**2 / ((T * dt) ** 2 * data.shape[0] ** 2)
 
     return cost
 
@@ -288,24 +278,23 @@ def derivative_fourier_cost_sync(
     interval,
 ):
     derivative = np.zeros((data.shape))
-    T = len(data[0, 0, interval[0] : interval[1]])
+    T = len(data[0, interval[0] : interval[1]])
 
     omega = -2.0 * np.pi * dt / target_period
 
-    for v in range(cost_matrix.shape[1]):
-        data_nodesum = np.zeros((data.shape[2]))
+    data_nodesum = np.zeros((data.shape[1]))
 
-        for n in range(data.shape[0]):
-            if cost_matrix[n, v] == 0.0:
-                continue
-            data_nodesum += data[n, v, :]
+    for n in range(data.shape[0]):
+        if cost_matrix[n] == 0.0:
+            continue
+        data_nodesum += data[n, :]
 
-        for n in range(data.shape[0]):
-            for t in range(interval[0], interval[1]):
-                for t1 in range(interval[0], interval[1]):
-                    derivative[n, v, t] += data_nodesum[t1] * np.cos(omega * (t1 - t)) * dt
+    for n in range(data.shape[0]):
+        for t in range(interval[0], interval[1]):
+            for t1 in range(interval[0], interval[1]):
+                derivative[n, t] += data_nodesum[t1] * np.cos(omega * (t1 - t)) * dt
 
-                derivative[n, v, t] *= -2.0 / ((T * dt) ** 2 * data.shape[0] ** 2)
+            derivative[n, t] *= -2.0 / ((T * dt) ** 2 * data.shape[0] ** 2)
 
     return derivative
 
@@ -315,12 +304,11 @@ def getmean_vt(
     x,
     interval,
 ):
-    xmean = np.zeros((x.shape[1], x.shape[2]))
-    for v in range(x.shape[1]):
-        for t in range(interval[0], interval[1]):
-            for n in range(x.shape[0]):
-                xmean[v, t] += x[n, v, t]
-            xmean[v, t] /= x.shape[0]
+    xmean = np.zeros((x.shape[1]))
+    for t in range(interval[0], interval[1]):
+        for n in range(x.shape[0]):
+            xmean[t] += x[n, t]
+        xmean[t] /= x.shape[0]
     return xmean
 
 
@@ -331,15 +319,14 @@ def var_cost(
     interval,
     dt,
 ):
-    cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
+    cost = np.zeros((x_sim.shape[1]))
     xmean = getmean_vt(x_sim, interval)
 
-    for v in range(x_sim.shape[1]):
-        for t in range(interval[0], interval[1]):
-            for n in range(x_sim.shape[0]):
-                if cost_matrix[n, v] == 0.0:
-                    continue
-                cost[v, t] += (x_sim[n, v, t] - xmean[v, t]) ** 2
+    for t in range(interval[0], interval[1]):
+        for n in range(x_sim.shape[0]):
+            if cost_matrix[n] == 0.0:
+                continue
+            cost[t] += (x_sim[n, t] - xmean[t]) ** 2
 
     cost /= x_sim.shape[0] * (interval[1] - interval[0]) * dt
 
@@ -356,12 +343,11 @@ def derivative_var_cost(
     derivative = np.zeros(x_sim.shape)
     xmean = getmean_vt(x_sim, interval)
 
-    for v in range(x_sim.shape[1]):
-        for t in range(interval[0], interval[1]):
+    for t in range(interval[0], interval[1]):
 
-            for n in range(x_sim.shape[0]):
-                if cost_matrix[n, v] != 0.0:
-                    derivative[n, v, t] = +2.0 * (x_sim[n, v, t] - xmean[v, t])
+        for n in range(x_sim.shape[0]):
+            if cost_matrix[n] != 0.0:
+                derivative[n, t] = +2.0 * (x_sim[n, t] - xmean[t])
 
     derivative /= x_sim.shape[0] * (interval[1] - interval[0]) * dt
 
@@ -373,16 +359,15 @@ def getmean_nv(
     x,
     cost_matrix,
 ):
-    xmean = np.zeros((x.shape[0], x.shape[1]))
+    xmean = np.zeros((x.shape[0]))
     for n in range(x.shape[0]):
-        for v in range(x.shape[1]):
-            if cost_matrix[n, v] == 0.0:
-                continue
+        if cost_matrix[n] == 0.0:
+            continue
 
-            for t in range(x.shape[2]):
-                xmean[n, v] += x[n, v, t]
+        for t in range(x.shape[1]):
+            xmean[n] += x[n, t]
 
-    xmean /= x.shape[2]
+    xmean /= x.shape[1]
 
     return xmean
 
@@ -393,19 +378,18 @@ def getstd_nv(
     xmean,
     cost_matrix,
 ):
-    xstd = np.zeros((x.shape[0], x.shape[1]))
+    xstd = np.zeros((x.shape[0]))
     for n in range(x.shape[0]):
-        for v in range(x.shape[1]):
-            if cost_matrix[n, v] == 0.0:
-                continue
+        if cost_matrix[n] == 0.0:
+            continue
 
-            for t in range(x.shape[2]):
-                xstd[n, v] += (x[n, v, t] - xmean[n, v]) ** 2
+        for t in range(x.shape[1]):
+            xstd[n] += (x[n, t] - xmean[n]) ** 2
 
-            if xstd[n, v] == 0.0:
-                xstd[n, v] = 1e-6
+        if xstd[n] == 0.0:
+            xstd[n] = 1e-6
 
-    xstd /= x.shape[2]
+    xstd /= x.shape[1]
 
     return np.sqrt(xstd)
 
@@ -417,22 +401,19 @@ def cc_cost(
     interval,
     dt,
 ):
-    cost = np.zeros((x_sim.shape[1], x_sim.shape[2]))
+    cost = np.zeros((x_sim.shape[1]))
 
-    xmean = getmean_nv(x_sim[:, :, interval[0] : interval[1]], cost_matrix)
-    xstd = getstd_nv(x_sim[:, :, interval[0] : interval[1]], xmean, cost_matrix)
+    xmean = getmean_nv(x_sim[:, interval[0] : interval[1]], cost_matrix)
+    xstd = getstd_nv(x_sim[:, interval[0] : interval[1]], xmean, cost_matrix)
 
-    for v in range(x_sim.shape[1]):
-        for n in range(x_sim.shape[0]):
-            if cost_matrix[n, v] == 0.0:
+    for n in range(x_sim.shape[0]):
+        if cost_matrix[n] == 0.0:
+            continue
+        for k in range(n + 1, x_sim.shape[0]):
+            if cost_matrix[k] == 0.0:
                 continue
-            for k in range(n + 1, x_sim.shape[0]):
-                if cost_matrix[k, v] == 0.0:
-                    continue
-                for t in range(interval[0], interval[1]):
-                    cost[v, t] -= (
-                        (x_sim[n, v, t] - xmean[n, v]) * (x_sim[k, v, t] - xmean[k, v]) / (xstd[k, v] * xstd[n, v])
-                    )
+            for t in range(interval[0], interval[1]):
+                cost[t] -= (x_sim[n, t] - xmean[n]) * (x_sim[k, t] - xmean[k]) / (xstd[k] * xstd[n])
 
     cost *= 2.0 / (x_sim.shape[0] * (x_sim.shape[0] - 1) * (interval[1] - interval[0]) * dt)
 
@@ -445,18 +426,17 @@ def get_mn_int(
     xmean,
     cost_matrix,
 ):
-    mnint = np.zeros((x.shape[0], x.shape[0], x.shape[1]))
+    mnint = np.zeros((x.shape[0], x.shape[0]))
 
-    for v in range(x.shape[1]):
-        for n in range(x.shape[0]):
-            if cost_matrix[n, v] == 0.0:
+    for n in range(x.shape[0]):
+        if cost_matrix[n] == 0.0:
+            continue
+        for k in range(x.shape[0]):
+            if cost_matrix[k] == 0.0:
                 continue
-            for k in range(x.shape[0]):
-                if cost_matrix[k, v] == 0.0:
-                    continue
 
-                for t in range(x.shape[2]):
-                    mnint[n, k, v] += (x[n, v, t] - xmean[n, v]) * (x[k, v, t] - xmean[k, v])
+            for t in range(x.shape[1]):
+                mnint[n, k] += (x[n, t] - xmean[n]) * (x[k, t] - xmean[k])
 
     return mnint
 
@@ -470,26 +450,25 @@ def derivative_cc_cost(
 ):
     derivative = np.zeros(x_sim.shape)
 
-    xmean = getmean_nv(x_sim[:, :, interval[0] : interval[1]], cost_matrix)
-    xstd = getstd_nv(x_sim[:, :, interval[0] : interval[1]], xmean, cost_matrix)
+    xmean = getmean_nv(x_sim[:, interval[0] : interval[1]], cost_matrix)
+    xstd = getstd_nv(x_sim[:, interval[0] : interval[1]], xmean, cost_matrix)
 
     T = interval[1] - interval[0]
     mnint = get_mn_int(x_sim, xmean, cost_matrix)
 
-    for v in range(x_sim.shape[1]):
-        for n in range(x_sim.shape[0]):
-            if cost_matrix[n, v] == 0.0:
+    for n in range(x_sim.shape[0]):
+        if cost_matrix[n] == 0.0:
+            continue
+        for k in range(x_sim.shape[0]):
+            if cost_matrix[k] == 0.0:
                 continue
-            for k in range(x_sim.shape[0]):
-                if cost_matrix[k, v] == 0.0:
-                    continue
-                if k == n:
-                    continue
+            if k == n:
+                continue
 
-                for t in range(interval[0], interval[1]):
-                    sumand1 = -(x_sim[n, v, t] - xmean[n, v]) * mnint[n, k, v] / (T * xstd[n, v] ** 3 * xstd[k, v])
-                    sumand2 = (x_sim[k, v, t] - xmean[k, v]) / (xstd[n, v] * xstd[k, v])
-                    derivative[n, v, t] -= sumand1 + sumand2
+            for t in range(interval[0], interval[1]):
+                sumand1 = -(x_sim[n, t] - xmean[n]) * mnint[n, k] / (T * xstd[n] ** 3 * xstd[k])
+                sumand2 = (x_sim[k, t] - xmean[k]) / (xstd[n] * xstd[k])
+                derivative[n, t] -= sumand1 + sumand2
 
     derivative *= 2.0 / (x_sim.shape[0] * (x_sim.shape[0] - 1) * (interval[1] - interval[0]) * dt)
     return derivative
@@ -524,9 +503,8 @@ def control_strength_cost(
     # integrate over nodes, channels, and time
     if weights["w_2"] != 0.0:
         for n in range(u.shape[0]):
-            for v in range(u.shape[1]):
-                for t in range(u.shape[2]):
-                    cost += cost_timeseries[n, v, t] * dt
+            for t in range(u.shape[1]):
+                cost += cost_timeseries[n, t] * dt
 
     if weights["w_1D"] != 0.0:
         cost += weights["w_1D"] * L1D_cost_integral(u, dt)
@@ -608,7 +586,7 @@ def L1D_cost_integral(
     :rtype:     float
     """
 
-    return np.sum(np.sum(np.sqrt(np.sum(u**2, axis=2) * dt), axis=1), axis=0)
+    return np.sum(np.sqrt(np.sum(u**2, axis=1) * dt), axis=0)
 
 
 @numba.njit
@@ -625,11 +603,10 @@ def derivative_L1D_cost(
     :rtype:     np.ndarray
     """
 
-    denominator = np.sqrt(np.sum(u**2, axis=2) * dt)
+    denominator = np.sqrt(np.sum(u**2, axis=1) * dt)
     der = np.zeros((u.shape))
     for n in range(der.shape[0]):
-        for v in range(der.shape[1]):
-            if denominator[n, v] != 0.0:
-                der[n, v, :] = u[n, v, :] / denominator[n, v]
+        if denominator[n] != 0.0:
+            der[n, :] = u[n, :] / denominator[n]
 
     return der
