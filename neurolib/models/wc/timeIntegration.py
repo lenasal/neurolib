@@ -309,7 +309,6 @@ def jacobian_wc(
     e,
     i,
     ue,
-    ui,
     V,
     sv,
 ):
@@ -364,7 +363,7 @@ def jacobian_wc(
     jacobian[sv["exc"], sv["inh"]] = (
         -((1.0 - factor * e) * (-c_inhexc) * logistic_der(input_exc, a_exc, mu_exc)) / tau_exc
     )
-    input_inh = c_excinh * e - c_inhinh * i + inh_ext_baseline + ui
+    input_inh = c_excinh * e - c_inhinh * i + inh_ext_baseline
     jacobian[sv["inh"], sv["exc"]] = -((1.0 - factor * i) * c_excinh * logistic_der(input_inh, a_inh, mu_inh)) / tau_inh
     jacobian[sv["inh"], sv["inh"]] = (
         -(
@@ -426,15 +425,13 @@ def compute_hx(
         for t in range(T):
             e = dyn_vars[n, sv["exc"], t]
             i = dyn_vars[n, sv["inh"], t]
-            ue = control[n, sv["exc"], t]
-            ui = control[n, sv["inh"], t]
+            ue = control[n, t]
             hx[n, t, :, :] = jacobian_wc(
                 wc_model_params,
                 nw_e[n, t],
                 e,
                 i,
                 ue,
-                ui,
                 V,
                 sv,
             )
@@ -546,18 +543,14 @@ def compute_hx_nw(
 def Duh(
     model_params,
     N,
-    V_in,
-    V_vars,
     T,
     ue,
-    ui,
     e,
     i,
     K_gl,
     cmat,
     dmat_ndt,
     exc_values,
-    sv,
 ):
     """Jacobian of systems dynamics wrt. external inputs (control signals).
 
@@ -613,17 +606,11 @@ def Duh(
 
     nw_e = compute_nw_input(N, T, K_gl, cmat, dmat_ndt, exc_values)
 
-    duh = np.zeros((N, V_vars, V_in, T))
+    duh = np.zeros((N, T))
     for t in range(T):
         for n in range(N):
             input_exc = c_excexc * e[n, t] - c_inhexc * i[n, t] + nw_e[n, t] + exc_ext_baseline + ue[n, t]
-            duh[n, sv["exc"], sv["exc"], t] = (
-                -(1.0 - factor * e[n, t]) * logistic_der(input_exc, a_exc, mu_exc) / tau_exc
-            )
-            input_inh = c_excinh * e[n, t] - c_inhinh * i[n, t] + inh_ext_baseline + ui[n, t]
-            duh[n, sv["inh"], sv["inh"], t] = (
-                -(1.0 - factor * i[n, t]) * logistic_der(input_inh, a_inh, mu_inh) / tau_inh
-            )
+            duh[n, t] = -(1.0 - factor * e[n, t]) * logistic_der(input_exc, a_exc, mu_exc) / tau_exc
     return duh
 
 
