@@ -311,6 +311,7 @@ def timeIntegration(params):
         noise_inh,
     )
 
+
 def timeIntegration_args(params):
     """Sets up the parameters for time integration
 
@@ -619,7 +620,6 @@ def timeIntegration_args(params):
     )
 
 
-
 @numba.njit(locals={"idxX": numba.int64, "idxY": numba.int64, "idx1": numba.int64, "idy1": numba.int64})
 def timeIntegration_njit_elementwise(
     dt,
@@ -762,11 +762,7 @@ def timeIntegration_njit_elementwise(
             )  # first test of external rate input to inh. population
             z1ii = cii * Ki * rd_inh[no]
             # z2: weighted sum of delayed rates, weights=c^2*K (see thesis last ch.)
-            z2ee = (
-                cee**2 * Ke * rd_exc[no, no]
-                + c_gl**2 * Ke_gl * rowsumsq
-                + c_gl**2 * Ke_gl * ext_exc_rate[no, i - 1]
-            )
+            z2ee = cee**2 * Ke * rd_exc[no, no] + c_gl**2 * Ke_gl * rowsumsq + c_gl**2 * Ke_gl * ext_exc_rate[no, i - 1]
             z2ei = cei**2 * Ki * rd_inh[no]
             z2ie = (
                 cie**2 * Ke * rd_exc[no, no] + c_gl**2 * Ke_gl * ext_inh_rate[no, i - 1]
@@ -2057,9 +2053,7 @@ def jacobian_nw(
 
     factor_r_nw = c_gl * Ke_gl * 1e-3 * cmat_entry
     factor_r_nw_sq = c_gl**2 * Ke_gl * 1e-3 * cmat_entry**2
-    dsigmaef_dre = (
-        -0.5 * (sigmae_f**-1.0) * sig_ee_factor * fullstate[sv["seev"]] * taum * factor_r_nw / sig_ee_den**2
-    )
+    dsigmaef_dre = -0.5 * (sigmae_f**-1.0) * sig_ee_factor * fullstate[sv["seev"]] * taum * factor_r_nw / sig_ee_den**2
 
     jac_nw[sv["rates_exc"], sv["rates_exc"]] = -((re1s - re0) / (ds)) * dsigmaef_dre
 
