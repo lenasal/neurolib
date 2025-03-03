@@ -892,7 +892,7 @@ class OC:
 
         minind = [-1, -1]
         mincost = costall
-        mincost = 1e8
+        # mincost = 1e6
 
         steps = np.zeros((self.N, self.dim_in))
         costs = steps.copy()
@@ -1207,7 +1207,7 @@ class OC:
             m += 1
         return cost_validation / M
 
-    def find_M(self, sigma, limit=1e-3):
+    def find_M(self, sigma, limit=1e-2):
         """Find a number for M for averaging in noisy systems. This methods helps to assure that results are comparable when varying parameters.
 
         :param sigma:               noise strength value (sigma)
