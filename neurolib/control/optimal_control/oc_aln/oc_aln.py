@@ -326,7 +326,7 @@ class OcAln(OC):
             self.model.params.duration = 2.0 * self.dt
             for iv_ind, iv in enumerate(self.model.input_vars):
                 if t <= T - 2:
-                    self.model.params[iv] = control[:, iv_ind, t : t + 2]
+                    self.model.params[z] = control[:, iv_ind, t : t + 2]
                 elif t == T - 1:
                     self.model.params[iv] = np.concatenate((control[:, iv_ind, t:], np.zeros((N, 1))), axis=1)
                 else:
